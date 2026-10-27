@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Sidebar } from "@/components/Sidebar";
 import { folderTree, loadIndex } from "@/lib/drive";
 import { requireUser } from "@/lib/session";
@@ -18,6 +19,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             새로고침
           </button>
         </form>
+        {user.role === "owner" && (
+          <Link className="btn" href="/settings">
+            설정
+          </Link>
+        )}
         <span className="user small" title={user.email}>
           {user.name ?? user.email}
           <span className={`badge ${user.role}`}>{user.role === "owner" ? "소유자" : "게스트"}</span>

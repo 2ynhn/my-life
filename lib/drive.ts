@@ -343,8 +343,12 @@ async function buildIndex(): Promise<DriveIndex> {
     const lists = await Promise.all(level.map((f) => source.list(f.id)));
     const next: FolderEntry[] = [];
     level.forEach((folder, i) => {
-      // 비공개는 하위로 상속된다 (부모는 이미 앞 단계에서 확정됨)
-      folder.private = (folder.parent?.private ?? false) || lists[i].some(isPrivateMarker);
+      // 비공개는 하위로 상속된다 (부모는 이미 앞 단계에서 확정됨).
+      // _로 시작하는 폴더(_settings, _templates)는 앱 내부용이라 항상 소유자 전용
+      folder.private =
+        (folder.parent?.private ?? false) ||
+        (folder.parent !== null && folder.name.startsWith("_")) ||
+        lists[i].some(isPrivateMarker);
       for (const item of lists[i]) {
         if (isHidden(item.name)) continue;
         const base = {
@@ -594,6 +598,50 @@ export async function uploadFile(index: DriveIndex, folder: FolderEntry, name: s
   return id;
 }
 
+// ───────────── 앱 설정 파일 (_settings) ─────────────
+
+const SETTINGS_FOLDER = "_settings";
+
+function settingsFolder(index: DriveIndex): FolderEntry | undefined {
+  return index.root.children.find((c): c is FolderEntry => c.kind === "folder" && c.name === SETTINGS_FOLDER);
+}
+
+/** _settings/<name> 을 읽는다. 캐시를 거치지 않고 매번 Drive에서 (없으면 null) */
+export async function readSettingsFile(name: string): Promise<{ text: string; checksum: string } | null> {
+  const index = await getIndex();
+  const file = settingsFolder(index)?.children.find((c): c is FileEntry => c.kind === "file" && c.name === name);
+  return file ? readNote(file) : null;
+}
+
+/** _settings/<name> 을 쓴다. 폴더·파일이 없으면 만든다 */
+export async function writeSettingsFile(name: string, text: string, mimeType = "application/json"): Promise<void> {
+  // 다른 인스턴스가 방금 만들었을 수도 있으니 최신 목록으로 확인
+  const index = await getIndex({ fresh: true });
+  let folder = settingsFolder(index);
+  if (!folder) {
+    const id = await getSource().createFolder(index.root.id, SETTINGS_FOLDER);
+    folder = { ...index.root, id, name: SETTINGS_FOLDER, parent: index.root, children: [], private: true };
+  }
+  const file = folder.children.find((c): c is FileEntry => c.kind === "file" && c.name === name);
+  if (file) await getSource().update(file.id, text);
+  else await getSource().create(folder.id, name, text, mimeType);
+  invalidateIndex();
+}
+
+/** 비공개가 시작되는 폴더 목록 (설정 화면 안내용, 앱 내부 _폴더 제외) */
+export function privateFolders(index: DriveIndex): FolderEntry[] {
+  const out: FolderEntry[] = [];
+  const walk = (f: FolderEntry) => {
+    for (const c of f.children) {
+      if (c.kind !== "folder" || c.name.startsWith("_") || c.name.toLowerCase() === "attachments") continue;
+      if (c.private && !f.private) out.push(c);
+      else if (!c.private) walk(c);
+    }
+  };
+  walk(index.root);
+  return out;
+}
+
 // ───────────── 템플릿 ─────────────
 
 const TEMPLATE_FOLDER = "_templates";
@@ -635,9 +683,9 @@ export function hrefFor(entry: Entry): string {
   return "/" + entry.slugPath.map(encodeURIComponent).join("/");
 }
 
-/** attachments(이미지 보관), _templates 폴더는 목록에서 숨긴다 */
+/** attachments(이미지 보관)와 _로 시작하는 앱 내부 폴더(_templates, _settings)는 목록에서 숨긴다 */
 export function isListable(entry: Entry): boolean {
-  if (entry.kind === "folder") return entry.name.toLowerCase() !== "attachments" && entry.name !== TEMPLATE_FOLDER;
+  if (entry.kind === "folder") return entry.name.toLowerCase() !== "attachments" && !entry.name.startsWith("_");
   return entry.isMarkdown;
 }
 

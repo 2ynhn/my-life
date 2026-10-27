@@ -1,6 +1,6 @@
 export type Role = "owner" | "guest";
 
-function emailList(value: string | undefined): string[] {
+export function emailList(value: string | undefined): string[] {
   return (value ?? "")
     .split(",")
     .map((s) => s.trim().toLowerCase())
