@@ -152,6 +152,7 @@ async function EditNote({ entry, index }: { entry: FileEntry; index: DriveIndex 
       checksum={note.checksum}
       initialText={note.text}
       closeHref={hrefFor(entry)}
+      uploadFolderId={entry.parent!.id}
       links={linkTable(index, entry.parent!)}
     />
   );
@@ -187,6 +188,8 @@ async function NewNote({ folder, index, subfolder }: { folder: FolderEntry; inde
       defaultName={subfolder ? date : freeName(folder, date)}
       initialText={template.replaceAll("{{date}}", date).replaceAll("{{title}}", "")}
       closeHref={hrefFor(folder)}
+      // 연도 폴더가 아직 없으면 부모(daily) 기준 → daily/attachments 에 저장되고, 새 폴더에서도 그대로 찾아진다
+      uploadFolderId={folder.id}
       links={linkTable(index, folder)}
     />
   );

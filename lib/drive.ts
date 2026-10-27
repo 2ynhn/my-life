@@ -31,7 +31,7 @@ interface Source {
   /** 내용 교체 후 새 md5 반환 */
   update(fileId: string, text: string): Promise<string>;
   /** 새 파일 id 반환 */
-  create(parentId: string, name: string, text: string): Promise<string>;
+  create(parentId: string, name: string, content: string | Uint8Array, mimeType: string): Promise<string>;
   createFolder(parentId: string, name: string): Promise<string>;
   /** 바뀐 id 반환 (Drive는 그대로, 로컬은 경로가 바뀜) */
   rename(fileId: string, name: string): Promise<string>;
@@ -148,12 +148,17 @@ const googleSource = (rootId: string): Source => ({
     );
     return ((await res.json()) as { md5Checksum: string }).md5Checksum;
   },
-  async create(parentId, name, text) {
+  async create(parentId, name, content, mimeType) {
     const boundary = `my-life-${crypto.randomUUID()}`;
-    const meta = JSON.stringify({ name, parents: [parentId], mimeType: "text/markdown" });
-    const body =
+    const meta = JSON.stringify({ name, parents: [parentId], mimeType });
+    const contentType = mimeType === "text/markdown" ? MD_MIME : mimeType;
+    // 이미지 같은 바이너리도 그대로 넣을 수 있게 Blob으로 이어 붙인다
+    const body = new Blob([
       `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n` +
-      `--${boundary}\r\nContent-Type: ${MD_MIME}\r\n\r\n${text}\r\n--${boundary}--`;
+        `--${boundary}\r\nContent-Type: ${contentType}\r\n\r\n`,
+      content as BlobPart,
+      `\r\n--${boundary}--`,
+    ]);
     const res = await driveFetch(`${UPLOAD_API}/files?uploadType=multipart&fields=id`, {
       method: "POST",
       headers: { "Content-Type": `multipart/related; boundary=${boundary}` },
@@ -243,9 +248,9 @@ const localSource = (dir: string): Source => {
       await writeFile(resolve(fileId), text);
       return md5(Buffer.from(text));
     },
-    async create(parentId, name, text) {
+    async create(parentId, name, content) {
       const id = path.posix.join(parentId, name);
-      await writeFile(resolve(id), text, { flag: "wx" });
+      await writeFile(resolve(id), content, { flag: "wx" });
       return id;
     },
     async createFolder(parentId, name) {
@@ -512,7 +517,8 @@ export async function readNote(file: FileEntry): Promise<{ text: string; checksu
 
 export const fileChecksum = (file: FileEntry) => getSource().checksum(file.id);
 export const updateFile = (file: FileEntry, text: string) => getSource().update(file.id, text);
-export const createFile = (folder: FolderEntry, name: string, text: string) => getSource().create(folder.id, name, text);
+export const createFile = (folder: FolderEntry, name: string, text: string) =>
+  getSource().create(folder.id, name, text, "text/markdown");
 export const createFolder = (parent: FolderEntry, name: string) => getSource().createFolder(parent.id, name);
 export const renameFile = (file: FileEntry, name: string) => getSource().rename(file.id, name);
 export const trashFile = (file: FileEntry) => getSource().trash(file.id);
@@ -526,6 +532,66 @@ export function checkNoteName(raw: string, folder: FolderEntry, self?: FileEntry
   const name = `${base}.md`;
   const taken = folder.children.some((c) => c !== self && c.name.toLowerCase() === name.toLowerCase());
   return taken ? { error: `이 폴더에 '${name}' 파일이 이미 있습니다.` } : { name };
+}
+
+// ───────────── 첨부 업로드 ─────────────
+
+const ATTACHMENTS = "attachments";
+
+/**
+ * 노트 폴더에서 올라가며 가장 가까운 attachments 폴더를 찾는다 (findAttachment가 찾는 순서와 같음).
+ * 없으면 최상위 분류 폴더(예: daily) 아래에 만든다.
+ */
+export async function attachmentFolderFor(index: DriveIndex, folder: FolderEntry): Promise<FolderEntry> {
+  const find = (f: FolderEntry) =>
+    f.children.find((c): c is FolderEntry => c.kind === "folder" && c.name.toLowerCase() === ATTACHMENTS);
+  for (let f: FolderEntry | null = folder; f; f = f.parent) {
+    if (f.name.toLowerCase() === ATTACHMENTS) return f;
+    const found = find(f);
+    if (found) return found;
+  }
+  let top = folder;
+  while (top.parent && top.parent !== index.root) top = top.parent;
+  const id = await getSource().createFolder(top.id, ATTACHMENTS);
+  return { ...top, id, name: ATTACHMENTS, parent: top, children: [], slug: ATTACHMENTS, slugPath: [...top.slugPath, ATTACHMENTS] };
+}
+
+/** 폴더 안에서 겹치지 않는 이름: "이름.jpg" → "이름-2.jpg" … */
+export function uniqueName(folder: FolderEntry, base: string, ext: string): string {
+  const taken = new Set(folder.children.map((c) => c.name.toLowerCase()));
+  for (let i = 1; ; i++) {
+    const name = `${i === 1 ? base : `${base}-${i}`}${ext}`;
+    if (!taken.has(name.toLowerCase())) return name;
+  }
+}
+
+/**
+ * 업로드 후 캐시된 인덱스에 바로 끼워 넣는다. 사진 여러 장을 연달아 올릴 때마다
+ * Drive 전체를 다시 훑지 않도록. (새로 만든 폴더라 인덱스에 없으면 그냥 무효화)
+ */
+export async function uploadFile(index: DriveIndex, folder: FolderEntry, name: string, bytes: Uint8Array, mimeType: string) {
+  const id = await getSource().create(folder.id, name, bytes, mimeType);
+  const cachedFolder = index.byId.get(folder.id);
+  if (cached === index && cachedFolder?.kind === "folder") {
+    const entry: FileEntry = {
+      kind: "file",
+      id,
+      name,
+      slug: name,
+      slugPath: [...cachedFolder.slugPath, name],
+      modifiedTime: new Date().toISOString(),
+      parent: cachedFolder,
+      private: cachedFolder.private,
+      mimeType,
+      size: bytes.length,
+      isMarkdown: false,
+    };
+    cachedFolder.children.push(entry);
+    index.byId.set(id, entry);
+  } else {
+    invalidateIndex();
+  }
+  return id;
 }
 
 // ───────────── 템플릿 ─────────────

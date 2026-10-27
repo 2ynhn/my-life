@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { createNote, saveNote } from "@/app/(app)/note-actions";
 import { NoteBody } from "@/components/NoteBody";
+import { imageFiles, uploadImage } from "@/lib/image-upload";
 import { tableResolver, type LinkTable } from "@/lib/markdown";
 
 type Props = {
@@ -18,6 +19,8 @@ type Props = {
   initialText: string;
   /** 취소·닫기 시 돌아갈 주소 */
   closeHref: string;
+  /** 사진을 올릴 때 기준이 되는 노트 폴더 (가장 가까운 attachments 폴더에 저장) */
+  uploadFolderId: string;
 } & (
   | { mode: "edit"; fileId: string; fileName: string; checksum: string }
   | { mode: "new"; folderId: string; folderName: string; defaultName: string; subfolder?: string }
@@ -72,6 +75,8 @@ export function Editor(props: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const saveRef = useRef<() => void>(() => {});
+  const uploadRef = useRef<(files: File[]) => void>(() => {});
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const draftKey = props.mode === "edit" ? `my-life:draft:${props.fileId}` : `my-life:draft:new:${props.folderId}`;
 
@@ -84,10 +89,16 @@ export function Editor(props: Props) {
   const [conflict, setConflict] = useState<{ text: string; checksum: string } | null>(null);
   const [pendingDraft, setPendingDraft] = useState<Draft | null>(null);
   const [tab, setTab] = useState<"write" | "preview">("write");
+  const [uploading, setUploading] = useState<string | null>(null);
+  // 이번에 올린 사진: 미리보기에서 바로 보이도록 링크 표에 더한다
+  const [uploaded, setUploaded] = useState<Record<string, string>>({});
 
   const dirty = props.mode === "new" ? text.trim() !== "" && text !== props.initialText : text !== savedText;
   const previewText = useDeferredValue(text);
-  const resolver = useMemo(() => tableResolver(props.links), [props.links]);
+  const resolver = useMemo(
+    () => tableResolver({ ...props.links, attachments: { ...props.links.attachments, ...uploaded } }),
+    [props.links, uploaded],
+  );
 
   const replaceDoc = useCallback((next: string) => {
     const view = viewRef.current;
@@ -114,6 +125,25 @@ export function Editor(props: Props) {
         editorTheme,
         EditorView.updateListener.of((u) => {
           if (u.docChanged) setText(u.state.doc.toString());
+        }),
+        // 사진 붙여넣기·끌어다 놓기
+        EditorView.domEventHandlers({
+          paste(e) {
+            const files = imageFiles(e.clipboardData?.files);
+            if (!files.length) return false;
+            e.preventDefault();
+            uploadRef.current(files);
+            return true;
+          },
+          drop(e, view) {
+            const files = imageFiles(e.dataTransfer?.files);
+            if (!files.length) return false;
+            e.preventDefault();
+            const pos = view.posAtCoords({ x: e.clientX, y: e.clientY });
+            if (pos !== null) view.dispatch({ selection: { anchor: pos } });
+            uploadRef.current(files);
+            return true;
+          },
         }),
       ],
     });
@@ -200,6 +230,31 @@ export function Editor(props: Props) {
   );
   saveRef.current = () => void save();
 
+  // 한 장씩 차례로 올리고, 올라갈 때마다 커서 자리에 ![[이름]] 을 넣는다
+  uploadRef.current = async (files: File[]) => {
+    if (uploading) return;
+    setMessage(null);
+    try {
+      for (const [i, file] of files.entries()) {
+        setUploading(files.length > 1 ? `사진 올리는 중… (${i + 1}/${files.length})` : "사진 올리는 중…");
+        const { name, url } = await uploadImage(file, props.uploadFolderId);
+        setUploaded((prev) => ({ ...prev, [name.toLowerCase()]: url }));
+        const view = viewRef.current;
+        if (view) {
+          const { from } = view.state.selection.main;
+          const before = from > 0 ? view.state.sliceDoc(from - 1, from) : "\n";
+          const insert = `${before === "\n" ? "" : "\n"}![[${name}]]\n`;
+          view.dispatch(view.state.replaceSelection(insert));
+          view.focus();
+        }
+      }
+    } catch (e) {
+      setMessage({ kind: "error", text: e instanceof Error ? e.message : "사진을 올리지 못했습니다." });
+    } finally {
+      setUploading(null);
+    }
+  };
+
   const close = () => {
     if (dirty && !confirm("저장하지 않은 내용이 있습니다. 닫을까요?\n(브라우저 임시저장에는 남아 있어요)")) return;
     router.push(props.closeHref);
@@ -231,7 +286,28 @@ export function Editor(props: Props) {
             미리보기
           </button>
         </div>
+        <button
+          className="btn"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={!!uploading}
+          title="사진 넣기 (붙여넣기·끌어다 놓기도 됩니다)"
+        >
+          사진
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          hidden
+          onChange={(e) => {
+            const files = imageFiles(e.target.files);
+            e.target.value = "";
+            if (files.length) uploadRef.current(files);
+          }}
+        />
         <span className="spacer" />
+        {uploading && <span className="status small muted">{uploading}</span>}
         {/* 저장 후 다시 고치기 시작하면 '저장됨' 대신 '저장 안 됨' */}
         {message && (message.kind === "error" || !dirty) ? (
           <span className={`status small ${message.kind}`}>{message.text}</span>
@@ -308,7 +384,7 @@ export function Editor(props: Props) {
         </div>
       </div>
       <p className="hint small muted">
-        Ctrl+S 저장 · 입력 내용은 브라우저에 자동 임시저장 · 이미지는 <code>![[파일명.jpg]]</code>
+        Ctrl+S 저장 · 입력 내용은 브라우저에 자동 임시저장 · 사진은 붙여넣기·끌어다 놓기도 됩니다
       </p>
     </div>
   );
