@@ -1,9 +1,15 @@
 import Link from "next/link";
+import { DriveProblem } from "@/components/DriveProblem";
 import { FolderView } from "@/components/FolderView";
-import { getIndex, hrefFor, type FileEntry } from "@/lib/drive";
+import { hrefFor, loadIndex, type FileEntry } from "@/lib/drive";
+import { requireUser } from "@/lib/session";
 
 export default async function HomePage() {
-  const index = await getIndex();
+  // 레이아웃과 페이지는 병렬로 렌더링되므로 페이지에서도 직접 확인한다
+  await requireUser();
+  const { index, problem } = await loadIndex();
+  if (!index) return <DriveProblem message={problem} />;
+
   const recent = [...index.byId.values()]
     .filter((e): e is FileEntry => e.kind === "file" && e.isMarkdown)
     .sort((a, b) => b.modifiedTime.localeCompare(a.modifiedTime))

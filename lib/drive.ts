@@ -28,34 +28,51 @@ interface Source {
 
 let token: { value: string; expiresAt: number } | null = null;
 
+/** 붙여넣다 딸려 온 공백·줄바꿈 제거 */
+const env = (name: string) => process.env[name]?.trim() || undefined;
+
+const TOKEN_HINTS: Record<string, string> = {
+  invalid_grant:
+    "refresh token이 만료·취소되었거나 다른 OAuth 클라이언트로 발급된 토큰입니다. OAuth Playground에서 'Use your own OAuth credentials'를 켜고 다시 발급하세요. (앱이 '테스트' 상태면 7일마다 만료됩니다)",
+  unauthorized_client:
+    "refresh token을 발급한 클라이언트와 AUTH_GOOGLE_ID가 다릅니다. OAuth Playground에서 내 클라이언트 ID/보안 비밀번호로 다시 발급하세요.",
+  invalid_client: "AUTH_GOOGLE_ID 또는 AUTH_GOOGLE_SECRET 값이 잘못되었습니다.",
+};
+
 async function accessToken(): Promise<string> {
   if (token && token.expiresAt > Date.now() + 60_000) return token.value;
 
-  const { AUTH_GOOGLE_ID, AUTH_GOOGLE_SECRET, GOOGLE_DRIVE_REFRESH_TOKEN } = process.env;
-  if (!AUTH_GOOGLE_ID || !AUTH_GOOGLE_SECRET || !GOOGLE_DRIVE_REFRESH_TOKEN) {
-    throw new DriveError(
-      "Drive 연결 정보가 없습니다. AUTH_GOOGLE_ID / AUTH_GOOGLE_SECRET / GOOGLE_DRIVE_REFRESH_TOKEN 환경변수를 확인하세요.",
-    );
-  }
+  const clientId = env("AUTH_GOOGLE_ID");
+  const clientSecret = env("AUTH_GOOGLE_SECRET");
+  const refreshToken = env("GOOGLE_DRIVE_REFRESH_TOKEN");
+  const missing = [
+    !clientId && "AUTH_GOOGLE_ID",
+    !clientSecret && "AUTH_GOOGLE_SECRET",
+    !refreshToken && "GOOGLE_DRIVE_REFRESH_TOKEN",
+  ].filter(Boolean);
+  if (missing.length) throw new DriveError(`환경변수가 비어 있습니다: ${missing.join(", ")}`);
 
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     body: new URLSearchParams({
-      client_id: AUTH_GOOGLE_ID,
-      client_secret: AUTH_GOOGLE_SECRET,
-      refresh_token: GOOGLE_DRIVE_REFRESH_TOKEN,
+      client_id: clientId!,
+      client_secret: clientSecret!,
+      refresh_token: refreshToken!,
       grant_type: "refresh_token",
     }),
     cache: "no-store",
   });
   if (!res.ok) {
-    const body = await res.text();
-    const hint = body.includes("invalid_grant")
-      ? " refresh token이 만료되었거나 취소되었습니다. OAuth Playground에서 다시 발급하세요. (앱이 '테스트' 상태면 7일마다 만료됩니다)"
-      : "";
-    throw new DriveError(`Drive 토큰 갱신 실패 (${res.status}).${hint}`);
+    const { error } = (await res.json().catch(() => ({}))) as { error?: string };
+    const hint = (error && TOKEN_HINTS[error]) ?? "";
+    throw new DriveError(`Drive 토큰 갱신 실패 (${res.status}${error ? `, ${error}` : ""}). ${hint}`.trim());
   }
-  const json = (await res.json()) as { access_token: string; expires_in: number };
+  const json = (await res.json()) as { access_token: string; expires_in: number; scope?: string };
+  if (json.scope && !json.scope.split(" ").includes("https://www.googleapis.com/auth/drive")) {
+    throw new DriveError(
+      "refresh token에 Drive 권한(https://www.googleapis.com/auth/drive)이 없습니다. OAuth Playground에서 이 범위로 다시 발급하세요.",
+    );
+  }
   token = { value: json.access_token, expiresAt: Date.now() + json.expires_in * 1000 };
   return token.value;
 }
@@ -65,8 +82,21 @@ async function driveFetch(url: string): Promise<Response> {
     headers: { Authorization: `Bearer ${await accessToken()}` },
     cache: "no-store",
   });
-  if (!res.ok) throw new DriveError(`Drive API 오류 (${res.status}): ${url.split("?")[0]}`);
-  return res;
+  if (res.ok) return res;
+
+  const body = (await res.json().catch(() => ({}))) as {
+    error?: { message?: string; errors?: { reason?: string }[] };
+  };
+  const reason = body.error?.errors?.[0]?.reason ?? "";
+  const hint =
+    reason === "accessNotConfigured" || /has not been used|is disabled/.test(body.error?.message ?? "")
+      ? "GCP 프로젝트에서 Google Drive API를 '사용'으로 설정하세요."
+      : res.status === 404
+        ? "DRIVE_ROOT_FOLDER_ID가 틀렸거나, refresh token을 발급한 계정이 이 폴더에 접근할 수 없습니다."
+        : reason === "insufficientPermissions"
+          ? "refresh token에 Drive 권한이 부족합니다. drive 범위로 다시 발급하세요."
+          : (body.error?.message ?? "");
+  throw new DriveError(`Drive API 오류 (${res.status}${reason ? `, ${reason}` : ""}). ${hint}`.trim());
 }
 
 const googleSource = (rootId: string): Source => ({
@@ -150,7 +180,7 @@ const localSource = (dir: string): Source => {
 function getSource(): Source {
   const localDir = process.env.NODE_ENV !== "production" ? process.env.DEV_LOCAL_DRIVE_DIR : undefined;
   if (localDir) return localSource(localDir);
-  const rootId = process.env.DRIVE_ROOT_FOLDER_ID;
+  const rootId = env("DRIVE_ROOT_FOLDER_ID");
   if (!rootId) throw new DriveError("DRIVE_ROOT_FOLDER_ID 환경변수가 없습니다.");
   return googleSource(rootId);
 }
@@ -259,6 +289,19 @@ export async function getIndex(options: { fresh?: boolean } = {}): Promise<Drive
     .then((idx) => (cached = idx))
     .finally(() => (building = null));
   return building;
+}
+
+/**
+ * 운영 환경에서는 서버 오류 메시지가 화면에 숨겨지므로,
+ * Drive 문제는 던지지 않고 값으로 돌려줘서 페이지가 직접 보여 주게 한다.
+ */
+export async function loadIndex(): Promise<{ index: DriveIndex; problem?: never } | { index?: never; problem: string }> {
+  try {
+    return { index: await getIndex() };
+  } catch (e) {
+    console.error("[drive] index load failed:", e);
+    return { problem: e instanceof DriveError ? e.message : "Drive를 불러오는 중 알 수 없는 오류가 났습니다. Vercel 로그를 확인하세요." };
+  }
 }
 
 export function resolveSlugPath(index: DriveIndex, slugs: string[]): Entry | null {

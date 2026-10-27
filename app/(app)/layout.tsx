@@ -1,16 +1,17 @@
 import { Sidebar } from "@/components/Sidebar";
-import { folderTree, getIndex } from "@/lib/drive";
+import { folderTree, loadIndex } from "@/lib/drive";
 import { requireUser } from "@/lib/session";
 import { logout, refreshIndex } from "./actions";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
-  const index = await getIndex();
+  // Drive 문제는 페이지 쪽에서 안내하므로 여기서는 빈 트리로 둔다
+  const { index } = await loadIndex();
 
   return (
     <div className="shell">
       <header className="topbar">
-        <Sidebar tree={folderTree(index.root)} />
+        <Sidebar tree={index ? folderTree(index.root) : []} />
         <div className="spacer" />
         <form action={refreshIndex}>
           <button className="btn" type="submit" title="Drive에서 다시 불러오기">

@@ -1,4 +1,4 @@
-import { downloadFile, getIndex } from "@/lib/drive";
+import { DriveError, downloadFile, getIndex } from "@/lib/drive";
 import { getUser } from "@/lib/session";
 
 /** 첨부(이미지 등)를 Drive에서 받아 전달. my-life 폴더 안의 파일만 허용 */
@@ -6,13 +6,21 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (!(await getUser())) return new Response("Unauthorized", { status: 401 });
 
   const { id } = await params;
-  const entry = (await getIndex()).byId.get(id);
-  if (!entry || entry.kind !== "file") return new Response("Not found", { status: 404 });
+  let upstream: Response;
+  let mimeType: string;
+  try {
+    const entry = (await getIndex()).byId.get(id);
+    if (!entry || entry.kind !== "file") return new Response("Not found", { status: 404 });
+    mimeType = entry.mimeType;
+    upstream = await downloadFile(entry);
+  } catch (e) {
+    console.error("[drive] file proxy failed:", e);
+    return new Response(e instanceof DriveError ? e.message : "Drive error", { status: 502 });
+  }
 
-  const upstream = await downloadFile(entry);
   return new Response(upstream.body, {
     headers: {
-      "Content-Type": upstream.headers.get("Content-Type") ?? entry.mimeType,
+      "Content-Type": upstream.headers.get("Content-Type") ?? mimeType,
       "Cache-Control": "private, max-age=86400",
       "X-Content-Type-Options": "nosniff",
       // svg 등에 들어 있을 수 있는 스크립트 실행 차단
