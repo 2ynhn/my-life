@@ -7,8 +7,10 @@ import { Editor } from "@/components/Editor";
 import { FolderView } from "@/components/FolderView";
 import { NoteActions } from "@/components/NoteActions";
 import { NoteBody } from "@/components/NoteBody";
+import type { Role } from "@/lib/access";
 import {
   DriveError,
+  canView,
   getIndex,
   hrefFor,
   linkResolver,
@@ -26,7 +28,7 @@ import { requireUser } from "@/lib/session";
 
 type Props = {
   params: Promise<{ slug: string[] }>;
-  searchParams: Promise<{ mode?: string }>;
+  searchParams: Promise<{ mode?: string; sub?: string }>;
 };
 
 const decode = (s: string) => {
@@ -43,11 +45,12 @@ async function resolve(index: DriveIndex, params: Props["params"]) {
 }
 
 export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
-  await requireUser();
+  const user = await requireUser();
   const { index } = await loadIndex();
-  const entry = index && (await resolve(index, params));
+  const found = index && (await resolve(index, params));
+  const entry = found && canView(found, user.role) ? found : null;
   const { mode } = await searchParams;
-  const name = entry ? (entry.kind === "file" ? entry.slug : entry.name) : "my-life";
+  const name = entry ? (entry.kind === "file" ? entry.slug : entry.name) : "찾을 수 없음";
   return { title: mode === "edit" ? `편집: ${name}` : mode === "new" ? "새 글" : name };
 }
 
@@ -62,16 +65,25 @@ export default async function EntryPage({ params, searchParams }: Props) {
     index = await getIndex({ fresh: true });
     entry = await resolve(index, params);
   }
-  if (!entry) notFound();
+  // 비공개 항목은 게스트에게 '없음'으로 보인다 (존재 여부도 알리지 않음)
+  if (!entry || !canView(entry, user.role)) notFound();
 
   // md가 아닌 파일(이미지 등)은 원본으로 보낸다
   if (entry.kind === "file" && !entry.isMarkdown) redirect(`/api/file/${encodeURIComponent(entry.id)}`);
 
   const isOwner = user.role === "owner";
-  const { mode } = await searchParams;
+  const { mode, sub } = await searchParams;
 
   if (isOwner && mode === "edit" && entry.kind === "file") return <EditNote entry={entry} index={index} />;
-  if (isOwner && mode === "new" && entry.kind === "folder") return <NewNote folder={entry} index={index} />;
+  if (isOwner && mode === "new" && entry.kind === "folder") {
+    // sub: 저장할 때 만들 하위 폴더 (오늘 일기 쓰기의 연도 폴더). 이미 있으면 그 폴더로 바로 보낸다
+    if (sub !== undefined) {
+      if (!/^\d{4}$/.test(sub)) notFound();
+      const existing = entry.children.find((c) => c.kind === "folder" && c.name === sub);
+      if (existing) redirect(`${hrefFor(existing)}?mode=new`);
+    }
+    return <NewNote folder={entry} index={index} subfolder={sub} />;
+  }
 
   const driveUrl = isOwner ? webUrlFor(entry) : null;
 
@@ -95,10 +107,10 @@ export default async function EntryPage({ params, searchParams }: Props) {
               </Link>
             )}
           </div>
-          <FolderView folder={entry} />
+          <FolderView folder={entry} role={user.role} />
         </>
       ) : (
-        <Note entry={entry} index={index} isOwner={isOwner} />
+        <Note entry={entry} index={index} role={user.role} />
       )}
     </>
   );
@@ -109,7 +121,7 @@ function readProblem(e: unknown) {
   return <DriveProblem message={e instanceof DriveError ? e.message : "파일을 읽지 못했습니다."} />;
 }
 
-async function Note({ entry, index, isOwner }: { entry: FileEntry; index: DriveIndex; isOwner: boolean }) {
+async function Note({ entry, index, role }: { entry: FileEntry; index: DriveIndex; role: Role }) {
   let text: string;
   try {
     ({ text } = await readNote(entry));
@@ -118,8 +130,8 @@ async function Note({ entry, index, isOwner }: { entry: FileEntry; index: DriveI
   }
   return (
     <>
-      {isOwner && <NoteActions fileId={entry.id} fileName={entry.name} editHref={`${hrefFor(entry)}?mode=edit`} />}
-      <NoteBody text={text} links={linkResolver(index, entry.parent!)} />
+      {role === "owner" && <NoteActions fileId={entry.id} fileName={entry.name} editHref={`${hrefFor(entry)}?mode=edit`} />}
+      <NoteBody text={text} links={linkResolver(index, entry.parent!, role)} />
     </>
   );
 }
@@ -157,7 +169,7 @@ function freeName(folder: FolderEntry, base: string) {
   }
 }
 
-async function NewNote({ folder, index }: { folder: FolderEntry; index: DriveIndex }) {
+async function NewNote({ folder, index, subfolder }: { folder: FolderEntry; index: DriveIndex; subfolder?: string }) {
   let template: string;
   try {
     template = await loadTemplate(index, folder);
@@ -169,8 +181,10 @@ async function NewNote({ folder, index }: { folder: FolderEntry; index: DriveInd
     <Editor
       mode="new"
       folderId={folder.id}
-      folderName={folder.name}
-      defaultName={freeName(folder, date)}
+      folderName={subfolder ? `${folder.name} / ${subfolder}` : folder.name}
+      subfolder={subfolder}
+      // 새로 만들 폴더는 비어 있으니 이름이 겹칠 일이 없다
+      defaultName={subfolder ? date : freeName(folder, date)}
       initialText={template.replaceAll("{{date}}", date).replaceAll("{{title}}", "")}
       closeHref={hrefFor(folder)}
       links={linkTable(index, folder)}

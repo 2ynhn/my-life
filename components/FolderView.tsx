@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { hrefFor, isListable, type FolderEntry } from "@/lib/drive";
+import type { Role } from "@/lib/access";
+import { hrefFor, visibleChildren, type FolderEntry } from "@/lib/drive";
 
 const fmtDate = (iso: string) => (iso ? iso.slice(0, 10) : "");
 
-export function FolderView({ folder }: { folder: FolderEntry }) {
-  const items = folder.children.filter(isListable);
+export function FolderView({ folder, role }: { folder: FolderEntry; role: Role }) {
+  const items = visibleChildren(folder, role);
   const folders = items.filter((c) => c.kind === "folder");
   const notes = items.filter((c) => c.kind === "file");
 
@@ -21,7 +22,12 @@ export function FolderView({ folder }: { folder: FolderEntry }) {
                   📁
                 </span>
                 {f.name}
-                <span className="count">{f.children.filter(isListable).length}</span>
+                {f.private && !folder.private && (
+                  <span className="lock" title="비공개: 게스트에게 안 보임" aria-label="비공개">
+                    🔒
+                  </span>
+                )}
+                <span className="count">{visibleChildren(f, role).length}</span>
               </Link>
             </li>
           ))}

@@ -1,16 +1,18 @@
-import { DriveError, downloadFile, getIndex } from "@/lib/drive";
+import { DriveError, canView, downloadFile, getIndex } from "@/lib/drive";
 import { getUser } from "@/lib/session";
 
 /** 첨부(이미지 등)를 Drive에서 받아 전달. my-life 폴더 안의 파일만 허용 */
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await getUser())) return new Response("Unauthorized", { status: 401 });
+  const user = await getUser();
+  if (!user) return new Response("Unauthorized", { status: 401 });
 
   const { id } = await params;
   let upstream: Response;
   let mimeType: string;
   try {
     const entry = (await getIndex()).byId.get(id);
-    if (!entry || entry.kind !== "file") return new Response("Not found", { status: 404 });
+    // 비공개 파일은 게스트에게 존재 자체를 알리지 않는다
+    if (!entry || entry.kind !== "file" || !canView(entry, user.role)) return new Response("Not found", { status: 404 });
     mimeType = entry.mimeType;
     upstream = await downloadFile(entry);
   } catch (e) {

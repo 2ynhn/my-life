@@ -5,6 +5,7 @@ import {
   DriveError,
   checkNoteName,
   createFile,
+  createFolder,
   fileChecksum,
   getIndex,
   hrefFor,
@@ -86,17 +87,38 @@ export async function saveNote(id: string, baseChecksum: string, text: string, f
   }
 }
 
-export async function createNote(folderId: string, rawName: string, text: string): Promise<ActionResult> {
+/** subfolder: 없으면 만들고 그 안에 저장 (오늘 일기 쓰기의 연도 폴더, 숫자 4자리만) */
+export async function createNote(
+  folderId: string,
+  rawName: string,
+  text: string,
+  subfolder?: string,
+): Promise<ActionResult> {
   const index = await ownerIndex();
   if (typeof index === "string") return { ok: false, error: index };
   const folder = folderById(index, folderId);
   if (!folder) return { ok: false, error: "폴더를 찾을 수 없습니다." };
   if (typeof text !== "string" || text.length > MAX_TEXT) return { ok: false, error: "내용이 너무 깁니다." };
-  const checked = checkNoteName(String(rawName ?? ""), folder);
+  if (subfolder !== undefined && (typeof subfolder !== "string" || !/^\d{4}$/.test(subfolder)))
+    return { ok: false, error: "잘못된 폴더 이름입니다." };
+
+  let target = folder;
+  let needFolder = false;
+  if (subfolder) {
+    const existing = folder.children.find((c): c is FolderEntry => c.kind === "folder" && c.name === subfolder);
+    if (existing) target = existing;
+    else needFolder = true;
+  }
+  // 이름 검사를 먼저 해서, 실패할 때 빈 폴더만 남는 일이 없게 한다 (새 폴더는 비어 있으니 겹칠 이름도 없다)
+  const checked = checkNoteName(String(rawName ?? ""), needFolder ? { ...folder, children: [] } : target);
   if ("error" in checked) return { ok: false, error: checked.error };
 
   try {
-    const id = await createFile(folder, checked.name, text);
+    if (needFolder) {
+      const newId = await createFolder(folder, subfolder!);
+      target = { ...folder, id: newId, name: subfolder!, children: [] };
+    }
+    const id = await createFile(target, checked.name, text);
     invalidateIndex();
     revalidatePath("/", "layout");
     return { ok: true, href: await freshHref(id, hrefFor(folder)) };

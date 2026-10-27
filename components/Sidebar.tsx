@@ -20,6 +20,11 @@ function Branch({ nodes, pathname }: { nodes: TreeNode[]; pathname: string }) {
         const link = (
           <Link href={node.href} className={current ? "current" : undefined} aria-current={current ? "page" : undefined}>
             {node.name}
+            {node.private && (
+              <span className="lock" title="비공개: 게스트에게 안 보임" aria-label="비공개">
+                🔒
+              </span>
+            )}
           </Link>
         );
         return (

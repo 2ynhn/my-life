@@ -2,6 +2,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { mkdir, readdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
+import type { Role } from "@/lib/access";
 import type { LinkResolver, LinkTable } from "@/lib/markdown";
 
 const FOLDER_MIME = "application/vnd.google-apps.folder";
@@ -31,6 +32,7 @@ interface Source {
   update(fileId: string, text: string): Promise<string>;
   /** 새 파일 id 반환 */
   create(parentId: string, name: string, text: string): Promise<string>;
+  createFolder(parentId: string, name: string): Promise<string>;
   /** 바뀐 id 반환 (Drive는 그대로, 로컬은 경로가 바뀜) */
   rename(fileId: string, name: string): Promise<string>;
   trash(fileId: string): Promise<void>;
@@ -159,6 +161,14 @@ const googleSource = (rootId: string): Source => ({
     });
     return ((await res.json()) as { id: string }).id;
   },
+  async createFolder(parentId, name) {
+    const res = await driveFetch(`${DRIVE_API}/files?fields=id`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, parents: [parentId], mimeType: FOLDER_MIME }),
+    });
+    return ((await res.json()) as { id: string }).id;
+  },
   async rename(fileId, name) {
     await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}?fields=id`, {
       method: "PATCH",
@@ -238,6 +248,11 @@ const localSource = (dir: string): Source => {
       await writeFile(resolve(id), text, { flag: "wx" });
       return id;
     },
+    async createFolder(parentId, name) {
+      const id = path.posix.join(parentId, name);
+      await mkdir(resolve(id));
+      return id;
+    },
     async rename(fileId, name) {
       const id = path.posix.join(path.posix.dirname(fileId), name);
       await rename(resolve(fileId), resolve(id));
@@ -272,6 +287,8 @@ type BaseEntry = {
   slugPath: string[];
   modifiedTime: string;
   parent: FolderEntry | null;
+  /** 이 폴더나 상위 폴더에 .private 표시 파일이 있으면 true → 게스트에게 안 보임 */
+  private: boolean;
 };
 export type FolderEntry = BaseEntry & { kind: "folder"; children: Entry[] };
 export type FileEntry = BaseEntry & { kind: "file"; mimeType: string; size: number; isMarkdown: boolean };
@@ -284,6 +301,8 @@ export type DriveIndex = {
 };
 
 const isHidden = (name: string) => name.startsWith(".");
+/** .private, .private.md, .private.txt … 어떤 형식이든 이 이름으로 시작하는 파일이면 비공개 표시 */
+const isPrivateMarker = (item: RawItem) => item.mimeType !== FOLDER_MIME && /^\.private(\.|$)/i.test(item.name);
 const isMarkdownName = (name: string) => name.toLowerCase().endsWith(".md");
 
 function assignSlugs(folder: FolderEntry) {
@@ -308,6 +327,7 @@ async function buildIndex(): Promise<DriveIndex> {
     slugPath: [],
     modifiedTime: "",
     parent: null,
+    private: false,
     children: [],
   };
   const byId = new Map<string, Entry>([[root.id, root]]);
@@ -318,9 +338,18 @@ async function buildIndex(): Promise<DriveIndex> {
     const lists = await Promise.all(level.map((f) => source.list(f.id)));
     const next: FolderEntry[] = [];
     level.forEach((folder, i) => {
+      // 비공개는 하위로 상속된다 (부모는 이미 앞 단계에서 확정됨)
+      folder.private = (folder.parent?.private ?? false) || lists[i].some(isPrivateMarker);
       for (const item of lists[i]) {
         if (isHidden(item.name)) continue;
-        const base = { id: item.id, name: item.name, modifiedTime: item.modifiedTime, parent: folder, slugPath: [] };
+        const base = {
+          id: item.id,
+          name: item.name,
+          modifiedTime: item.modifiedTime,
+          parent: folder,
+          slugPath: [],
+          private: folder.private,
+        };
         let entry: Entry;
         if (item.mimeType === FOLDER_MIME) {
           entry = { ...base, kind: "folder", slug: item.name, children: [] };
@@ -386,6 +415,11 @@ export async function loadIndex(): Promise<{ index: DriveIndex; problem?: never 
   }
 }
 
+/** 소유자는 전부, 게스트는 비공개가 아닌 것만 */
+export function canView(entry: Entry, role: Role): boolean {
+  return role === "owner" || !entry.private;
+}
+
 export function resolveSlugPath(index: DriveIndex, slugs: string[]): Entry | null {
   let current: Entry = index.root;
   for (const slug of slugs) {
@@ -401,10 +435,12 @@ export function resolveSlugPath(index: DriveIndex, slugs: string[]): Entry | nul
  * 옵시디언식 첨부 찾기: 노트가 있는 폴더부터 위로 올라가며
  * 같은 폴더 → 그 폴더의 attachments 하위 폴더 순서로 이름을 찾는다.
  */
-export function findAttachment(from: FolderEntry, name: string): FileEntry | null {
+export function findAttachment(from: FolderEntry, name: string, role: Role): FileEntry | null {
   const target = name.toLowerCase();
   const match = (folder: FolderEntry) =>
-    folder.children.find((c): c is FileEntry => c.kind === "file" && c.name.toLowerCase() === target);
+    folder.children.find(
+      (c): c is FileEntry => c.kind === "file" && c.name.toLowerCase() === target && canView(c, role),
+    );
 
   for (let folder: FolderEntry | null = from; folder; folder = folder.parent) {
     const direct = match(folder);
@@ -420,10 +456,11 @@ export function findAttachment(from: FolderEntry, name: string): FileEntry | nul
 }
 
 /** [[노트 이름]] 링크용: 이름(확장자 제외)이 같은 첫 번째 md 파일 */
-export function findNoteByName(index: DriveIndex, name: string): FileEntry | null {
+export function findNoteByName(index: DriveIndex, name: string, role: Role): FileEntry | null {
   const target = name.toLowerCase().replace(/\.md$/, "");
   for (const entry of index.byId.values()) {
-    if (entry.kind === "file" && entry.isMarkdown && entry.slug.toLowerCase() === target) return entry;
+    if (entry.kind === "file" && entry.isMarkdown && entry.slug.toLowerCase() === target && canView(entry, role))
+      return entry;
   }
   return null;
 }
@@ -431,20 +468,21 @@ export function findNoteByName(index: DriveIndex, name: string): FileEntry | nul
 const fileUrl = (file: FileEntry) => `/api/file/${encodeURIComponent(file.id)}`;
 
 /** 서버 렌더링용 링크 해석기 */
-export function linkResolver(index: DriveIndex, folder: FolderEntry): LinkResolver {
+export function linkResolver(index: DriveIndex, folder: FolderEntry, role: Role): LinkResolver {
   return {
     attachment(name) {
-      const file = findAttachment(folder, name);
+      const file = findAttachment(folder, name, role);
       return file && !file.isMarkdown ? fileUrl(file) : null;
     },
     note(name) {
-      const note = findNoteByName(index, name);
+      const note = findNoteByName(index, name, role);
       return note ? hrefFor(note) : null;
     },
   };
 }
 
 /** 편집기 미리보기용: 이 폴더에서 보이는 첨부와 전체 노트 링크를 표로 만들어 넘긴다 */
+/** 편집기는 소유자만 쓰므로 비공개 파일도 포함한다 */
 export function linkTable(index: DriveIndex, folder: FolderEntry): LinkTable {
   const attachments: Record<string, string> = {};
   const add = (f: FolderEntry) => {
@@ -475,6 +513,7 @@ export async function readNote(file: FileEntry): Promise<{ text: string; checksu
 export const fileChecksum = (file: FileEntry) => getSource().checksum(file.id);
 export const updateFile = (file: FileEntry, text: string) => getSource().update(file.id, text);
 export const createFile = (folder: FolderEntry, name: string, text: string) => getSource().create(folder.id, name, text);
+export const createFolder = (parent: FolderEntry, name: string) => getSource().createFolder(parent.id, name);
 export const renameFile = (file: FileEntry, name: string) => getSource().rename(file.id, name);
 export const trashFile = (file: FileEntry) => getSource().trash(file.id);
 
@@ -536,11 +575,17 @@ export function isListable(entry: Entry): boolean {
   return entry.isMarkdown;
 }
 
-export type TreeNode = { name: string; href: string; children: TreeNode[] };
+/** 목록에 보여 줄 하위 항목 (숨김 폴더·비공개 제외) */
+export function visibleChildren(folder: FolderEntry, role: Role): Entry[] {
+  return folder.children.filter((c) => isListable(c) && canView(c, role));
+}
+
+export type TreeNode = { name: string; href: string; private: boolean; children: TreeNode[] };
 
 /** 사이드바용: 폴더만, 클라이언트로 넘길 수 있는 순수 객체 */
-export function folderTree(folder: FolderEntry): TreeNode[] {
-  return folder.children
-    .filter((c): c is FolderEntry => c.kind === "folder" && isListable(c))
-    .map((c) => ({ name: c.name, href: hrefFor(c), children: folderTree(c) }));
+export function folderTree(folder: FolderEntry, role: Role): TreeNode[] {
+  return visibleChildren(folder, role)
+    .filter((c): c is FolderEntry => c.kind === "folder")
+    // 자물쇠는 비공개가 시작되는 폴더에만 (상속된 하위 폴더에는 표시 안 함)
+    .map((c) => ({ name: c.name, href: hrefFor(c), private: c.private && !folder.private, children: folderTree(c, role) }));
 }

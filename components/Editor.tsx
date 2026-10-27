@@ -20,7 +20,7 @@ type Props = {
   closeHref: string;
 } & (
   | { mode: "edit"; fileId: string; fileName: string; checksum: string }
-  | { mode: "new"; folderId: string; folderName: string; defaultName: string }
+  | { mode: "new"; folderId: string; folderName: string; defaultName: string; subfolder?: string }
 );
 
 type Draft = { text: string; name?: string; at: number };
@@ -180,7 +180,7 @@ export function Editor(props: Props) {
             setMessage({ kind: "error", text: res.error });
           }
         } else {
-          const res = await createNote(props.folderId, name, current);
+          const res = await createNote(props.folderId, name, current, props.subfolder);
           if (res.ok) {
             writeDraft(draftKey, null);
             setSavedText(current);

@@ -11,7 +11,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="shell">
       <header className="topbar">
-        <Sidebar tree={index ? folderTree(index.root) : []} />
+        <Sidebar tree={index ? folderTree(index.root, user.role) : []} />
         <div className="spacer" />
         <form action={refreshIndex}>
           <button className="btn" type="submit" title="Drive에서 다시 불러오기">

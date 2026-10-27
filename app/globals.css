@@ -638,3 +638,9 @@ a {
     height: calc(100dvh - 49px - 2rem);
   }
 }
+
+.lock {
+  margin-left: 0.3rem;
+  font-size: 0.75em;
+  opacity: 0.75;
+}
