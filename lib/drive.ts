@@ -1,9 +1,13 @@
 import "server-only";
-import { readdir, readFile, stat } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdir, readdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
+import type { LinkResolver, LinkTable } from "@/lib/markdown";
 
 const FOLDER_MIME = "application/vnd.google-apps.folder";
 const DRIVE_API = "https://www.googleapis.com/drive/v3";
+const UPLOAD_API = "https://www.googleapis.com/upload/drive/v3";
+const MD_MIME = "text/markdown; charset=UTF-8";
 const INDEX_TTL_MS = 2 * 60 * 1000;
 
 export class DriveError extends Error {}
@@ -21,6 +25,15 @@ interface Source {
   rootId: string;
   list(folderId: string): Promise<RawItem[]>;
   download(fileId: string): Promise<Response>;
+  /** 현재 내용의 md5 (충돌 감지용) */
+  checksum(fileId: string): Promise<string>;
+  /** 내용 교체 후 새 md5 반환 */
+  update(fileId: string, text: string): Promise<string>;
+  /** 새 파일 id 반환 */
+  create(parentId: string, name: string, text: string): Promise<string>;
+  /** 바뀐 id 반환 (Drive는 그대로, 로컬은 경로가 바뀜) */
+  rename(fileId: string, name: string): Promise<string>;
+  trash(fileId: string): Promise<void>;
   webUrl(item: { id: string; isFolder: boolean }): string | null;
 }
 
@@ -77,9 +90,10 @@ async function accessToken(): Promise<string> {
   return token.value;
 }
 
-async function driveFetch(url: string): Promise<Response> {
+async function driveFetch(url: string, init: RequestInit = {}): Promise<Response> {
   const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${await accessToken()}` },
+    ...init,
+    headers: { ...init.headers, Authorization: `Bearer ${await accessToken()}` },
     cache: "no-store",
   });
   if (res.ok) return res;
@@ -120,6 +134,45 @@ const googleSource = (rootId: string): Source => ({
   },
   download(fileId) {
     return driveFetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}?alt=media`);
+  },
+  async checksum(fileId) {
+    const res = await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}?fields=md5Checksum`);
+    return ((await res.json()) as { md5Checksum: string }).md5Checksum;
+  },
+  async update(fileId, text) {
+    const res = await driveFetch(
+      `${UPLOAD_API}/files/${encodeURIComponent(fileId)}?uploadType=media&fields=md5Checksum`,
+      { method: "PATCH", headers: { "Content-Type": MD_MIME }, body: text },
+    );
+    return ((await res.json()) as { md5Checksum: string }).md5Checksum;
+  },
+  async create(parentId, name, text) {
+    const boundary = `my-life-${crypto.randomUUID()}`;
+    const meta = JSON.stringify({ name, parents: [parentId], mimeType: "text/markdown" });
+    const body =
+      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n` +
+      `--${boundary}\r\nContent-Type: ${MD_MIME}\r\n\r\n${text}\r\n--${boundary}--`;
+    const res = await driveFetch(`${UPLOAD_API}/files?uploadType=multipart&fields=id`, {
+      method: "POST",
+      headers: { "Content-Type": `multipart/related; boundary=${boundary}` },
+      body,
+    });
+    return ((await res.json()) as { id: string }).id;
+  },
+  async rename(fileId, name) {
+    await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}?fields=id`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    return fileId;
+  },
+  async trash(fileId) {
+    await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}?fields=id`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ trashed: true }),
+    });
   },
   webUrl({ id, isFolder }) {
     return isFolder
@@ -173,9 +226,33 @@ const localSource = (dir: string): Source => {
       const type = MIME_BY_EXT[path.extname(fileId).toLowerCase()] ?? "application/octet-stream";
       return new Response(buf, { headers: { "Content-Type": type } });
     },
+    async checksum(fileId) {
+      return md5(await readFile(resolve(fileId)));
+    },
+    async update(fileId, text) {
+      await writeFile(resolve(fileId), text);
+      return md5(Buffer.from(text));
+    },
+    async create(parentId, name, text) {
+      const id = path.posix.join(parentId, name);
+      await writeFile(resolve(id), text, { flag: "wx" });
+      return id;
+    },
+    async rename(fileId, name) {
+      const id = path.posix.join(path.posix.dirname(fileId), name);
+      await rename(resolve(fileId), resolve(id));
+      return id;
+    },
+    async trash(fileId) {
+      // 로컬 휴지통: 숨김 폴더라 인덱스에 잡히지 않는다
+      await mkdir(resolve(".trash"), { recursive: true });
+      await rename(resolve(fileId), resolve(path.posix.join(".trash", `${Date.now()}-${path.posix.basename(fileId)}`)));
+    },
     webUrl: () => null,
   };
 };
+
+const md5 = (buf: Uint8Array) => createHash("md5").update(buf).digest("hex");
 
 function getSource(): Source {
   const localDir = process.env.NODE_ENV !== "production" ? process.env.DEV_LOCAL_DRIVE_DIR : undefined;
@@ -281,6 +358,11 @@ function compareEntries(a: Entry, b: Entry): number {
 }
 
 let cached: DriveIndex | null = null;
+/** 쓰기 직후 호출: 다음 getIndex()가 Drive에서 다시 읽는다 */
+export function invalidateIndex() {
+  cached = null;
+}
+
 let building: Promise<DriveIndex> | null = null;
 
 export async function getIndex(options: { fresh?: boolean } = {}): Promise<DriveIndex> {
@@ -346,9 +428,94 @@ export function findNoteByName(index: DriveIndex, name: string): FileEntry | nul
   return null;
 }
 
-export async function readText(file: FileEntry): Promise<string> {
+const fileUrl = (file: FileEntry) => `/api/file/${encodeURIComponent(file.id)}`;
+
+/** 서버 렌더링용 링크 해석기 */
+export function linkResolver(index: DriveIndex, folder: FolderEntry): LinkResolver {
+  return {
+    attachment(name) {
+      const file = findAttachment(folder, name);
+      return file && !file.isMarkdown ? fileUrl(file) : null;
+    },
+    note(name) {
+      const note = findNoteByName(index, name);
+      return note ? hrefFor(note) : null;
+    },
+  };
+}
+
+/** 편집기 미리보기용: 이 폴더에서 보이는 첨부와 전체 노트 링크를 표로 만들어 넘긴다 */
+export function linkTable(index: DriveIndex, folder: FolderEntry): LinkTable {
+  const attachments: Record<string, string> = {};
+  const add = (f: FolderEntry) => {
+    for (const c of f.children) {
+      if (c.kind === "file" && !c.isMarkdown) attachments[c.name.toLowerCase()] ??= fileUrl(c);
+    }
+  };
+  // findAttachment와 같은 순서: 가까운 폴더가 우선
+  for (let f: FolderEntry | null = folder; f; f = f.parent) {
+    add(f);
+    for (const c of f.children) if (c.kind === "folder" && c.name.toLowerCase() === "attachments") add(c);
+  }
+  const notes: Record<string, string> = {};
+  for (const e of index.byId.values()) {
+    if (e.kind === "file" && e.isMarkdown) notes[e.slug.toLowerCase()] ??= hrefFor(e);
+  }
+  return { attachments, notes };
+}
+
+export async function readNote(file: FileEntry): Promise<{ text: string; checksum: string }> {
   const res = await getSource().download(file.id);
-  return res.text();
+  const buf = new Uint8Array(await res.arrayBuffer());
+  return { text: new TextDecoder().decode(buf), checksum: md5(buf) };
+}
+
+// ───────────── 쓰기 ─────────────
+
+export const fileChecksum = (file: FileEntry) => getSource().checksum(file.id);
+export const updateFile = (file: FileEntry, text: string) => getSource().update(file.id, text);
+export const createFile = (folder: FolderEntry, name: string, text: string) => getSource().create(folder.id, name, text);
+export const renameFile = (file: FileEntry, name: string) => getSource().rename(file.id, name);
+export const trashFile = (file: FileEntry) => getSource().trash(file.id);
+
+/** 파일 이름 검사. 문제가 있으면 오류 메시지, 없으면 .md를 붙인 이름 */
+export function checkNoteName(raw: string, folder: FolderEntry, self?: FileEntry): { name: string } | { error: string } {
+  const base = raw.trim().replace(/\.md$/i, "").trim();
+  if (!base) return { error: "파일 이름을 입력하세요." };
+  if (base.length > 120) return { error: "파일 이름이 너무 깁니다." };
+  if (/[\/\\\x00-\x1f]/.test(base) || base.startsWith(".")) return { error: "파일 이름에 / \\ 나 맨 앞 . 은 쓸 수 없습니다." };
+  const name = `${base}.md`;
+  const taken = folder.children.some((c) => c !== self && c.name.toLowerCase() === name.toLowerCase());
+  return taken ? { error: `이 폴더에 '${name}' 파일이 이미 있습니다.` } : { name };
+}
+
+// ───────────── 템플릿 ─────────────
+
+const TEMPLATE_FOLDER = "_templates";
+
+export const DEFAULT_TEMPLATE = `---
+date: {{date}}
+written: {{date}}
+title: ""
+tags: []
+---
+
+# {{title}}
+
+`;
+
+/** _templates/<최상위 폴더 이름>.md → _templates/default.md → 기본값 */
+export async function loadTemplate(index: DriveIndex, folder: FolderEntry): Promise<string> {
+  const templates = index.root.children.find(
+    (c): c is FolderEntry => c.kind === "folder" && c.name === TEMPLATE_FOLDER,
+  );
+  if (!templates) return DEFAULT_TEMPLATE;
+  let top: FolderEntry = folder;
+  while (top.parent && top.parent !== index.root) top = top.parent;
+  const pick = (name: string) =>
+    templates.children.find((c): c is FileEntry => c.kind === "file" && c.name.toLowerCase() === name.toLowerCase());
+  const file = (top !== index.root && pick(`${top.name}.md`)) || pick("default.md");
+  return file ? (await readNote(file)).text : DEFAULT_TEMPLATE;
 }
 
 export function downloadFile(file: FileEntry): Promise<Response> {
@@ -363,9 +530,9 @@ export function hrefFor(entry: Entry): string {
   return "/" + entry.slugPath.map(encodeURIComponent).join("/");
 }
 
-/** attachments 폴더는 목록에서 숨긴다 (이미지 보관용) */
+/** attachments(이미지 보관), _templates 폴더는 목록에서 숨긴다 */
 export function isListable(entry: Entry): boolean {
-  if (entry.kind === "folder") return entry.name.toLowerCase() !== "attachments";
+  if (entry.kind === "folder") return entry.name.toLowerCase() !== "attachments" && entry.name !== TEMPLATE_FOLDER;
   return entry.isMarkdown;
 }
 

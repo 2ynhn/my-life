@@ -7,6 +7,20 @@ Google Drive의 `my-life` 폴더에 있는 마크다운 일기를 웹에서 보�
 - 폴더 트리, frontmatter(date·tags 등) 표시, 표·체크박스(GFM)
 - 옵시디언 문법 지원: `![[사진.jpg]]`, `[[노트|별칭]]` — 이미지는 가까운 `attachments` 폴더에서 찾음
 - `.obsidian`처럼 `.`으로 시작하는 폴더와 `attachments` 폴더는 목록에서 숨김
+- 소유자 편집: 편집기 + 실시간 미리보기, Ctrl+S 저장, 새 글, 이름 바꾸기, 휴지통으로 삭제
+  - 편집 중 Drive·Claude 쪽에서 같은 파일이 바뀌면 덮어쓰기 전에 알려 줌 (내용 md5 비교)
+  - 입력 내용은 브라우저에 자동 임시저장 → 창을 닫아도 복원 가능
+  - 게스트는 화면·서버 양쪽에서 편집 불가
+
+## 템플릿
+
+새 글은 `my-life/_templates/` 폴더의 템플릿으로 시작합니다. (`_templates` 폴더는 목록에 안 보임)
+
+1. `_templates/<최상위 폴더 이름>.md` — 예: `daily.md`는 daily 아래 어디서든 새 글을 쓸 때
+2. 없으면 `_templates/default.md`
+3. 그것도 없으면 앱에 내장된 기본 템플릿
+
+`{{date}}`는 오늘 날짜(한국 시간, `YYYY-MM-DD`)로 바뀝니다.
 
 로드맵은 [docs/ROADMAP.md](docs/ROADMAP.md) 참고.
 

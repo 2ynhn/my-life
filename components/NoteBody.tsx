@@ -1,15 +1,16 @@
 import ReactMarkdown from "react-markdown";
+import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
-import type { DriveIndex, FileEntry } from "@/lib/drive";
-import { formatMetaValue, metaTags, rewriteObsidian, splitFrontmatter } from "@/lib/markdown";
+import { formatMetaValue, metaTags, rewriteObsidian, splitFrontmatter, type LinkResolver } from "@/lib/markdown";
 
 const HIDDEN_META = new Set(["title", "tags"]);
 
-export function NoteView({ file, text, index }: { file: FileEntry; text: string; index: DriveIndex }) {
+/** 노트 본문 렌더링. 서버(보기 화면)와 클라이언트(편집기 미리보기) 양쪽에서 쓴다 */
+export function NoteBody({ text, links }: { text: string; links: LinkResolver }) {
   const { meta, body } = splitFrontmatter(text);
   const tags = metaTags(meta);
   const extra = Object.entries(meta).filter(([k]) => !HIDDEN_META.has(k));
-  const markdown = rewriteObsidian(body, file.parent!, index);
+  const markdown = rewriteObsidian(body, links);
 
   return (
     <article>
@@ -36,7 +37,8 @@ export function NoteView({ file, text, index }: { file: FileEntry; text: string;
       )}
       <div className="prose">
         <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
+          // 옵시디언처럼 줄바꿈 한 번도 줄바꿈으로 보여 준다
+          remarkPlugins={[remarkGfm, remarkBreaks]}
           components={{
             // eslint-disable-next-line @next/next/no-img-element
             img: ({ src, alt }) => <img src={typeof src === "string" ? src : undefined} alt={alt ?? ""} loading="lazy" />,
