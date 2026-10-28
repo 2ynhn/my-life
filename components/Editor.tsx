@@ -312,7 +312,7 @@ export function Editor(props: Props) {
     setCamera(false);
     try {
       setUploading("영수증 읽는 중… (10~30초)");
-      const res = await fetch("/api/receipt", {
+      const res = await fetch(`/api/receipt?root=${encodeURIComponent(props.rootId)}`, {
         method: "POST",
         headers: { "Content-Type": image.type || "image/jpeg" },
         body: image,

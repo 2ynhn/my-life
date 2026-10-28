@@ -9,7 +9,7 @@ import { CATEGORIES } from "@/lib/receipt-shape";
 // 카테고리별 입력 폼. 값은 편집기 글의 앞머리(YAML)에 바로 쓰고, 편집기에서 고친 것도 바로 여기 보인다.
 
 export type FormKind = "diary" | "spending" | "travel" | "health";
-export type Suggestions = { tags: string[]; people: string[]; stores: string[]; payments: string[] };
+export type Suggestions = { tags: string[]; people: string[]; stores: string[]; payments: string[]; categories?: string[] };
 
 type Props = {
   kind: FormKind;
@@ -161,6 +161,7 @@ export function MetaForm({ kind, text, onChange, suggestions, onAddPlace }: Prop
     );
 
   if (kind === "spending") {
+    const cats: string[] = s.categories ?? [...CATEGORIES];
     const items = Array.isArray(meta.items)
       ? (meta.items as Record<string, unknown>[]).map((it) => ({ name: str(it?.name), price: it?.price ?? null }))
       : [];
@@ -183,7 +184,11 @@ export function MetaForm({ kind, text, onChange, suggestions, onAddPlace }: Prop
         <div className="form-field">
           <span className="form-label">분류</span>
           <div className="seg">
-            {CATEGORIES.map((c) => (
+            {[
+              ...cats,
+              // 목록에 없는 분류가 적힌 글이면 그것도 보여 준다
+              ...(str(meta.category) && !cats.includes(str(meta.category)) ? [str(meta.category)] : []),
+            ].map((c) => (
               <button type="button" key={c} className={meta.category === c ? "on" : undefined} onClick={() => set({ category: c })}>
                 {c}
               </button>

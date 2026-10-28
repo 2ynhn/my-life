@@ -2,10 +2,20 @@
 
 import { useState, useTransition } from "react";
 import { saveBudget } from "@/app/(app)/budget-actions";
-import { CATEGORIES } from "@/lib/receipt-shape";
 
 // 예산 정하기: 한 달 전체 + (선택) 분류별. 비우면 예산 없음
-export function BudgetForm({ rootId, monthly, categories }: { rootId: string; monthly: number | null; categories: Record<string, number> }) {
+export function BudgetForm({
+  rootId,
+  monthly,
+  categories,
+  names,
+}: {
+  rootId: string;
+  monthly: number | null;
+  categories: Record<string, number>;
+  /** 분류 이름 (분류 관리 순서) */
+  names: string[];
+}) {
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const fmt = (n: number | null | undefined) => (n ? n.toLocaleString("ko-KR") : "");
@@ -25,7 +35,7 @@ export function BudgetForm({ rootId, monthly, categories }: { rootId: string; mo
         <input name="monthly" defaultValue={fmt(monthly)} inputMode="numeric" placeholder="예: 1,500,000" />
       </label>
       <div className="form-grid">
-        {CATEGORIES.map((c) => (
+        {names.map((c) => (
           <label key={c} className="form-field">
             <span className="form-label">{c}</span>
             <input name={`cat:${c}`} defaultValue={fmt(categories[c])} inputMode="numeric" placeholder="없음" />

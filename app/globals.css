@@ -2522,3 +2522,51 @@ mark {
     flex-wrap: nowrap;
   }
 }
+
+/* ───── 분류 관리 ───── */
+
+.category-manager {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+}
+.category-manager ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 0.4rem 0.75rem;
+}
+.category-manager li {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+.category-manager input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+.category-manager .row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.category-manager .row input {
+  max-width: 260px;
+}
+.category-manager p {
+  margin: 0;
+}
+.icon-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}

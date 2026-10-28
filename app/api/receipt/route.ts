@@ -1,5 +1,6 @@
 import { getAiCredentials } from "@/lib/ai-settings";
 import { loadLibrary, myLibrary } from "@/lib/library";
+import { readCategories } from "@/lib/categories";
 import { ReceiptError, readReceipt } from "@/lib/receipt";
 import { getUser } from "@/lib/session";
 
@@ -46,7 +47,12 @@ export async function POST(req: Request) {
   if (!allow(user.email.toLowerCase())) return json({ error: "잠시 뒤 다시 시도하세요. (10분에 30장까지)" }, 429);
 
   try {
-    const receipt = await readReceipt(creds.apiKey, creds.model, bytes, type as "image/jpeg");
+    // 분류 목록: 글을 쓰는 일기장 것 (?root=), 없으면 내 일기장
+    const root = new URL(req.url).searchParams.get("root");
+    const target = root ? await loadLibrary(user, root) : own;
+    const from = target?.kind === "ok" ? target.index : own?.kind === "ok" ? own.index : null;
+    const categories = from ? await readCategories(from) : undefined;
+    const receipt = await readReceipt(creds.apiKey, creds.model, bytes, type as "image/jpeg", categories);
     return json({ receipt });
   } catch (e) {
     if (e instanceof ReceiptError) return json({ error: e.message }, 502);

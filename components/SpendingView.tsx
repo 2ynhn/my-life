@@ -2,10 +2,11 @@ import Link from "next/link";
 import { hrefFor, type DriveIndex, type FileEntry, type FolderEntry } from "@/lib/drive";
 import { collectNotes, dateOf } from "@/lib/folder-meta";
 import { splitFrontmatter } from "@/lib/markdown";
-import { CATEGORIES } from "@/lib/receipt-shape";
 import { todayKST } from "@/components/CalendarView";
 import { BudgetForm } from "@/components/BudgetForm";
+import { CategoryManager } from "@/components/CategoryManager";
 import { readBudget } from "@/lib/budget";
+import { readCategories } from "@/lib/categories";
 
 // 지출 기록 폴더 위에 보이는 요약: 이달·올해 합계, 월별 막대, 분류별 막대, 이달 목록.
 // 글 앞머리의 amount·category·store·date를 읽는다 (date가 없으면 파일 이름의 날짜).
@@ -25,7 +26,8 @@ function parse(file: FileEntry, text: string): Spend | null {
   if (!Number.isFinite(amount) || amount === 0) return null;
   const date = dateOf(meta.date, file);
   if (!date) return null;
-  const category = CATEGORIES.includes(String(meta.category) as (typeof CATEGORIES)[number]) ? String(meta.category) : "기타";
+  // 분류는 적힌 이름 그대로 (분류 관리에서 지우거나 바꾼 옛 이름도 따로 보인다)
+  const category = String(meta.category ?? "").trim() || "기타";
   return { file, date, amount: Math.round(amount), category, store: String(meta.store ?? "").trim() || file.slug };
 }
 
@@ -37,7 +39,11 @@ const collect = async (index: DriveIndex, folder: FolderEntry) => {
 const pad = (n: number) => String(n).padStart(2, "0");
 
 export async function SpendingView({ index, folder, month }: { index: DriveIndex; folder: FolderEntry; month?: string }) {
-  const [{ spends, read, total }, budget] = await Promise.all([collect(index, folder), readBudget(index)]);
+  const [{ spends, read, total }, budget, categories] = await Promise.all([
+    collect(index, folder),
+    readBudget(index),
+    readCategories(index),
+  ]);
   if (!spends.length) {
     return (
       <section className="spending empty">
@@ -184,7 +190,13 @@ export async function SpendingView({ index, folder, month }: { index: DriveIndex
       {index.root.can.addChildren && (
         <details className="budget-edit">
           <summary className="small">{budget.monthly || Object.keys(budget.categories).length ? "예산 고치기" : "예산 정하기"}</summary>
-          <BudgetForm rootId={index.lib.rootId} monthly={budget.monthly} categories={budget.categories} />
+          <BudgetForm rootId={index.lib.rootId} monthly={budget.monthly} categories={budget.categories} names={categories} />
+        </details>
+      )}
+      {index.root.can.addChildren && (
+        <details className="budget-edit">
+          <summary className="small">분류 관리</summary>
+          <CategoryManager rootId={index.lib.rootId} initial={categories} />
         </details>
       )}
 
