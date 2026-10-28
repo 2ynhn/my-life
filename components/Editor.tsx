@@ -20,6 +20,7 @@ import { addPlace } from "@/lib/frontmatter-edit";
 import { imageFiles, prepareImage, uploadImage } from "@/lib/image-upload";
 import { tableResolver, type LinkTable } from "@/lib/markdown";
 import { fillReceipt, receiptFileName, type Receipt } from "@/lib/receipt-shape";
+import { addCategory as addCategoryAction } from "@/app/(app)/budget-actions";
 
 type Props = {
   links: LinkTable;
@@ -36,6 +37,8 @@ type Props = {
   places?: boolean;
   /** 카테고리별 입력 폼 (일기는 쓰기 위에 키워드 줄, 나머지는 '항목' 탭) */
   form?: FormKind | null;
+  /** 구매 분류를 폼에서 바로 더할 수 있는지 (일기장 설정 권한) */
+  manageCategories?: boolean;
 } & (
   | { mode: "edit"; fileId: string; fileName: string; checksum: string }
   | {
@@ -370,6 +373,18 @@ export function Editor(props: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 폼의 '+ 분류 추가': 분류 관리 목록 끝에 더해 저장
+  const addCategory = async (name: string): Promise<string | null> => {
+    try {
+      const res = await addCategoryAction(props.rootId, name);
+      if (!res.ok) return res.error;
+      setSuggestions((s) => ({ ...(s ?? { tags: [], people: [], stores: [], payments: [] }), categories: res.categories }));
+      return null;
+    } catch {
+      return "서버에 연결하지 못했습니다.";
+    }
+  };
+
   const close = () => {
     if (dirty && !confirm("저장하지 않은 내용이 있습니다. 닫을까요?\n(브라우저 임시저장에는 남아 있어요)")) return;
     router.push(props.closeHref);
@@ -559,6 +574,7 @@ export function Editor(props: Props) {
               onChange={(next) => replaceDoc(next, false)}
               suggestions={suggestions}
               onAddPlace={props.places ? () => setPicker(true) : undefined}
+              onAddCategory={props.manageCategories ? addCategory : undefined}
             />
           </div>
         )}

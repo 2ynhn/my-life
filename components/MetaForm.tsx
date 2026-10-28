@@ -17,6 +17,8 @@ type Props = {
   onChange: (next: string) => void;
   suggestions: Suggestions | null;
   onAddPlace?: () => void;
+  /** 분류를 목록에 더한다 (권한이 있을 때만). 실패하면 오류 문구 */
+  onAddCategory?: (name: string) => Promise<string | null>;
 };
 
 const str = (v: unknown) => (v === null || v === undefined ? "" : v instanceof Date ? v.toISOString().slice(0, 10) : String(v));
@@ -130,7 +132,59 @@ function Text({
   );
 }
 
-export function MetaForm({ kind, text, onChange, suggestions, onAddPlace }: Props) {
+/** 분류 버튼 줄 끝의 '+ 분류 추가': 눌러서 이름을 쓰면 목록(분류 관리)에 저장하고 바로 고른다 */
+function AddCategory({ onAdd, onAdded }: { onAdd: (name: string) => Promise<string | null>; onAdded: (name: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const submit = async () => {
+    const n = name.replace(/\s+/g, " ").trim();
+    if (!n || busy) return;
+    setBusy(true);
+    setError(null);
+    const err = await onAdd(n);
+    setBusy(false);
+    if (err) return setError(err);
+    onAdded(n);
+    setName("");
+    setOpen(false);
+  };
+  if (!open)
+    return (
+      <button type="button" className="seg-add" onClick={() => setOpen(true)}>
+        <Plus size={14} aria-hidden /> 분류 추가
+      </button>
+    );
+  return (
+    <span className="seg-add-form">
+      <input
+        value={name}
+        autoFocus
+        maxLength={30}
+        placeholder="예: 사무용품"
+        aria-label="새 분류 이름"
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.nativeEvent.isComposing) return;
+          if (e.key === "Enter") {
+            e.preventDefault();
+            void submit();
+          } else if (e.key === "Escape") setOpen(false);
+        }}
+      />
+      <button type="button" className="btn btn-save" disabled={busy || !name.trim()} onClick={() => void submit()}>
+        {busy ? "저장 중…" : "추가"}
+      </button>
+      <button type="button" className="icon-btn" aria-label="취소" onClick={() => setOpen(false)}>
+        <X size={14} aria-hidden />
+      </button>
+      {error && <span className="status small error">{error}</span>}
+    </span>
+  );
+}
+
+export function MetaForm({ kind, text, onChange, suggestions, onAddPlace, onAddCategory }: Props) {
   const meta = readMeta(text);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const [newKey, setNewKey] = useState("");
@@ -193,7 +247,9 @@ export function MetaForm({ kind, text, onChange, suggestions, onAddPlace }: Prop
                 {c}
               </button>
             ))}
+            {onAddCategory && <AddCategory onAdd={onAddCategory} onAdded={(c) => set({ category: c })} />}
           </div>
+          {onAddCategory && <span className="form-hint">빼기·이름 바꾸기·순서는 구매 목록 화면 아래 &apos;분류 관리&apos;에서</span>}
         </div>
         <div className="form-field">
           <span className="form-label">품목 (선택)</span>

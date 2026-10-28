@@ -259,6 +259,7 @@ async function EditNote({ entry, index }: { entry: FileEntry; index: DriveIndex 
       checksum={note.checksum}
       places={(await formKindOf(index, entry.parent!)) === "travel"}
       form={await formKindOf(index, entry.parent!)}
+      manageCategories={index.root.can.addChildren}
       initialText={note.text}
       closeHref={hrefFor(entry)}
       doneHref={(await formKindOf(index, entry.parent!)) === "diary" ? index.lib.base : hrefFor(entry.parent!)}
@@ -306,6 +307,7 @@ async function NewNote({
       sharedImage={shared && kind === "spending"}
       places={kind === "travel"}
       form={kind}
+      manageCategories={kind === "spending" && index.root.can.addChildren}
       doneHref={kind === "diary" ? index.lib.base : undefined}
       rootId={index.lib.rootId}
       folderId={folder.id}

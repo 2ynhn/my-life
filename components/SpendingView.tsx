@@ -51,6 +51,12 @@ export async function SpendingView({ index, folder, month }: { index: DriveIndex
           아직 금액이 적힌 지출 기록이 없어요. <b>새 글</b>에서 영수증 사진으로 채우거나, 앞머리의 <code>amount</code>에 금액을 적으면 여기에
           합계가 나옵니다.
         </p>
+        {index.root.can.addChildren && (
+          <details className="budget-edit">
+            <summary className="small">분류 관리</summary>
+            <CategoryManager rootId={index.lib.rootId} initial={categories} />
+          </details>
+        )}
       </section>
     );
   }

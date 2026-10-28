@@ -2570,3 +2570,35 @@ mark {
   opacity: 0.35;
   cursor: default;
 }
+.seg-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.35rem 0.7rem;
+  border: 1px dashed var(--line);
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+.seg-add:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.seg-add-form {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+}
+.meta-form .seg-add-form input {
+  width: 9rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.875rem;
+}
+.seg-add-form .btn {
+  padding: 0.3rem 0.7rem;
+}

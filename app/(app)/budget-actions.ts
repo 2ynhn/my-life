@@ -56,3 +56,25 @@ export async function saveCategories(rootId: string, list: string[]): Promise<{ 
   revalidatePath("/", "layout");
   return { ok: true };
 }
+
+/** 입력 폼의 '+ 분류 추가': Drive의 지금 목록 끝에 하나 더한다 (이미 있으면 그대로). 바뀐 목록을 돌려준다 */
+export async function addCategory(rootId: string, name: string): Promise<{ ok: true; categories: string[] } | { ok: false; error: string }> {
+  const user = await getUser();
+  if (!user) return { ok: false, error: "로그인이 필요합니다." };
+  const loaded = await loadLibrary(user, String(rootId));
+  if (loaded.kind !== "ok") return { ok: false, error: "일기장을 열 수 없습니다." };
+  if (!loaded.index.root.can.addChildren) return { ok: false, error: "이 일기장의 설정을 바꿀 권한이 없습니다." };
+  const [clean] = cleanCategories([name]);
+  if (!clean) return { ok: false, error: "분류 이름을 확인해 주세요 (# : [ ] { } 는 쓸 수 없어요)." };
+  const current = await readCategories(loaded.index);
+  if (current.includes(clean)) return { ok: true, categories: current };
+  const categories = [...current, clean];
+  try {
+    await writeCategories(loaded.index, categories);
+  } catch (e) {
+    console.error("[categories]", e);
+    return { ok: false, error: e instanceof DriveError ? e.message : "분류를 저장하지 못했습니다." };
+  }
+  await markWritten();
+  return { ok: true, categories };
+}
