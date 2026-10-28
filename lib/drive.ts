@@ -12,7 +12,10 @@ export { DriveError, ReauthError, type DriveUser } from "@/lib/google";
 const FOLDER_MIME = "application/vnd.google-apps.folder";
 const MD_MIME = "text/markdown; charset=UTF-8";
 export const LIBRARY_NAME = "my-life";
-const INDEX_TTL_MS = 2 * 60 * 1000;
+/** 이 간격마다 Drive 변경 목록으로 바뀐 게 있는지만 확인한다 (싸다) */
+const CHECK_MS = 30 * 1000;
+/** 변경 목록에 안 잡히는 것(상속 권한 변화 등)에 대비해 이 시간이 지나면 통째로 다시 읽는다 */
+const MAX_AGE_MS = 15 * 60 * 1000;
 
 const CAP_FIELDS = "capabilities(canEdit,canAddChildren,canListChildren,canRename,canTrash)";
 const ITEM_FIELDS = `id,name,mimeType,modifiedTime,size,inheritedPermissionsDisabled,${CAP_FIELDS}`;
@@ -152,6 +155,9 @@ export type DriveIndex = {
   root: FolderEntry;
   byId: Map<string, Entry>;
   builtAt: number;
+  /** 마지막으로 Drive 변경 목록을 확인한 시각과 그 위치(page token) */
+  checkedAt: number;
+  changeToken: string | null;
 };
 
 const isHidden = (name: string) => name.startsWith(".");
@@ -197,7 +203,19 @@ function compareEntries(a: Entry, b: Entry): number {
   return aDated ? b.name.localeCompare(a.name, "ko") : a.name.localeCompare(b.name, "ko");
 }
 
+async function startPageToken(user: DriveUser): Promise<string | null> {
+  try {
+    const res = await driveFetch(user, `${API.drive}/changes/startPageToken?fields=startPageToken`);
+    return ((await res.json()) as { startPageToken: string }).startPageToken;
+  } catch (e) {
+    console.error("[drive] startPageToken", e);
+    return null; // 없으면 예전처럼 시간이 지나면 통째로 다시 읽는다
+  }
+}
+
 async function buildIndex(user: DriveUser, lib: Library): Promise<DriveIndex> {
+  // 목록을 읽기 '전'의 위치를 기억해야, 읽는 도중 바뀐 것도 다음 확인 때 잡힌다
+  const changeToken = await startPageToken(user);
   const rootMeta = (await (
     await driveFetch(user, `${fileApi(lib.rootId)}?fields=${ITEM_FIELDS}`)
   ).json()) as RawItem;
@@ -266,18 +284,90 @@ async function buildIndex(user: DriveUser, lib: Library): Promise<DriveIndex> {
     level = next;
   }
 
-  return { lib, user, root, byId, builtAt: Date.now() };
+  const now = Date.now();
+  return { lib, user, root, byId, builtAt: now, checkedAt: now, changeToken };
+}
+
+type RawChange = { fileId: string; removed?: boolean; file?: RawItem & { trashed?: boolean; parents?: string[] } };
+
+const sameCaps = (a: Caps, b: Caps) =>
+  a.edit === b.edit && a.addChildren === b.addChildren && a.listChildren === b.listChildren && a.rename === b.rename && a.trash === b.trash;
+
+/**
+ * 마지막 확인 이후 Drive 변경 목록을 훑는다.
+ * - 이 일기장과 상관없는 변경만 있으면 그대로 쓴다
+ * - 글 내용만 바뀐 경우(수정 시각·크기)는 그 자리에서 고친다
+ * - 새 파일·이름 변경·이동·삭제·권한 변화처럼 구조가 바뀌면 false → 통째로 다시 읽기
+ */
+async function catchUp(index: DriveIndex): Promise<boolean> {
+  if (!index.changeToken) return false;
+  const changes: RawChange[] = [];
+  let pageToken: string | undefined = index.changeToken;
+  let newToken = index.changeToken;
+  while (pageToken) {
+    const params = new URLSearchParams({
+      pageToken,
+      pageSize: "1000",
+      includeRemoved: "true",
+      fields: `nextPageToken,newStartPageToken,changes(fileId,removed,file(${ITEM_FIELDS},trashed,parents))`,
+    });
+    const res = await driveFetch(index.user, `${API.drive}/changes?${params}`);
+    const json = (await res.json()) as { changes: RawChange[]; nextPageToken?: string; newStartPageToken?: string };
+    changes.push(...json.changes);
+    pageToken = json.nextPageToken;
+    if (json.newStartPageToken) newToken = json.newStartPageToken;
+  }
+
+  const patches: (() => void)[] = [];
+  for (const c of changes) {
+    const known = index.byId.get(c.fileId);
+    const intoKnownFolder = c.file?.parents?.some((p) => index.byId.get(p)?.kind === "folder");
+    if (!known && !intoKnownFolder) continue; // 이 일기장과 상관없음
+    if (!known || c.removed || !c.file || c.file.trashed) return false;
+    if (c.file.name !== known.name) return false;
+    if (known.parent && !c.file.parents?.includes(known.parent.id)) return false;
+    const can = caps(c.file.capabilities);
+    if (known.kind === "folder") {
+      // 폴더 권한·접근 제한이 바뀌면 하위 전체가 달라질 수 있다
+      if (!sameCaps(known.can, can) || !!c.file.inheritedPermissionsDisabled !== known.restricted) return false;
+      continue;
+    }
+    const file = c.file;
+    patches.push(() => {
+      known.modifiedTime = file.modifiedTime;
+      known.can = can;
+      if (known.kind === "file") known.size = Number(file.size ?? known.size);
+    });
+  }
+  for (const patch of patches) patch();
+  index.changeToken = newToken;
+  index.checkedAt = Date.now();
+  return true;
 }
 
 // 사람마다·일기장마다 따로 캐시한다. 같은 폴더라도 사람마다 Drive 권한이 달라 보이는 내용이 다르기 때문
-const indexes = new Map<string, { index?: DriveIndex; building?: Promise<DriveIndex> }>();
+const indexes = new Map<string, { index?: DriveIndex; building?: Promise<DriveIndex>; checking?: Promise<boolean> }>();
 const cacheKey = (user: DriveUser, rootId: string) => `${user.email.toLowerCase()}\n${rootId}`;
 const MAX_CACHED = 100;
 
 export async function getIndex(user: DriveUser, lib: Library, options: { fresh?: boolean } = {}): Promise<DriveIndex> {
   const key = cacheKey(user, lib.rootId);
   const slot = indexes.get(key) ?? {};
-  if (!options.fresh && slot.index && Date.now() - slot.index.builtAt < INDEX_TTL_MS) return slot.index;
+  const cached = slot.index;
+  if (!options.fresh && cached && !slot.building) {
+    const now = Date.now();
+    if (now - cached.checkedAt < CHECK_MS) return cached;
+    if (now - cached.builtAt < MAX_AGE_MS) {
+      // 동시에 여러 요청이 와도 변경 확인은 한 번만
+      slot.checking ??= catchUp(cached)
+        .catch((e) => {
+          console.error("[drive] changes", e);
+          return false;
+        })
+        .finally(() => (slot.checking = undefined));
+      if (await slot.checking) return cached;
+    }
+  }
   slot.building ??= buildIndex(user, lib)
     .then((idx) => {
       slot.index = idx;
@@ -384,7 +474,51 @@ export function downloadFile(index: DriveIndex, file: FileEntry): Promise<Respon
 export async function readNote(index: DriveIndex, file: FileEntry): Promise<{ text: string; checksum: string }> {
   const res = await downloadFile(index, file);
   const buf = new Uint8Array(await res.arrayBuffer());
-  return { text: new TextDecoder().decode(buf), checksum: md5(buf) };
+  const text = new TextDecoder().decode(buf);
+  rememberText(index, file, text);
+  return { text, checksum: md5(buf) };
+}
+
+// ───────────── 글 내용 기억 (검색용) ─────────────
+// 검색할 때마다 모든 글을 내려받지 않도록 잠깐 기억한다. 사람별로 따로 두고(권한이 다를 수 있음),
+// 수정 시각이 바뀌면 다시 읽는다. 서버 인스턴스 메모리에만 있고 디스크·DB에는 남지 않는다.
+
+const texts = new Map<string, { modifiedTime: string; text: string }>();
+let textChars = 0;
+const MAX_TEXT_CHARS = 40_000_000;
+const textKey = (index: DriveIndex, file: FileEntry) => `${index.user.email.toLowerCase()}\n${file.id}`;
+
+function rememberText(index: DriveIndex, file: FileEntry, text: string) {
+  const key = textKey(index, file);
+  const old = texts.get(key);
+  if (old) textChars -= old.text.length;
+  texts.delete(key);
+  texts.set(key, { modifiedTime: file.modifiedTime, text });
+  textChars += text.length;
+  // 오래 안 쓴 것부터 버린다
+  for (const [k, v] of texts) {
+    if (textChars <= MAX_TEXT_CHARS) break;
+    texts.delete(k);
+    textChars -= v.text.length;
+  }
+}
+
+/** 기억해 둔 최신 내용 (수정 시각이 다르면 없음) */
+export function cachedText(index: DriveIndex, file: FileEntry): string | null {
+  const hit = texts.get(textKey(index, file));
+  return hit && hit.modifiedTime === file.modifiedTime ? hit.text : null;
+}
+
+/** Drive 본문 검색 (단어 전체가 맞아야 찾음). 이 일기장 안의 md 파일 id만 돌려준다 */
+export async function driveFullText(index: DriveIndex, term: string): Promise<Set<string>> {
+  const params = new URLSearchParams({
+    q: `fullText contains '${q(term)}' and trashed = false and mimeType != '${FOLDER_MIME}'`,
+    fields: "files(id)",
+    pageSize: "200",
+  });
+  const res = await driveFetch(index.user, `${API.drive}/files?${params}`);
+  const ids = ((await res.json()) as { files: { id: string }[] }).files.map((f) => f.id);
+  return new Set(ids.filter((id) => index.byId.get(id)?.kind === "file"));
 }
 
 // ───────────── 쓰기 (Drive가 권한을 확인한다) ─────────────
@@ -395,6 +529,7 @@ export async function fileChecksum(index: DriveIndex, file: FileEntry): Promise<
 }
 
 export async function updateFile(index: DriveIndex, file: FileEntry, text: string): Promise<string> {
+  texts.delete(textKey(index, file));
   const res = await driveFetch(index.user, `${API.upload}/files/${encodeURIComponent(file.id)}?uploadType=media&fields=md5Checksum`, {
     method: "PATCH",
     headers: { "Content-Type": MD_MIME },

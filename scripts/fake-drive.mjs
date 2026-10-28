@@ -26,12 +26,18 @@ const PORT = Number(opt("--port")[0] ?? 4010);
 /** @type {Map<string, any>} */
 const files = new Map();
 const revoked = new Set();
+/** 변경 기록: Drive changes API 흉내 (페이지 토큰 = 순번) */
+const changeLog = [];
+const touch = (id) => changeLog.push(id);
+/** 테스트용: 폴더 목록 조회 횟수 (/__stats) */
+const stats = { listChildren: 0, changes: 0 };
 const now = () => new Date().toISOString();
 const newId = () => "f" + randomUUID().replace(/-/g, "").slice(0, 20);
 const rootOf = (email) => `root:${email}`;
 
 function add(file) {
   files.set(file.id, { trashed: false, restricted: false, perms: [], content: null, modifiedTime: now(), ...file });
+  touch(file.id);
   return files.get(file.id);
 }
 
@@ -162,6 +168,14 @@ function query(q, email) {
     } else if (c === "trashed = false") result = result.filter((f) => !f.trashed);
     else if ((m = /^name = '(.+)'$/.exec(c))) result = result.filter((f) => f.name === m[1]);
     else if ((m = /^mimeType = '(.+)'$/.exec(c))) result = result.filter((f) => f.mimeType === m[1]);
+    else if ((m = /^mimeType != '(.+)'$/.exec(c))) result = result.filter((f) => f.mimeType !== m[1]);
+    else if ((m = /^fullText contains '(.+)'$/.exec(c))) {
+      // Drive처럼 '단어 전체'가 맞아야 찾는다 (단어 일부·조사 붙은 말은 못 찾음)
+      const term = m[1].replace(/\\'/g, "'").toLowerCase();
+      const words = (f) => `${f.name} ${f.content && a(f) ? f.content.toString() : ""}`.toLowerCase().split(/[\s\p{P}\p{S}]+/u);
+      const a = (f) => { const r = access(f, email); return r && r !== "meta"; };
+      result = result.filter((f) => words(f).includes(term));
+    }
     else if (c === "'me' in owners") result = result.filter((f) => f.owner === email);
     else if (c === "sharedWithMe = true") result = result.filter((f) => f.owner !== email && f.perms.some((p) => p.emailAddress === email));
     else throw new Error(`지원하지 않는 검색: ${c}`);
@@ -177,6 +191,7 @@ const server = createServer(async (req, res) => {
       revoked.add(url.searchParams.get("email"));
       return send(res, 200, { ok: true });
     }
+    if (url.pathname === "/__stats") return send(res, 200, stats);
     if (url.pathname === "/token") {
       const rt = new URLSearchParams(body.toString()).get("refresh_token") ?? "";
       if (!rt.startsWith("dev:") || revoked.has(rt.slice(4))) return send(res, 400, { error: "invalid_grant" });
@@ -188,8 +203,26 @@ const server = createServer(async (req, res) => {
     if (!email || revoked.has(email)) return fail(res, 401, "authError");
 
     let m;
+    // 변경 목록
+    if (req.method === "GET" && url.pathname === "/drive/v3/changes/startPageToken") {
+      return send(res, 200, { startPageToken: String(changeLog.length) });
+    }
+    if (req.method === "GET" && url.pathname === "/drive/v3/changes") {
+      stats.changes++;
+      const from = Number(url.searchParams.get("pageToken") ?? 0);
+      const ids = [...new Set(changeLog.slice(from))];
+      return send(res, 200, {
+        newStartPageToken: String(changeLog.length),
+        changes: ids.map((id) => {
+          const f = files.get(id);
+          const a = access(f, email);
+          return a ? { fileId: id, removed: false, file: meta(f, email) } : { fileId: id, removed: true };
+        }),
+      });
+    }
     // 목록
     if (req.method === "GET" && url.pathname === "/drive/v3/files") {
+      if (/ in parents/.test(url.searchParams.get("q") ?? "")) stats.listChildren++;
       return send(res, 200, { files: query(url.searchParams.get("q") ?? "", email).map((f) => meta(f, email)) });
     }
     // 폴더 만들기
@@ -216,6 +249,7 @@ const server = createServer(async (req, res) => {
       if (!can(f, email).canEdit) return fail(res, 403, "insufficientFilePermissions");
       f.content = body;
       f.modifiedTime = now();
+      touch(f.id);
       return send(res, 200, { md5Checksum: md5(body) });
     }
     // 공유 목록·추가
@@ -233,6 +267,7 @@ const server = createServer(async (req, res) => {
         const existing = f.perms.find((p) => p.emailAddress === emailAddress);
         if (existing) existing.role = role;
         else f.perms.push({ id: "p" + randomUUID().slice(0, 8), role, emailAddress });
+        touch(f.id);
         console.log(`[fake-drive] ${email} shared ${f.name} with ${emailAddress} (${role}) notify=${url.searchParams.get("sendNotificationEmail")}`);
         return send(res, 200, { id: f.perms.find((p) => p.emailAddress === emailAddress).id });
       }
@@ -242,6 +277,7 @@ const server = createServer(async (req, res) => {
       if (!access(f, email)) return fail(res, 404, "notFound");
       if (!can(f, email).canShare) return fail(res, 403, "insufficientFilePermissions");
       f.perms = f.perms.filter((p) => p.id !== decodeURIComponent(m[2]));
+      touch(f.id);
       return send(res, 204, {});
     }
     // 파일 하나: 정보·내용·수정
@@ -272,6 +308,7 @@ const server = createServer(async (req, res) => {
           f.restricted = !!patch.inheritedPermissionsDisabled;
         }
         f.modifiedTime = now();
+        touch(f.id);
         return send(res, 200, { id: f.id });
       }
     }

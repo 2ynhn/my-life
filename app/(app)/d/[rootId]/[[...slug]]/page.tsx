@@ -2,11 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
+import { CalendarView, onThisDay } from "@/components/CalendarView";
 import { DriveProblem } from "@/components/DriveProblem";
 import { Editor } from "@/components/Editor";
 import { FolderView } from "@/components/FolderView";
 import { NoteActions } from "@/components/NoteActions";
 import { NoteBody } from "@/components/NoteBody";
+import { SearchView } from "@/components/SearchView";
 import {
   DriveError,
   ReauthError,
@@ -30,7 +32,7 @@ import { requireUser } from "@/lib/session";
 
 type Props = {
   params: Promise<{ rootId: string; slug?: string[] }>;
-  searchParams: Promise<{ mode?: string; sub?: string }>;
+  searchParams: Promise<{ mode?: string; sub?: string; view?: string; q?: string; tag?: string; month?: string; day?: string }>;
 };
 
 const decode = (s: string) => {
@@ -50,8 +52,10 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   const user = await requireUser();
   const loaded = await loadLibrary(user, decode((await params).rootId));
   const entry = loaded.kind === "ok" ? await resolve(loaded.index, params) : null;
-  const { mode } = await searchParams;
+  const { mode, view, q, tag } = await searchParams;
   const name = !entry ? "찾을 수 없음" : !entry.parent ? libraryTitle(entry.lib) : entry.kind === "file" ? entry.slug : entry.name;
+  if (entry && !entry.parent && view === "search") return { title: tag ? `#${tag}` : q ? `검색: ${q}` : "검색" };
+  if (entry && !entry.parent && view === "calendar") return { title: "캘린더" };
   return { title: mode === "edit" ? `편집: ${name}` : mode === "new" ? "새 글" : name };
 }
 
@@ -76,7 +80,11 @@ export default async function EntryPage({ params, searchParams }: Props) {
   // md가 아닌 파일(이미지 등)은 원본으로 보낸다
   if (entry.kind === "file" && !entry.isMarkdown) redirect(fileUrl(entry));
 
-  const { mode, sub } = await searchParams;
+  const { mode, sub, view, q, tag, month, day } = await searchParams;
+
+  // 일기장 단위 화면: 검색·캘린더 (주소: /d/<id>?view=…)
+  if (!entry.parent && view === "search") return <SearchView index={index} q={String(q ?? "")} tag={String(tag ?? "")} />;
+  if (!entry.parent && view === "calendar") return <CalendarView index={index} month={month} day={day} />;
 
   // 편집·새 글은 Drive가 허락한 경우에만 (게스트도 Drive에서 편집자로 공유받았으면 가능)
   if (mode === "edit" && entry.kind === "file" && entry.can.edit) return <EditNote entry={entry} index={index} />;
@@ -122,6 +130,7 @@ function diaryHref(root: FolderEntry): string | null {
 function Folder({ folder, index }: { folder: FolderEntry; index: DriveIndex }) {
   const isRoot = !folder.parent;
   const diary = isRoot ? diaryHref(folder) : null;
+  const past = isRoot ? onThisDay(index) : [];
   const recent = isRoot
     ? [...index.byId.values()]
         .filter((e): e is FileEntry => e.kind === "file" && e.isMarkdown && isListable(e.parent!) && !hiddenAncestor(e))
@@ -151,6 +160,35 @@ function Folder({ folder, index }: { folder: FolderEntry; index: DriveIndex }) {
           {folder.lib.ownerName}님이 Drive에서 공유한 일기장입니다.{" "}
           {folder.can.edit ? "편집 권한이 있어 글을 쓰고 고칠 수 있어요." : "읽기만 할 수 있어요."}
         </p>
+      )}
+      {isRoot && (
+        <div className="lib-tools">
+          <form className="search-form" action={folder.lib.base}>
+            <input type="hidden" name="view" value="search" />
+            <input name="q" placeholder="일기 검색" aria-label="검색어" />
+            <button className="btn" type="submit">
+              검색
+            </button>
+          </form>
+          <Link className="btn" href={`${folder.lib.base}?view=calendar`}>
+            📅 캘린더
+          </Link>
+        </div>
+      )}
+      {past.length > 0 && (
+        <section className="on-this-day">
+          <h2>지난 오늘</h2>
+          <ul className="note-list">
+            {past.map(({ years, note }) => (
+              <li key={note.id}>
+                <Link href={hrefFor(note)}>
+                  <span className="title">{note.slug}</span>
+                  <span className="muted small">{years}년 전</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
       <FolderView folder={folder} />
       {recent.length > 0 && (
@@ -210,7 +248,11 @@ async function Note({ entry, index }: { entry: FileEntry; index: DriveIndex }) {
           canTrash={trash}
         />
       )}
-      <NoteBody text={text} links={linkResolver(index, entry.parent!)} />
+      <NoteBody
+        text={text}
+        links={linkResolver(index, entry.parent!)}
+        tagHref={(t) => `${index.lib.base}?view=search&tag=${encodeURIComponent(t)}`}
+      />
     </>
   );
 }

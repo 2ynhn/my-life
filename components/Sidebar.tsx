@@ -66,6 +66,13 @@ export function Sidebar({ tree, title, homeHref }: { tree: TreeNode[]; title: st
         <Link href={homeHref} className={`home${decodeURIComponent(pathname) === decodeURIComponent(homeHref) ? " current" : ""}`}>
           {title}
         </Link>
+        <form className="side-search" action={homeHref}>
+          <input type="hidden" name="view" value="search" />
+          <input name="q" placeholder="검색" aria-label="일기 검색" />
+        </form>
+        <Link href={`${homeHref}?view=calendar`} className="side-cal small">
+          📅 캘린더
+        </Link>
         <Branch nodes={tree} pathname={pathname} />
       </nav>
     </>
