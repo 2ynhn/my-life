@@ -1,5 +1,5 @@
 import { DriveError, attachmentFolderFor, uniqueName, uploadFile } from "@/lib/drive";
-import { findInLibrary } from "@/lib/library";
+import { findInLibrary, markWritten } from "@/lib/library";
 import { getUser } from "@/lib/session";
 
 // Vercel 함수 요청 한도(4.5MB) 아래. 큰 사진은 브라우저에서 줄여서 보낸다
@@ -53,6 +53,7 @@ export async function POST(req: Request) {
       .replaceAll(":", ".");
     const name = uniqueName(target, stamp, ext);
     const id = await uploadFile(index, target, name, bytes, type);
+    await markWritten();
     return json({ id, name, url: `/api/file/${encodeURIComponent(index.lib.rootId)}/${encodeURIComponent(id)}` });
   } catch (e) {
     console.error("[upload]", e);

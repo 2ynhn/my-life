@@ -76,7 +76,32 @@ export type LoadedLibrary =
  * 주소의 일기장 id를 이 사람 권한으로 연다. 열 수 없으면(공유 안 됨·삭제됨) missing.
  * 운영 환경에서는 서버 오류 메시지가 숨겨지므로 문제는 값으로 돌려줘서 페이지가 보여 주게 한다.
  */
-export async function loadLibrary(user: DriveUser, rootId: string, options: { fresh?: boolean } = {}): Promise<LoadedLibrary> {
+// 쓰기(저장·새 글·이름 바꾸기 등)를 한 시각을 그 사람 브라우저 쿠키에 잠깐 남긴다.
+// 서버 인스턴스가 여러 개여도, 그보다 오래된 목록을 가진 인스턴스는 먼저 Drive 변경을 확인한다.
+const WRITE_COOKIE = "ml-w";
+
+export async function markWritten() {
+  try {
+    (await cookies()).set(WRITE_COOKIE, String(Date.now()), {
+      path: "/",
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 120,
+    });
+  } catch {}
+}
+
+async function lastWrite(): Promise<number | undefined> {
+  try {
+    return Number((await cookies()).get(WRITE_COOKIE)?.value) || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export async function loadLibrary(user: DriveUser, rootId: string, opts: { fresh?: boolean } = {}): Promise<LoadedLibrary> {
+  const options = { ...opts, since: await lastWrite() };
   try {
     // 전에 연 적이 있으면 '아직 열 수 있나' 확인과 목록 확인을 동시에 (Drive 왕복 한 번 줄임)
     const known = options.fresh ? undefined : opened.get(`${user.email.toLowerCase()}\n${rootId}`)?.lib;

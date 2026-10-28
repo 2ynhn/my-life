@@ -5,7 +5,7 @@ import { headers } from "next/headers";
 import { DriveError, addShare, invalidateIndex, removeShare, setRestricted } from "@/lib/drive";
 import { AI_MODELS, DEFAULT_MODEL, saveAiSettings, type AiModel } from "@/lib/ai-settings";
 import { checkApiKey } from "@/lib/receipt";
-import { loadLibrary, myLibrary } from "@/lib/library";
+import { loadLibrary, myLibrary, markWritten } from "@/lib/library";
 import { getUser } from "@/lib/session";
 
 // 모든 동작은 로그인한 사람 본인의 토큰으로 Drive에 요청한다.
@@ -76,6 +76,7 @@ export async function restrictAction(folderId: string, on: boolean): Promise<Res
     if (folder?.kind !== "folder" || !folder.parent) return { ok: false, error: "폴더를 찾을 수 없습니다." };
     await setRestricted(index, folder, !!on);
     invalidateIndex(index);
+    await markWritten();
     return { ok: true };
   });
 }

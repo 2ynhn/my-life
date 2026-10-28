@@ -21,7 +21,7 @@ import {
   type FolderEntry,
 } from "@/lib/drive";
 import { FEATURES, featureByName } from "@/lib/features";
-import { loadLibrary } from "@/lib/library";
+import { loadLibrary, markWritten } from "@/lib/library";
 import { getUser } from "@/lib/session";
 
 // 모든 쓰기는 로그인한 사람 본인의 토큰으로 Drive에 요청한다 → 권한은 Drive가 최종 판단.
@@ -100,6 +100,7 @@ export async function saveNote(
     // 페이지를 다시 그리지 않는다: 편집기가 새로 만들어지면 커서·되돌리기 기록이 사라진다.
     // 보기 화면은 매번 Drive에서 내용을 읽으므로 목록(수정 시각)만 갱신하면 된다.
     invalidateIndex(index);
+    await markWritten();
     if (leaving) revalidatePath("/", "layout");
     return { ok: true, checksum };
   } catch (e) {
@@ -142,6 +143,7 @@ export async function createNote(
     }
     const id = await createFile(index, target, checked.name, text);
     invalidateIndex(index);
+    await markWritten();
     revalidatePath("/", "layout");
     return { ok: true, href: await freshHref(index, id, hrefFor(folder)) };
   } catch (e) {
@@ -162,6 +164,7 @@ export async function renameNote(rootId: string, id: string, rawName: string): P
   try {
     const newId = await renameFile(index, file, checked.name);
     invalidateIndex(index);
+    await markWritten();
     revalidatePath("/", "layout");
     return { ok: true, href: await freshHref(index, newId, hrefFor(file.parent)) };
   } catch (e) {
@@ -179,6 +182,7 @@ export async function trashNote(rootId: string, id: string): Promise<ActionResul
   try {
     await trashFile(index, file);
     invalidateIndex(index);
+    await markWritten();
     revalidatePath("/", "layout");
     return { ok: true, href: hrefFor(file.parent) };
   } catch (e) {
@@ -204,6 +208,7 @@ export async function startFeature(rootId: string, key: string): Promise<void> {
     redirect(root.lib.base);
   }
   invalidateIndex(index);
+  await markWritten();
   revalidatePath("/", "layout");
   redirect(next);
 }
@@ -263,6 +268,7 @@ export async function quickNote(rootId: string, raw: string): Promise<ActionResu
       id = await createFile(index, target, `${date}.md`, `${template.replace(/\s*$/, "")}\n\n${entry}\n`);
     }
     invalidateIndex(index);
+    await markWritten();
     revalidatePath("/", "layout");
     return { ok: true, href: await freshHref(index, id, hrefFor(target)) };
   } catch (e) {
@@ -289,6 +295,7 @@ export async function createFolderIn(rootId: string, parentId: string, rawName: 
   try {
     const id = await createFolder(index, parent, name);
     invalidateIndex(index);
+    await markWritten();
     revalidatePath("/", "layout");
     return { ok: true, href: await freshHref(index, id, `${hrefFor(parent)}/${encodeURIComponent(name)}`) };
   } catch (e) {

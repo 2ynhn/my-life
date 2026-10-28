@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { writeBudget } from "@/lib/budget";
 import { DriveError } from "@/lib/drive";
-import { loadLibrary } from "@/lib/library";
+import { loadLibrary, markWritten } from "@/lib/library";
 import { CATEGORIES } from "@/lib/receipt-shape";
 import { getUser } from "@/lib/session";
 
@@ -31,6 +31,7 @@ export async function saveBudget(rootId: string, form: FormData): Promise<{ ok: 
     console.error("[budget]", e);
     return { ok: false, error: e instanceof DriveError ? e.message : "예산을 저장하지 못했습니다." };
   }
+  await markWritten();
   revalidatePath("/", "layout");
   return { ok: true };
 }

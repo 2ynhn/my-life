@@ -350,13 +350,18 @@ const indexes = new Map<string, { index?: DriveIndex; building?: Promise<DriveIn
 const cacheKey = (user: DriveUser, rootId: string) => `${user.email.toLowerCase()}\n${rootId}`;
 const MAX_CACHED = 100;
 
-export async function getIndex(user: DriveUser, lib: Library, options: { fresh?: boolean } = {}): Promise<DriveIndex> {
+export async function getIndex(
+  user: DriveUser,
+  lib: Library,
+  options: { fresh?: boolean; since?: number } = {},
+): Promise<DriveIndex> {
   const key = cacheKey(user, lib.rootId);
   const slot = indexes.get(key) ?? {};
   const cached = slot.index;
   if (!options.fresh && cached && !slot.building) {
     const now = Date.now();
-    if (now - cached.checkedAt < CHECK_MS) return cached;
+    // since: 이 사람이 마지막으로 쓴 시각. 그보다 전에 확인한 목록이면 30초가 안 됐어도 변경을 확인한다
+    if (now - cached.checkedAt < CHECK_MS && !(options.since && cached.checkedAt < options.since)) return cached;
     if (now - cached.builtAt < MAX_AGE_MS) {
       // 동시에 여러 요청이 와도 변경 확인은 한 번만
       slot.checking ??= catchUp(cached)
