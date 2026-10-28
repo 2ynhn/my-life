@@ -73,6 +73,8 @@ function rewritePart(text: string, links: LinkResolver): string {
 export function formatMetaValue(value: unknown): string {
   if (value instanceof Date) return value.toISOString().slice(0, 10);
   if (Array.isArray(value)) return value.map(formatMetaValue).join(", ");
+  // 여행 places처럼 name이 있는 항목은 이름만 (좌표는 지도에)
+  if (value && typeof value === "object" && "name" in value) return String((value as { name: unknown }).name ?? "");
   if (value && typeof value === "object") return JSON.stringify(value);
   return String(value ?? "");
 }

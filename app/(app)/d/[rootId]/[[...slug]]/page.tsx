@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Plus } from "lucide-react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { CalendarView, onThisDay } from "@/components/CalendarView";
 import { DriveProblem } from "@/components/DriveProblem";
 import { Editor } from "@/components/Editor";
@@ -125,7 +124,6 @@ export default async function EntryPage({ params, searchParams }: Props) {
   return (
     <>
       <div className="entry-head">
-        <Breadcrumbs entry={entry} />
         <a className="small muted" href={webUrlFor(entry)} target="_blank" rel="noopener noreferrer">
           Drive에서 열기 ↗
         </a>

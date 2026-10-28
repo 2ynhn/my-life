@@ -232,15 +232,6 @@ a {
     margin-left: 0;
   }
   /* 폴더 버튼은 일기장 안에서만 생기고, 헤더 왼쪽(로고 자리)에 겹쳐 놓는다 */
-  .menu-toggle {
-    position: fixed;
-    top: 8px;
-    left: 1rem;
-    z-index: 25;
-  }
-  body:has(.menu-toggle) .topbar .brand {
-    visibility: hidden;
-  }
   .user {
     display: none;
   }
@@ -1712,4 +1703,66 @@ mark {
   display: inline-flex;
   align-items: center;
   gap: 0.2rem;
+}
+
+/* ───── 상단 내비게이션 ───── */
+
+.nav-title {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+}
+.nav-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin-left: -0.4rem;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.nav-back:hover {
+  background: var(--line);
+}
+.nav-name {
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.topbar .spacer {
+  min-width: 0.5rem;
+}
+.nav-slot {
+  display: contents;
+}
+@media (max-width: 768px) {
+  /* '폴더'는 글자까지 보인다 */
+  .topbar .menu-toggle .btn-label {
+    display: inline;
+  }
+}
+.entry-head {
+  justify-content: flex-end;
+}
+.account {
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--line);
+}
+.account-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+.account-row form {
+  margin: 0;
 }

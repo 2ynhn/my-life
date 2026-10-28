@@ -1,9 +1,10 @@
 "use client";
 
-import { ArrowLeft, CalendarDays, Folder, HeartPulse, Lock, Menu, NotebookPen, Plane, Receipt, X } from "lucide-react";
+import { ArrowLeft, CalendarDays, Folder, HeartPulse, FolderTree, Lock, NotebookPen, Plane, Receipt, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import type { TreeNode } from "@/lib/drive";
 import { featureByName } from "@/lib/features";
 
@@ -51,13 +52,19 @@ function Branch({ nodes, pathname, top = false }: { nodes: TreeNode[]; pathname:
 export function Sidebar({ tree, title, homeHref }: { tree: TreeNode[]; title: string; homeHref: string }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  // 모바일 '폴더' 버튼은 상단 내비게이션 오른쪽 자리에 넣는다
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => setSlot(document.getElementById("nav-slot")), []);
+  const toggle = (
+    <button className="menu-toggle btn" aria-expanded={open} onClick={() => setOpen((v) => !v)} title="폴더">
+      {open ? <X size={16} aria-hidden /> : <FolderTree size={16} aria-hidden />}
+      <span className="btn-label">{open ? "닫기" : "폴더"}</span>
+    </button>
+  );
 
   return (
     <>
-      <button className="menu-toggle btn" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
-        {open ? <X size={18} aria-hidden /> : <Menu size={18} aria-hidden />}
-        {open ? "닫기" : "메뉴"}
-      </button>
+      {slot && createPortal(toggle, slot)}
       <nav
         className={`sidebar${open ? " open" : ""}`}
         aria-label="폴더"

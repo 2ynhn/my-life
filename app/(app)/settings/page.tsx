@@ -7,12 +7,37 @@ import { InviteLink, RestrictList, ShareList } from "@/components/ShareManager";
 import { AI_MODELS, getAiSettings } from "@/lib/ai-settings";
 import { DriveError, listShares, sharingFolders, type Share } from "@/lib/drive";
 import { loadLibrary, myLibrary } from "@/lib/library";
-import { requireUser } from "@/lib/session";
+import { requireUser, type AppUser } from "@/lib/session";
+import { logout } from "../actions";
+import { LogOut } from "lucide-react";
 
 export const metadata: Metadata = { title: "설정" };
 
 export default async function SettingsPage() {
   const user = await requireUser();
+  return (
+    <>
+      <SettingsBody user={user} />
+      <section className="settings account">
+        <h2>계정</h2>
+        <div className="account-row">
+          <div>
+            <strong>{user.name ?? user.email}</strong>
+            <div className="muted small">{user.email}</div>
+          </div>
+          <form action={logout}>
+            <button className="btn" type="submit">
+              <LogOut size={16} aria-hidden />
+              로그아웃
+            </button>
+          </form>
+        </div>
+      </section>
+    </>
+  );
+}
+
+async function SettingsBody({ user }: { user: AppUser }) {
   const mine = await myLibrary(user);
   if (mine.kind === "problem") return <DriveProblem message={mine.problem} reauth={mine.reauth} />;
   if (mine.kind !== "ok")
@@ -90,14 +115,9 @@ export default async function SettingsPage() {
       </section>
 
       <section>
-        <h2>계정</h2>
-        <ul className="person-list">
-          <li>
-            <span className="email">{user.email}</span>
-            <span className="muted small">내 Drive의 {index.lib.name} 폴더 사용 중</span>
-          </li>
-        </ul>
+        <h2>내 일기장</h2>
         <p className="muted small">
+          내 Drive의 <b>{index.lib.name}</b> 폴더를 쓰고 있어요.{" "}
           <Link href="/libraries">일기장 목록</Link>에서 공유받은 일기장을 열거나 내 일기장 폴더를 바꿀 수 있어요.
         </p>
       </section>
