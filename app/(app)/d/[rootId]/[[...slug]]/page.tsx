@@ -9,14 +9,17 @@ import { FolderView } from "@/components/FolderView";
 import { NoteActions } from "@/components/NoteActions";
 import { NoteBody } from "@/components/NoteBody";
 import { SearchView } from "@/components/SearchView";
+import { HealthView } from "@/components/HealthView";
 import { SpendingView } from "@/components/SpendingView";
+import { TravelMap } from "@/components/TravelMap";
+import { TravelView } from "@/components/TravelView";
 import {
   DriveError,
   ReauthError,
   fileUrl,
   hrefFor,
+  folderKind,
   isListable,
-  isSpendingFolder,
   linkResolver,
   linkTable,
   loadTemplate,
@@ -30,6 +33,8 @@ import {
 } from "@/lib/drive";
 import { libraryTitle } from "@/lib/labels";
 import { loadLibrary } from "@/lib/library";
+import { splitFrontmatter } from "@/lib/markdown";
+import { placesOf } from "@/lib/places";
 import { requireUser } from "@/lib/session";
 
 type Props = {
@@ -43,6 +48,7 @@ type Props = {
     month?: string;
     day?: string;
     spend?: string;
+    range?: string;
   }>;
 };
 
@@ -91,7 +97,7 @@ export default async function EntryPage({ params, searchParams }: Props) {
   // md가 아닌 파일(이미지 등)은 원본으로 보낸다
   if (entry.kind === "file" && !entry.isMarkdown) redirect(fileUrl(entry));
 
-  const { mode, sub, view, q, tag, month, day, spend } = await searchParams;
+  const { mode, sub, view, q, tag, month, day, spend, range } = await searchParams;
 
   // 일기장 단위 화면: 검색·캘린더 (주소: /d/<id>?view=…)
   if (!entry.parent && view === "search") return <SearchView index={index} q={String(q ?? "")} tag={String(tag ?? "")} />;
@@ -118,7 +124,7 @@ export default async function EntryPage({ params, searchParams }: Props) {
         </a>
       </div>
       {entry.kind === "folder" ? (
-        <Folder folder={entry} index={index} spend={spend} />
+        <Folder folder={entry} index={index} spend={spend} range={range} />
       ) : (
         <Note entry={entry} index={index} />
       )}
@@ -138,8 +144,8 @@ function diaryHref(root: FolderEntry): string | null {
   return daily.can.addChildren ? `${hrefFor(daily)}?mode=new&sub=${year}` : null;
 }
 
-async function Folder({ folder, index, spend }: { folder: FolderEntry; index: DriveIndex; spend?: string }) {
-  const spending = await isSpendingFolder(index, folder);
+async function Folder({ folder, index, spend, range }: { folder: FolderEntry; index: DriveIndex; spend?: string; range?: string }) {
+  const kind = await folderKind(index, folder);
   const isRoot = !folder.parent;
   const diary = isRoot ? diaryHref(folder) : null;
   const past = isRoot ? onThisDay(index) : [];
@@ -202,7 +208,9 @@ async function Folder({ folder, index, spend }: { folder: FolderEntry; index: Dr
           </ul>
         </section>
       )}
-      {spending && <SpendingView index={index} folder={folder} month={spend} />}
+      {kind === "spending" && <SpendingView index={index} folder={folder} month={spend} />}
+      {kind === "travel" && <TravelView index={index} folder={folder} />}
+      {kind === "health" && <HealthView index={index} folder={folder} range={range} />}
       <FolderView folder={folder} />
       {recent.length > 0 && (
         <section className="recent">
@@ -249,6 +257,8 @@ async function Note({ entry, index }: { entry: FileEntry; index: DriveIndex }) {
     return readProblem(e);
   }
   const { edit, rename, trash } = entry.can;
+  // 여행 글이면 들른 곳을 순서대로 지도에
+  const places = (await folderKind(index, entry.parent!)) === "travel" ? placesOf(splitFrontmatter(text).meta) : [];
   return (
     <>
       {(edit || rename || trash) && (
@@ -261,6 +271,7 @@ async function Note({ entry, index }: { entry: FileEntry; index: DriveIndex }) {
           canTrash={trash}
         />
       )}
+      {places.length > 0 && <TravelMap points={places.map((p) => ({ ...p, sub: p.date.replace(/-/g, ".") || undefined }))} route />}
       <NoteBody
         text={text}
         links={linkResolver(index, entry.parent!)}
@@ -285,6 +296,7 @@ async function EditNote({ entry, index }: { entry: FileEntry; index: DriveIndex 
       fileId={entry.id}
       fileName={entry.name}
       checksum={note.checksum}
+      places={(await folderKind(index, entry.parent!)) === "travel"}
       initialText={note.text}
       closeHref={hrefFor(entry)}
       uploadFolderId={entry.parent!.id}
@@ -313,11 +325,12 @@ async function NewNote({ folder, index, subfolder }: { folder: FolderEntry; inde
     return readProblem(e);
   }
   const date = today();
-  const receipt = await isSpendingFolder(index, folder);
+  const kind = await folderKind(index, folder);
   return (
     <Editor
       mode="new"
-      receipt={receipt}
+      receipt={kind === "spending"}
+      places={kind === "travel"}
       rootId={index.lib.rootId}
       folderId={folder.id}
       folderName={subfolder ? `${folder.name} / ${subfolder}` : folder.name}

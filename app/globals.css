@@ -1182,3 +1182,240 @@ mark {
 .shutter:disabled {
   opacity: 0.4;
 }
+
+/* ───── 여행 ───── */
+
+.trips,
+.health {
+  margin: 0 0 1.75rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.trips.empty,
+.health.empty {
+  padding: 0.75rem 1rem;
+}
+.travel-map {
+  height: 320px;
+  margin: 0.75rem 0 1rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  /* Leaflet 내부 z-index(최대 1000)가 머리줄·사이드바 위로 올라오지 않게 가둔다 */
+  isolation: isolate;
+  position: relative;
+  z-index: 0;
+}
+.leaflet-container {
+  font: inherit;
+  background: var(--bg);
+}
+.leaflet-popup-content a {
+  color: var(--accent);
+}
+.trip-year h2 {
+  font-size: 1rem;
+  margin: 1.25rem 0 0.5rem;
+  color: var(--muted);
+}
+.timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 0.9rem;
+  border-left: 2px solid var(--line);
+}
+.timeline li {
+  position: relative;
+  margin: 0 0 0.6rem;
+}
+.timeline li::before {
+  content: "";
+  position: absolute;
+  left: calc(-0.9rem - 6px);
+  top: 0.75rem;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--chart);
+  border: 2px solid var(--surface);
+}
+.trip {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 8px;
+  text-decoration: none;
+  color: inherit;
+}
+.trip:hover {
+  background: var(--accent-soft);
+}
+.trip-title {
+  font-weight: 600;
+}
+.trip-places {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+/* ───── 건강 ───── */
+
+.range-tabs {
+  display: inline-flex;
+  gap: 0.25rem;
+  padding: 0.2rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  margin-bottom: 0.5rem;
+}
+.range-tabs a {
+  padding: 0.2rem 0.75rem;
+  border-radius: 999px;
+  text-decoration: none;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.range-tabs a.on {
+  background: var(--accent-soft);
+  color: var(--text);
+  font-weight: 600;
+}
+.health .metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 0.5rem 1.25rem;
+}
+.chart.metric {
+  margin: 0.5rem 0;
+}
+.chart.metric figcaption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.6rem;
+  margin-bottom: 0.25rem;
+}
+.chart.metric figcaption strong {
+  font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
+}
+.metric-name {
+  font-weight: 600;
+}
+.chart .line {
+  fill: none;
+  stroke: var(--chart);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.chart .avg {
+  stroke: var(--muted);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+  opacity: 0.6;
+  vector-effect: non-scaling-stroke;
+}
+.chart .pt {
+  fill: var(--chart);
+  stroke: var(--surface);
+  stroke-width: 1.5;
+}
+.chart.metric a:hover .pt {
+  stroke: var(--text);
+}
+.health-table {
+  margin-top: 0.75rem;
+}
+.health-table summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+.table-wrap {
+  overflow-x: auto;
+}
+
+/* ───── 장소 고르기 ───── */
+
+.picker-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgb(0 0 0 / 0.4);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 10vh 16px 16px;
+}
+.picker {
+  width: min(520px, 100%);
+  max-height: 80vh;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1rem;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.picker-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.picker .search-form {
+  max-width: none;
+  min-width: 0;
+}
+.picker .here {
+  align-self: flex-start;
+}
+.picker p {
+  margin: 0;
+}
+.here-confirm {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+.here-confirm label {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.here-confirm input {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+.picker-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.picker-results button {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  padding: 0.5rem 0.6rem;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.picker-results button:hover {
+  background: var(--accent-soft);
+}

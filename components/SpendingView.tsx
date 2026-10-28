@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { cachedText, hrefFor, readNote, type DriveIndex, type FileEntry, type FolderEntry } from "@/lib/drive";
+import { hrefFor, type DriveIndex, type FileEntry, type FolderEntry } from "@/lib/drive";
+import { collectNotes, dateOf } from "@/lib/folder-meta";
 import { splitFrontmatter } from "@/lib/markdown";
 import { CATEGORIES } from "@/lib/receipt-shape";
-import { listableNotes } from "@/lib/search";
 import { todayKST } from "@/components/CalendarView";
 
 // 지출 기록 폴더 위에 보이는 요약: 이달·올해 합계, 월별 막대, 분류별 막대, 이달 목록.
@@ -16,54 +16,21 @@ const short = (n: number) => {
   const man = n / 10000;
   return `${man < 10 ? man.toFixed(1).replace(/\.0$/, "") : Math.round(man).toLocaleString("ko-KR")}만`;
 };
-const BUDGET_MS = 6_000;
 
 function parse(file: FileEntry, text: string): Spend | null {
   const meta = splitFrontmatter(text).meta;
   const amount = typeof meta.amount === "number" ? meta.amount : Number(String(meta.amount ?? "").replace(/[,원\s]/g, ""));
   if (!Number.isFinite(amount) || amount === 0) return null;
-  const rawDate = meta.date instanceof Date ? meta.date.toISOString().slice(0, 10) : String(meta.date ?? "");
-  const date = /^\d{4}-\d{2}-\d{2}/.test(rawDate) ? rawDate.slice(0, 10) : (/^\d{4}-\d{2}-\d{2}/.exec(file.name)?.[0] ?? "");
+  const date = dateOf(meta.date, file);
   if (!date) return null;
   const category = CATEGORIES.includes(String(meta.category) as (typeof CATEGORIES)[number]) ? String(meta.category) : "기타";
   return { file, date, amount: Math.round(amount), category, store: String(meta.store ?? "").trim() || file.slug };
 }
 
-async function collect(index: DriveIndex, folder: FolderEntry) {
-  const inside = (f: FileEntry) => {
-    for (let p = f.parent; p; p = p.parent) if (p === folder) return true;
-    return false;
-  };
-  const notes = listableNotes(index).filter(inside);
-  const out: Spend[] = [];
-  const pending: FileEntry[] = [];
-  for (const n of notes) {
-    const t = cachedText(index, n);
-    if (t === null) pending.push(n);
-    else {
-      const s = parse(n, t);
-      if (s) out.push(s);
-    }
-  }
-  const deadline = Date.now() + BUDGET_MS;
-  let next = 0;
-  let read = notes.length - pending.length;
-  await Promise.all(
-    Array.from({ length: 8 }, async () => {
-      while (next < pending.length && Date.now() < deadline) {
-        const n = pending[next++];
-        try {
-          const s = parse(n, (await readNote(index, n)).text);
-          if (s) out.push(s);
-          read++;
-        } catch (e) {
-          console.error("[spending] read", n.id, e);
-        }
-      }
-    }),
-  );
-  return { spends: out, read, total: notes.length };
-}
+const collect = async (index: DriveIndex, folder: FolderEntry) => {
+  const { items, read, total } = await collectNotes(index, folder, parse);
+  return { spends: items, read, total };
+};
 
 const pad = (n: number) => String(n).padStart(2, "0");
 

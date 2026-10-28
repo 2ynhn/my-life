@@ -11,7 +11,9 @@ import { useRouter } from "next/navigation";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { createNote, saveNote } from "@/app/(app)/note-actions";
 import { NoteBody } from "@/components/NoteBody";
+import { PlacePicker } from "@/components/PlacePicker";
 import { ReceiptCamera } from "@/components/ReceiptCamera";
+import { addPlace } from "@/lib/frontmatter-edit";
 import { imageFiles, prepareImage, uploadImage } from "@/lib/image-upload";
 import { tableResolver, type LinkTable } from "@/lib/markdown";
 import { fillReceipt, receiptFileName, type Receipt } from "@/lib/receipt-shape";
@@ -25,6 +27,8 @@ type Props = {
   rootId: string;
   /** 사진을 올릴 때 기준이 되는 노트 폴더 (가장 가까운 attachments 폴더에 저장) */
   uploadFolderId: string;
+  /** 여행 폴더면 '장소 추가' 버튼을 보인다 */
+  places?: boolean;
 } & (
   | { mode: "edit"; fileId: string; fileName: string; checksum: string }
   | {
@@ -92,6 +96,7 @@ export function Editor(props: Props) {
   const receiptInputRef = useRef<HTMLInputElement>(null);
   const [camera, setCamera] = useState(false);
   const [attachReceipt, setAttachReceipt] = useState(false);
+  const [picker, setPicker] = useState(false);
 
   const draftKey = props.mode === "edit" ? `my-life:draft:${props.fileId}` : `my-life:draft:new:${props.folderId}`;
 
@@ -307,6 +312,19 @@ export function Editor(props: Props) {
     }
   };
 
+  // 장소: 앞머리 places 목록 끝에 한 줄 더한다 (날짜는 오늘)
+  const insertPlace = (p: { name: string; lat: number; lng: number }) => {
+    setPicker(false);
+    const current = viewRef.current?.state.doc.toString() ?? text;
+    try {
+      const date = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Seoul" }).format(new Date());
+      replaceDoc(addPlace(current, { ...p, date }));
+      setMessage({ kind: "info", text: `'${p.name}'을(를) 장소 목록에 넣었어요. 날짜가 다르면 고쳐 주세요.` });
+    } catch {
+      setMessage({ kind: "error", text: "앞머리(--- 사이)를 읽지 못해 장소를 넣지 못했습니다. 형식을 확인해 주세요." });
+    }
+  };
+
   const close = () => {
     if (dirty && !confirm("저장하지 않은 내용이 있습니다. 닫을까요?\n(브라우저 임시저장에는 남아 있어요)")) return;
     router.push(props.closeHref);
@@ -358,6 +376,11 @@ export function Editor(props: Props) {
             if (files.length) uploadRef.current(files);
           }}
         />
+        {props.places && (
+          <button className="btn" onClick={() => setPicker(true)} disabled={!!uploading} title="들른 곳을 찾아 지도 좌표와 함께 넣습니다">
+            📍 장소 추가
+          </button>
+        )}
         {props.mode === "new" && props.receipt && (
           <span className="receipt-tools">
             <button className="btn" onClick={() => setCamera(true)} disabled={!!uploading} title="카메라로 영수증을 찍어 바로 읽습니다 (사진 파일을 만들지 않음)">
@@ -480,6 +503,7 @@ export function Editor(props: Props) {
           }}
         />
       )}
+      {picker && <PlacePicker onPick={insertPlace} onClose={() => setPicker(false)} />}
       <p className="hint small muted">
         Ctrl+S 저장 · 입력 내용은 브라우저에 자동 임시저장 · 사진은 붙여넣기·끌어다 놓기도 됩니다
       </p>

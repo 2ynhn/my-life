@@ -736,8 +736,43 @@ tags: []
 메모:
 `;
 
+/** 여행 한 번 = 글 하나. places에 좌표가 있으면 지도에 나온다 (편집기의 '📍 장소 추가'로 채우기) */
+export const TRAVEL_TEMPLATE = `---
+title: ""
+start: {{date}}      # 출발일
+end: {{date}}        # 돌아온 날
+places:              # 들른 곳 (지도에 표시). 편집기의 '📍 장소 추가'로 넣으면 좌표까지 채워짐
+companions: []       # 함께 간 사람
+tags: []
+---
+
+# {{title}}
+
+## 1일차
+
+`;
+
+/** 하루 = 글 하나. 숫자 항목은 자동으로 그래프가 된다 (항목을 새로 추가해도 됨) */
+export const HEALTH_TEMPLATE = `---
+date: {{date}}
+weight:              # 체중 kg
+sleep:               # 수면 시간
+steps:               # 걸음 수
+bp_sys:              # 혈압 수축기
+bp_dia:              # 혈압 이완기
+condition:           # 컨디션 1~5
+exercise: ""         # 운동 (예: 걷기 30분)
+---
+
+메모:
+`;
+
 /** Drive에 템플릿이 없을 때 최상위 폴더 이름별 내장 템플릿 */
-const BUILTIN_TEMPLATES: Record<string, string> = { purchase: PURCHASE_TEMPLATE };
+const BUILTIN_TEMPLATES: Record<string, string> = {
+  purchase: PURCHASE_TEMPLATE,
+  travel: TRAVEL_TEMPLATE,
+  health: HEALTH_TEMPLATE,
+};
 
 const topFolderOf = (index: DriveIndex, folder: FolderEntry) => {
   let top: FolderEntry = folder;
@@ -763,15 +798,25 @@ export async function loadTemplate(index: DriveIndex, folder: FolderEntry): Prom
   return fallback ? (await readNote(index, fallback)).text : DEFAULT_TEMPLATE;
 }
 
-/** 이 폴더의 템플릿에 amount가 있으면 지출 기록 폴더 (지출 요약·영수증 자동 입력) */
-export async function isSpendingFolder(index: DriveIndex, folder: FolderEntry): Promise<boolean> {
-  if (folder === index.root) return false;
+export type FolderKind = "spending" | "travel" | "health";
+
+/**
+ * 템플릿 모양으로 폴더 종류를 정한다 (폴더 이름이 아니라 템플릿 기준이라, 이름을 바꿔도 템플릿만 맞추면 된다)
+ *  amount: → 지출 · places: → 여행 · weight/sleep/steps: → 건강
+ */
+export async function folderKind(index: DriveIndex, folder: FolderEntry): Promise<FolderKind | null> {
+  if (folder === index.root) return null;
   try {
-    return /^amount:/m.test(await loadTemplate(index, folder));
-  } catch {
-    return false;
-  }
+    const t = await loadTemplate(index, folder);
+    if (/^amount:/m.test(t)) return "spending";
+    if (/^places:/m.test(t)) return "travel";
+    if (/^(weight|sleep|steps):/m.test(t)) return "health";
+  } catch {}
+  return null;
 }
+
+export const isSpendingFolder = async (index: DriveIndex, folder: FolderEntry) =>
+  (await folderKind(index, folder)) === "spending";
 
 // ───────────── 앱 설정 파일 (내 일기장의 _settings) ─────────────
 // _로 시작해 목록에 안 보인다. 비밀값은 넣기 전에 암호화한다 (lib/ai-settings.ts) — 공유받은 사람이 열어도 읽을 수 없게.
