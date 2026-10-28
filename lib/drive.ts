@@ -756,12 +756,11 @@ tags: []
 export const HEALTH_TEMPLATE = `---
 date: {{date}}
 weight:              # 체중 kg
-sleep:               # 수면 시간
-steps:               # 걸음 수
-bp_sys:              # 혈압 수축기
-bp_dia:              # 혈압 이완기
-condition:           # 컨디션 1~5
-exercise: ""         # 운동 (예: 걷기 30분)
+bp_sys:              # 혈압 수축기 mmHg
+bp_dia:              # 혈압 이완기 mmHg
+glucose:             # 공복 혈당 mg/dL
+checkup: ""          # 건강검진이면 기관·종류 (예: 국가건강검진)
+tags: []
 ---
 
 메모:
@@ -810,7 +809,7 @@ export async function folderKind(index: DriveIndex, folder: FolderEntry): Promis
     const t = await loadTemplate(index, folder);
     if (/^amount:/m.test(t)) return "spending";
     if (/^places:/m.test(t)) return "travel";
-    if (/^(weight|sleep|steps):/m.test(t)) return "health";
+    if (/^(weight|sleep|steps|bp_sys|glucose):/m.test(t)) return "health";
   } catch {}
   return null;
 }

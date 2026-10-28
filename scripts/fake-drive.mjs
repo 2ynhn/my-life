@@ -204,8 +204,22 @@ const server = createServer(async (req, res) => {
       if (req.method === "POST" && url.pathname === "/v1/messages") {
         const params = JSON.parse(body.toString());
         lastAi = { headers: { "anthropic-beta": req.headers["anthropic-beta"] ?? null }, params: { ...params, messages: params.messages.map((m2) => ({ ...m2, content: m2.content.map((c) => (c.type === "image" ? { ...c, source: { ...c.source, data: `<${c.source.data.length} chars>` } } : c)) })) } };
-        const receipt = { date: "2026-10-27", store: "이마트 성수점", amount: 58400, category: "식비", payment: "신한카드", items: [{ name: "우유", price: 2980 }, { name: "계란 30구", price: 8900 }] };
-        return send(res, 200, { id: "msg_fake", type: "message", role: "assistant", model: params.model, content: [{ type: "text", text: JSON.stringify(receipt) }], stop_reason: "end_turn", stop_sequence: null, usage: { input_tokens: 1500, output_tokens: 120 } });
+        const props = params.output_config?.format?.schema?.properties ?? {};
+        const lastText = params.messages.at(-1).content.filter((c) => c.type === "text").map((c) => c.text).join("\n");
+        let out;
+        if (props.keywords) {
+          // 물어보기 1단계: 질문의 낱말을 검색어로 (조사 떼기)
+          const q = /질문:\s*(.*)/.exec(lastText)?.[1] ?? lastText;
+          const keywords = q.replace(/[?？.!]/g, " ").split(/\s+/).map((w) => w.replace(/(에서|으로|에게|은|는|이|가|을|를|의|에|랑|과|와|도)$/, "")).filter((w) => w.length >= 2 && !/^(어디|언제|무엇|뭐|얼마|했지|갔지|먹은|먹었지|샀지|곳|있었지)/.test(w));
+          out = { keywords, from: "", to: "", kinds: [] };
+        } else if (props.answer) {
+          // 물어보기 2단계: 첫 번째 자료를 근거로 답한 척
+          const first = /\[(\d+)\] ([^\n]+)/.exec(lastText);
+          out = first ? { answer: `찾은 기록에 따르면 ${first[2]} 에 적혀 있어요 [${first[1]}].`, sources: [Number(first[1])] } : { answer: "관련 기록을 찾지 못했어요.", sources: [] };
+        } else {
+          out = { date: "2026-10-27", store: "이마트 성수점", amount: 58400, category: "식비", payment: "신한카드", items: [{ name: "우유", price: 2980 }, { name: "계란 30구", price: 8900 }] };
+        }
+        return send(res, 200, { id: "msg_fake", type: "message", role: "assistant", model: params.model, content: [{ type: "text", text: JSON.stringify(out) }], stop_reason: "end_turn", stop_sequence: null, usage: { input_tokens: 1500, output_tokens: 120 } });
       }
     }
     if (url.pathname === "/__last-ai") return send(res, 200, lastAi);

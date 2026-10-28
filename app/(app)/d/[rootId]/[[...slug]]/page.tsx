@@ -3,6 +3,8 @@ import { Plus } from "lucide-react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { CalendarView, onThisDay } from "@/components/CalendarView";
+import { AskView } from "@/components/AskView";
+import { CollectView } from "@/components/CollectView";
 import { DriveProblem } from "@/components/DriveProblem";
 import { Editor } from "@/components/Editor";
 import { FolderView } from "@/components/FolderView";
@@ -10,6 +12,7 @@ import { NoteActions } from "@/components/NoteActions";
 import { NoteBody } from "@/components/NoteBody";
 import { SearchView } from "@/components/SearchView";
 import { FeatureIcon } from "@/components/FeatureIcon";
+import type { FormKind } from "@/components/MetaForm";
 import { HealthView } from "@/components/HealthView";
 import { Home, hiddenAncestor } from "@/components/Home";
 import { SpendingView } from "@/components/SpendingView";
@@ -52,6 +55,10 @@ type Props = {
     day?: string;
     spend?: string;
     range?: string;
+    shared?: string;
+    tab?: string;
+    who?: string;
+    store?: string;
   }>;
 };
 
@@ -76,6 +83,8 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   const name = !entry ? "찾을 수 없음" : !entry.parent ? libraryTitle(entry.lib) : entry.kind === "file" ? entry.slug : entry.name;
   if (entry && !entry.parent && view === "search") return { title: tag ? `#${tag}` : q ? `검색: ${q}` : "검색" };
   if (entry && !entry.parent && view === "calendar") return { title: "캘린더" };
+  if (entry && !entry.parent && view === "collect") return { title: "모아보기" };
+  if (entry && !entry.parent && view === "ask") return { title: q ? `물어보기: ${q}` : "물어보기" };
   return { title: mode === "edit" ? `편집: ${name}` : mode === "new" ? "새 글" : name };
 }
 
@@ -100,11 +109,13 @@ export default async function EntryPage({ params, searchParams }: Props) {
   // md가 아닌 파일(이미지 등)은 원본으로 보낸다
   if (entry.kind === "file" && !entry.isMarkdown) redirect(fileUrl(entry));
 
-  const { mode, sub, view, q, tag, month, day, spend, range } = await searchParams;
+  const { mode, sub, view, q, tag, month, day, spend, range, shared, tab, who, store } = await searchParams;
 
   // 일기장 단위 화면: 검색·캘린더 (주소: /d/<id>?view=…)
   if (!entry.parent && view === "search") return <SearchView index={index} q={String(q ?? "")} tag={String(tag ?? "")} />;
   if (!entry.parent && view === "calendar") return <CalendarView index={index} month={month} day={day} />;
+  if (!entry.parent && view === "ask") return <AskView base={index.lib.base} rootId={index.lib.rootId} q={String(q ?? "")} />;
+  if (!entry.parent && view === "collect") return <CollectView index={index} tab={tab} who={who} store={store} />;
 
   // 편집·새 글은 Drive가 허락한 경우에만 (게스트도 Drive에서 편집자로 공유받았으면 가능)
   if (mode === "edit" && entry.kind === "file" && entry.can.edit) return <EditNote entry={entry} index={index} />;
@@ -115,7 +126,7 @@ export default async function EntryPage({ params, searchParams }: Props) {
       const existing = entry.children.find((c) => c.kind === "folder" && c.name === sub);
       if (existing) redirect(`${hrefFor(existing)}?mode=new`);
     }
-    return <NewNote folder={entry} index={index} subfolder={sub} />;
+    return <NewNote folder={entry} index={index} subfolder={sub} shared={shared === "1"} />;
   }
 
   // 첫 화면은 경로 표시 없이 바로 카드
@@ -242,7 +253,8 @@ async function EditNote({ entry, index }: { entry: FileEntry; index: DriveIndex 
       fileId={entry.id}
       fileName={entry.name}
       checksum={note.checksum}
-      places={(await folderKind(index, entry.parent!)) === "travel"}
+      places={(await formKindOf(index, entry.parent!)) === "travel"}
+      form={await formKindOf(index, entry.parent!)}
       initialText={note.text}
       closeHref={hrefFor(entry)}
       uploadFolderId={entry.parent!.id}
@@ -263,7 +275,17 @@ function freeName(folder: FolderEntry, base: string) {
   }
 }
 
-async function NewNote({ folder, index, subfolder }: { folder: FolderEntry; index: DriveIndex; subfolder?: string }) {
+async function NewNote({
+  folder,
+  index,
+  subfolder,
+  shared = false,
+}: {
+  folder: FolderEntry;
+  index: DriveIndex;
+  subfolder?: string;
+  shared?: boolean;
+}) {
   let template: string;
   try {
     template = await loadTemplate(index, folder);
@@ -271,12 +293,14 @@ async function NewNote({ folder, index, subfolder }: { folder: FolderEntry; inde
     return readProblem(e);
   }
   const date = today();
-  const kind = await folderKind(index, folder);
+  const kind = await formKindOf(index, folder);
   return (
     <Editor
       mode="new"
       receipt={kind === "spending"}
+      sharedImage={shared && kind === "spending"}
       places={kind === "travel"}
+      form={kind}
       rootId={index.lib.rootId}
       folderId={folder.id}
       folderName={subfolder ? `${folder.name} / ${subfolder}` : folder.name}
@@ -290,4 +314,13 @@ async function NewNote({ folder, index, subfolder }: { folder: FolderEntry; inde
       links={linkTable(index, folder)}
     />
   );
+}
+
+/** 입력 폼 종류: 템플릿으로 구매·여행·건강, 최상위 폴더 이름으로 일기 */
+async function formKindOf(index: DriveIndex, folder: FolderEntry): Promise<FormKind | null> {
+  const kind = await folderKind(index, folder);
+  if (kind) return kind;
+  let top = folder;
+  while (top.parent?.parent) top = top.parent;
+  return top.parent && featureByName(top.name) === "diary" ? "diary" : null;
 }

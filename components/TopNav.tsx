@@ -39,6 +39,7 @@ function place(pathname: string, params: URLSearchParams): { up: string | null; 
   const view = params.get("view");
   if (segs[0] === "settings") return { up: "/", title: "설정" };
   if (segs[0] === "libraries") return { up: null, title: "일기장 목록" };
+  if (segs[0] === "share") return { up: "/", title: "공유받은 내용" };
   if (segs[0] !== "d" || segs.length < 2) return { up: null, title: null };
 
   const rest = segs.slice(2).map(decode);
@@ -49,6 +50,8 @@ function place(pathname: string, params: URLSearchParams): { up: string | null; 
   if (mode === "edit") return { up: pathname, title: name ?? null };
   if (view === "search") return { up: pathname, title: params.get("tag") ? `#${params.get("tag")}` : "검색" };
   if (view === "calendar") return { up: pathname, title: "캘린더" };
+  if (view === "collect") return { up: pathname, title: "모아보기" };
+  if (view === "ask") return { up: pathname, title: "물어보기" };
   if (!rest.length) return { up: null, title: null }; // 일기장 첫 화면
   return { up: "/" + segs.slice(0, -1).join("/"), title: name ?? null };
 }

@@ -11,7 +11,9 @@ import { minimalSetup } from "codemirror";
 import { useRouter } from "next/navigation";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { createNote, saveNote } from "@/app/(app)/note-actions";
+import { MetaForm, type FormKind, type Suggestions } from "@/components/MetaForm";
 import { NoteBody } from "@/components/NoteBody";
+import { takeSharedImage } from "@/components/ShareInbox";
 import { PlacePicker } from "@/components/PlacePicker";
 import { ReceiptCamera } from "@/components/ReceiptCamera";
 import { addPlace } from "@/lib/frontmatter-edit";
@@ -30,6 +32,8 @@ type Props = {
   uploadFolderId: string;
   /** 여행 폴더면 '장소 추가' 버튼을 보인다 */
   places?: boolean;
+  /** 카테고리별 입력 폼 (일기는 쓰기 위에 키워드 줄, 나머지는 '항목' 탭) */
+  form?: FormKind | null;
 } & (
   | { mode: "edit"; fileId: string; fileName: string; checksum: string }
   | {
@@ -40,6 +44,8 @@ type Props = {
       subfolder?: string;
       /** 지출 기록 폴더면 '영수증으로 채우기' 버튼을 보인다 */
       receipt?: boolean;
+      /** 휴대폰 '공유하기'로 받은 이미지를 열자마자 영수증으로 읽는다 */
+      sharedImage?: boolean;
     }
 );
 
@@ -110,7 +116,9 @@ export function Editor(props: Props) {
   const [message, setMessage] = useState<{ kind: "ok" | "info" | "error"; text: string } | null>(null);
   const [conflict, setConflict] = useState<{ text: string; checksum: string } | null>(null);
   const [pendingDraft, setPendingDraft] = useState<Draft | null>(null);
-  const [tab, setTab] = useState<"write" | "preview">("write");
+  const tabbedForm = props.form && props.form !== "diary" ? props.form : null;
+  const [tab, setTab] = useState<"form" | "write" | "preview">(tabbedForm ? "form" : "write");
+  const [suggestions, setSuggestions] = useState<Suggestions | null>(null);
   const [uploading, setUploading] = useState<string | null>(null);
   // 이번에 올린 사진: 미리보기에서 바로 보이도록 링크 표에 더한다
   const [uploaded, setUploaded] = useState<Record<string, string>>({});
@@ -122,14 +130,27 @@ export function Editor(props: Props) {
     [props.links, uploaded],
   );
 
-  const replaceDoc = useCallback((next: string) => {
+  const replaceDoc = useCallback((next: string, focus = true) => {
     const view = viewRef.current;
     if (view) {
       view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: next } });
-      view.focus();
+      if (focus) view.focus();
     }
     setText(next);
   }, []);
+
+  // 폼의 자동 완성: 이 일기장에서 자주 쓴 키워드·사람·가게·결제 수단
+  useEffect(() => {
+    if (!props.form) return;
+    let cancelled = false;
+    fetch(`/api/suggest?root=${encodeURIComponent(props.rootId)}`)
+      .then((r) => (r.ok ? (r.json() as Promise<Suggestions>) : null))
+      .then((s) => !cancelled && s && setSuggestions(s))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [props.form, props.rootId]);
 
   // CodeMirror 생성 (한 번만)
   useEffect(() => {
@@ -326,6 +347,23 @@ export function Editor(props: Props) {
     }
   };
 
+  // 공유받은 이미지: 브라우저 안에 잠깐 둔 것을 꺼내(꺼내면 지움) 바로 읽는다
+  const sharedTaken = useRef(false);
+  useEffect(() => {
+    if (props.mode !== "new" || !props.sharedImage || sharedTaken.current) return;
+    sharedTaken.current = true;
+    void (async () => {
+      const blob = await takeSharedImage();
+      if (!blob) return setMessage({ kind: "info", text: "공유받은 이미지가 없어요. '이미지로 읽기'로 골라 주세요." });
+      try {
+        void readReceiptImage(await prepareImage(new File([blob], "shared", { type: blob.type || "image/png" })));
+      } catch (e) {
+        setMessage({ kind: "error", text: e instanceof Error ? e.message : "이미지를 열지 못했습니다." });
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const close = () => {
     if (dirty && !confirm("저장하지 않은 내용이 있습니다. 닫을까요?\n(브라우저 임시저장에는 남아 있어요)")) return;
     router.push(props.closeHref);
@@ -349,11 +387,16 @@ export function Editor(props: Props) {
         ) : (
           <span className="file-name">{props.fileName}</span>
         )}
-        <div className="tabs" role="tablist">
+        <div className={`tabs${tabbedForm ? " has-form" : ""}`} role="tablist">
+          {tabbedForm && (
+            <button role="tab" aria-selected={tab === "form"} onClick={() => setTab("form")}>
+              항목
+            </button>
+          )}
           <button role="tab" aria-selected={tab === "write"} onClick={() => setTab("write")}>
             쓰기
           </button>
-          <button role="tab" aria-selected={tab === "preview"} onClick={() => setTab("preview")}>
+          <button role="tab" className="tab-preview" aria-selected={tab === "preview"} onClick={() => setTab("preview")}>
             미리보기
           </button>
         </div>
@@ -378,7 +421,8 @@ export function Editor(props: Props) {
             if (files.length) uploadRef.current(files);
           }}
         />
-        {props.places && (
+        {/* 항목 탭에는 폼 안에 같은 버튼이 있다 */}
+        {props.places && tab !== "form" && (
           <button className="btn" onClick={() => setPicker(true)} disabled={!!uploading} title="들른 곳을 찾아 지도 좌표와 함께 넣습니다">
             <MapPinPlus size={16} aria-hidden />
             장소 추가
@@ -492,7 +536,21 @@ export function Editor(props: Props) {
         </div>
       )}
 
+      {props.form === "diary" && tab === "write" && (
+        <MetaForm kind="diary" text={text} onChange={(next) => replaceDoc(next, false)} suggestions={suggestions} />
+      )}
       <div className={`editor-panes show-${tab}`}>
+        {tabbedForm && (
+          <div className="pane-form">
+            <MetaForm
+              kind={tabbedForm}
+              text={text}
+              onChange={(next) => replaceDoc(next, false)}
+              suggestions={suggestions}
+              onAddPlace={props.places ? () => setPicker(true) : undefined}
+            />
+          </div>
+        )}
         <div className="pane-write" ref={hostRef} />
         <div className="pane-preview">
           <NoteBody text={previewText} links={resolver} />

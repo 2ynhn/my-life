@@ -4,6 +4,8 @@ import { collectNotes, dateOf } from "@/lib/folder-meta";
 import { splitFrontmatter } from "@/lib/markdown";
 import { CATEGORIES } from "@/lib/receipt-shape";
 import { todayKST } from "@/components/CalendarView";
+import { BudgetForm } from "@/components/BudgetForm";
+import { readBudget } from "@/lib/budget";
 
 // 지출 기록 폴더 위에 보이는 요약: 이달·올해 합계, 월별 막대, 분류별 막대, 이달 목록.
 // 글 앞머리의 amount·category·store·date를 읽는다 (date가 없으면 파일 이름의 날짜).
@@ -35,7 +37,7 @@ const collect = async (index: DriveIndex, folder: FolderEntry) => {
 const pad = (n: number) => String(n).padStart(2, "0");
 
 export async function SpendingView({ index, folder, month }: { index: DriveIndex; folder: FolderEntry; month?: string }) {
-  const { spends, read, total } = await collect(index, folder);
+  const [{ spends, read, total }, budget] = await Promise.all([collect(index, folder), readBudget(index)]);
   if (!spends.length) {
     return (
       <section className="spending empty">
@@ -100,6 +102,25 @@ export async function SpendingView({ index, folder, month }: { index: DriveIndex
         </div>
       </div>
 
+      {budget.monthly && (
+        <div className="budget-meter">
+          <div className="budget-text small">
+            <span>
+              {Number(ym.slice(5))}월 예산 {won(budget.monthly)} 중 <b>{Math.round((monthTotal / budget.monthly) * 100)}%</b>
+            </span>
+            <span className={monthTotal > budget.monthly ? "over" : "muted"}>
+              {monthTotal > budget.monthly ? `${won(monthTotal - budget.monthly)} 초과` : `${won(budget.monthly - monthTotal)} 남음`}
+            </span>
+          </div>
+          <div className="budget-track" role="meter" aria-valuemin={0} aria-valuemax={budget.monthly} aria-valuenow={monthTotal} aria-label="이달 예산 사용">
+            <span
+              className={monthTotal > budget.monthly ? "over" : undefined}
+              style={{ width: `${Math.min(100, Math.max(1, (monthTotal / budget.monthly) * 100))}%` }}
+            />
+          </div>
+        </div>
+      )}
+
       <figure className="chart">
         <figcaption className="small muted">{year}년 월별 지출 (막대를 누르면 그 달로)</figcaption>
         <svg viewBox={`0 0 ${W} ${H + 22}`} role="img" aria-label={`${year}년 월별 지출`}>
@@ -140,7 +161,12 @@ export async function SpendingView({ index, folder, month }: { index: DriveIndex
                   <span className="fill" style={{ width: `${Math.max(2, (Math.abs(v) / catMax) * 100)}%` }} />
                 </span>
                 <span className="amt">
-                  {won(v)} <span className="muted">· {monthTotal ? Math.round((v / monthTotal) * 100) : 0}%</span>
+                  {won(v)}{" "}
+                  {budget.categories[cat] ? (
+                    <span className={v > budget.categories[cat] ? "over" : "muted"}>/ 예산 {short(budget.categories[cat])}</span>
+                  ) : (
+                    <span className="muted">· {monthTotal ? Math.round((v / monthTotal) * 100) : 0}%</span>
+                  )}
                 </span>
               </li>
             ))}
@@ -172,6 +198,13 @@ export async function SpendingView({ index, folder, month }: { index: DriveIndex
             ))}
           </tbody>
         </table>
+      )}
+
+      {index.root.can.addChildren && (
+        <details className="budget-edit">
+          <summary className="small">{budget.monthly || Object.keys(budget.categories).length ? "예산 고치기" : "예산 정하기"}</summary>
+          <BudgetForm rootId={index.lib.rootId} monthly={budget.monthly} categories={budget.categories} />
+        </details>
       )}
 
       {read < total && (

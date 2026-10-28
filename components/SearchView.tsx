@@ -50,6 +50,12 @@ export async function SearchView({ index, q, tag }: { index: DriveIndex; q: stri
             </>
           )}
           {result.driveFailed && " · Drive 검색을 쓰지 못해 직접 훑은 결과만 보여 줍니다."}
+          {q && (
+            <>
+              {" · "}
+              <Link href={`${base}?view=ask&q=${encodeURIComponent(q)}`}>Claude에게 물어보기</Link>
+            </>
+          )}
         </p>
       )}
 

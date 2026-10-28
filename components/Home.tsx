@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { CalendarDays, Clock, ExternalLink, History, Plus, Search } from "lucide-react";
+import { CalendarDays, Clock, ExternalLink, History, Layers, Plus, Search, Sparkles } from "lucide-react";
+import { QuickNote } from "@/components/QuickNote";
 import { startFeature } from "@/app/(app)/note-actions";
 import { todayKST } from "@/components/CalendarView";
 import { FeatureIcon } from "@/components/FeatureIcon";
@@ -165,6 +166,8 @@ export async function Home({
     used.add(folders[i]);
     cards.push(card(feature, folders[i], today, diary));
   }
+  const diaryFolder = cards.find((c) => c.feature.key === "diary")?.folder;
+  const canQuick = diaryFolder ? diaryFolder.can.addChildren || diaryFolder.can.edit : root.can.addChildren;
   const others = folders.map((f, i) => ({ f, kind: kinds[i] })).filter(({ f }) => !used.has(f));
   const rootNotes = visibleChildren(root).filter((c): c is FileEntry => c.kind === "file");
   const dateLabel = new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", month: "long", day: "numeric", weekday: "long" }).format(
@@ -189,18 +192,28 @@ export async function Home({
         )}
       </div>
 
+      {canQuick && <QuickNote rootId={root.lib.rootId} />}
+
+      <form className="search-form home-search" action={root.lib.base}>
+        <Search size={18} className="search-icon" aria-hidden />
+        <input name="q" placeholder="검색하거나 물어보세요" aria-label="검색어 또는 질문" required />
+        {/* 엔터는 첫 버튼(검색) */}
+        <button className="btn" type="submit" name="view" value="search">
+          검색
+        </button>
+        <button className="btn btn-ask" type="submit" name="view" value="ask" title="Claude가 일기를 찾아 읽고 답해요">
+          <Sparkles size={16} aria-hidden />
+          물어보기
+        </button>
+      </form>
       <div className="lib-tools">
-        <form className="search-form home-search" action={root.lib.base}>
-          <input type="hidden" name="view" value="search" />
-          <Search size={18} className="search-icon" aria-hidden />
-          <input name="q" placeholder="일기 검색" aria-label="검색어" />
-          <button className="btn" type="submit">
-            검색
-          </button>
-        </form>
         <Link className="btn" href={`${root.lib.base}?view=calendar`}>
           <CalendarDays size={16} aria-hidden />
           캘린더
+        </Link>
+        <Link className="btn" href={`${root.lib.base}?view=collect`}>
+          <Layers size={16} aria-hidden />
+          모아보기
         </Link>
       </div>
 

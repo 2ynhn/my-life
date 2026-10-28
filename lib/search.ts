@@ -131,3 +131,32 @@ export async function searchTag(index: DriveIndex, tag: string): Promise<SearchR
   const hits = [...found.values()].sort((a, b) => newestFirst(a.file, b.file));
   return { hits, scanned: scanned + candidates.length, total: notes.length, driveFailed: fromDrive === null };
 }
+
+export type KeywordHit = { file: FileEntry; score: number; text: string };
+
+/**
+ * 물어보기용: 여러 검색어를 한 번에 훑어, 맞은 검색어가 많은 글부터.
+ * keep으로 기간·종류를 먼저 거른다. 검색어가 없으면 거른 글 전부(최근 먼저).
+ */
+export async function findByKeywords(
+  index: DriveIndex,
+  keywords: string[],
+  keep: (file: FileEntry) => boolean,
+): Promise<{ hits: KeywordHit[]; scanned: number; total: number }> {
+  const notes = listableNotes(index).filter(keep);
+  const needles = [...new Set(keywords.map((k) => k.trim().toLowerCase()).filter(Boolean))];
+  const hits: KeywordHit[] = [];
+  const scanned = await scan(index, notes, (text, file) => {
+    if (!needles.length) return void hits.push({ file, score: 0, text });
+    const title = file.slugPath.join("/").toLowerCase();
+    const lower = text.toLowerCase();
+    let score = 0;
+    for (const n of needles) {
+      if (title.includes(n)) score += 2;
+      else if (lower.includes(n)) score += 1;
+    }
+    if (score) hits.push({ file, score, text });
+  });
+  hits.sort((a, b) => b.score - a.score || newestFirst(a.file, b.file));
+  return { hits, scanned, total: notes.length };
+}

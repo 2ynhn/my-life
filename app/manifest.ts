@@ -13,6 +13,13 @@ export default function manifest(): MetadataRoute.Manifest {
     display: "standalone",
     background_color: "#faf8f5",
     theme_color: "#faf8f5",
+    // 휴대폰 '공유하기' 목록에 my-life가 나온다 (안드로이드 크롬에 설치했을 때). 받는 쪽은 public/sw.js
+    share_target: {
+      action: "/share-target",
+      method: "POST",
+      enctype: "multipart/form-data",
+      params: { title: "title", text: "text", url: "url", files: [{ name: "image", accept: ["image/*"] }] },
+    },
     icons: [
       { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
       { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },

@@ -1766,3 +1766,528 @@ mark {
 .account-row form {
   margin: 0;
 }
+
+/* ───── 입력 폼 ───── */
+
+.pane-form {
+  display: none;
+  min-height: 0;
+  overflow: auto;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.editor-panes.show-form .pane-form {
+  display: block;
+}
+.editor-panes.show-form .pane-write {
+  display: none;
+}
+.meta-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+.meta-form.compact {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  margin-bottom: 0.6rem;
+}
+.meta-form.compact .chips-field {
+  flex: 1;
+  min-width: 240px;
+}
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 0.75rem;
+}
+.form-field,
+.chips-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+.form-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.form-hint {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.meta-form input:not([type="checkbox"]) {
+  width: 100%;
+  min-width: 0;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 1rem;
+}
+.meta-form input:focus,
+.chips:focus-within {
+  outline: 2px solid var(--accent-soft);
+  border-color: var(--accent);
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  padding: 0.3rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.chips input:not([type="checkbox"]) {
+  flex: 1;
+  min-width: 8rem;
+  border: 0;
+  padding: 0.25rem 0.35rem;
+  outline: none;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.15rem 0.25rem 0.15rem 0.55rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.875rem;
+}
+.chip button {
+  display: inline-flex;
+  padding: 0.15rem;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+.chip-suggest {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.chip-suggest button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.15rem 0.55rem;
+  border: 1px dashed var(--line);
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.chip-suggest button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.seg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.seg button {
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+.seg button.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.item-row {
+  display: grid;
+  grid-template-columns: 1fr 7rem auto;
+  gap: 0.4rem;
+  margin-bottom: 0.4rem;
+}
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.icon-btn:hover {
+  background: var(--line);
+}
+.add-row {
+  align-self: flex-start;
+}
+.place-list {
+  margin: 0 0 0.4rem;
+  padding-left: 1.4rem;
+}
+.place-list li {
+  padding: 0.15rem 0;
+}
+.place-list li > * {
+  vertical-align: middle;
+}
+.place-list .muted {
+  margin-left: 0.5rem;
+}
+.metric-group {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.metric-group legend {
+  padding: 0;
+  margin-bottom: 0.5rem;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+.metric-group legend button {
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  padding: 0;
+  cursor: pointer;
+}
+.metrics-grid {
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+.add-metric {
+  display: flex;
+  gap: 0.5rem;
+}
+@media (max-width: 768px) {
+  .editor-panes.show-form .pane-preview {
+    display: none;
+  }
+  .form-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .pane-form {
+    padding: 0.75rem;
+  }
+}
+/* 폼이 있으면 넓은 화면에서도 항목/쓰기 탭 (미리보기는 늘 오른쪽에) */
+@media (min-width: 769px) {
+  .editor .tabs.has-form {
+    display: inline-flex;
+  }
+  .editor .tabs.has-form .tab-preview {
+    display: none;
+  }
+}
+
+/* ───── 빠른 한 줄 · 검색/물어보기 ───── */
+
+.quick-note {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.75rem;
+}
+.quick-note .quick-icon {
+  position: absolute;
+  left: 0.75rem;
+  top: 0.8rem;
+  color: var(--accent);
+  pointer-events: none;
+}
+.quick-note input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.65rem 0.75rem 0.65rem 2.4rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  box-shadow: var(--shadow);
+}
+.quick-note input:focus {
+  outline: 2px solid var(--accent-soft);
+  border-color: var(--accent);
+}
+.quick-note .btn {
+  padding: 0.6rem 1rem;
+}
+.quick-result {
+  flex-basis: 100%;
+  margin: 0;
+}
+.quick-result.ok {
+  color: var(--c-spending);
+}
+.quick-result.error {
+  color: #b42318;
+}
+.home-search {
+  max-width: none;
+  margin: 0 0 0.6rem;
+}
+.btn-ask {
+  color: var(--accent);
+  border-color: var(--accent-soft);
+  background: var(--accent-soft);
+}
+.home .lib-tools {
+  margin-bottom: 1.25rem;
+}
+@media (max-width: 768px) {
+  .home-search {
+    flex-wrap: wrap;
+  }
+  .home-search input[name="q"] {
+    flex-basis: 100%;
+  }
+  .home-search .search-icon {
+    top: 0.65rem;
+  }
+  .home-search .btn {
+    flex: 1;
+    justify-content: center;
+  }
+}
+
+/* ───── 공유받은 내용 ───── */
+
+.share {
+  max-width: 640px;
+}
+.share-inbox,
+.share-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: flex-start;
+}
+.share-card {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.share-card img {
+  max-width: 100%;
+  max-height: 50vh;
+  object-fit: contain;
+  border-radius: 8px;
+  align-self: center;
+}
+.share-card textarea {
+  width: 100%;
+  padding: 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  resize: vertical;
+}
+.share-card p {
+  margin: 0;
+}
+
+/* ───── 예산 ───── */
+
+.budget-meter {
+  margin: 0.25rem 0 1rem;
+}
+.budget-text {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.3rem;
+}
+.budget-track {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--c-folder-soft);
+  overflow: hidden;
+}
+.budget-track span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--c-spending);
+}
+.budget-track span.over,
+.over {
+  color: #b42318;
+}
+.budget-track span.over {
+  background: #d1453b;
+}
+.budget-edit {
+  margin-top: 1rem;
+}
+.budget-edit summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+.budget-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+.budget-form input {
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+.budget-form .row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* ───── 모아보기 ───── */
+
+.collect section {
+  margin: 1.25rem 0 2rem;
+}
+.collect-h {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.6rem;
+  font-size: 1.05rem;
+  margin: 0 0 0.75rem;
+}
+.collect-h svg {
+  color: var(--muted);
+}
+.collect-cards {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.6rem;
+}
+.collect-cards a {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  height: 100%;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  text-decoration: none;
+  box-shadow: var(--shadow);
+}
+.collect-cards a:hover {
+  border-color: var(--accent);
+}
+.collect-cards li.due a {
+  border-color: var(--c-spending);
+}
+.due-badge {
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background: var(--c-spending-soft);
+  color: var(--c-spending);
+  font-size: 0.75rem;
+  font-weight: 600;
+  vertical-align: 2px;
+}
+.collect-list .title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+/* ───── 물어보기 ───── */
+
+.ask {
+  max-width: 760px;
+}
+.ask-form {
+  margin-bottom: 1rem;
+}
+.ask-busy {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.spin-slow {
+  color: var(--accent);
+  animation: spin 2.4s linear infinite;
+}
+.ask-answer {
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem;
+  border: 1px solid var(--accent-soft);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  line-height: 1.75;
+}
+.ask-answer p:first-child {
+  margin-top: 0;
+}
+.ask-answer p:last-child {
+  margin-bottom: 0;
+}
+.ask-answer a {
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 0.8em;
+  vertical-align: super;
+}
+.src-n {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.ask-more {
+  margin-bottom: 1.5rem;
+}
+.ask-more summary {
+  cursor: pointer;
+  margin-bottom: 0.5rem;
+}
+.ask-plan a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+}

@@ -11,6 +11,7 @@ import {
   getIndex,
   hrefFor,
   invalidateIndex,
+  loadTemplate,
   readNote,
   renameFile,
   trashFile,
@@ -19,7 +20,7 @@ import {
   type FileEntry,
   type FolderEntry,
 } from "@/lib/drive";
-import { FEATURES } from "@/lib/features";
+import { FEATURES, featureByName } from "@/lib/features";
 import { loadLibrary } from "@/lib/library";
 import { getUser } from "@/lib/session";
 
@@ -202,4 +203,66 @@ export async function startFeature(rootId: string, key: string): Promise<void> {
   invalidateIndex(index);
   revalidatePath("/", "layout");
   redirect(next);
+}
+
+const kstNow = () => {
+  const parts = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date()); // 2026-10-28 14:32
+  return { date: parts.slice(0, 10), time: parts.slice(11, 16), year: parts.slice(0, 4) };
+};
+
+/**
+ * 빠른 한 줄 기록: 오늘 일기 끝에 '- 14:32 내용'을 붙인다.
+ * 일기 폴더·연도 폴더·오늘 일기가 없으면 만든다 (오늘 일기는 템플릿으로 시작).
+ */
+export async function quickNote(rootId: string, raw: string): Promise<ActionResult> {
+  const line = String(raw ?? "").replace(/\s+/g, " ").trim();
+  if (!line) return { ok: false, error: "내용을 입력하세요." };
+  if (line.length > 2000) return { ok: false, error: "한 줄 기록은 2000자까지예요." };
+  const index = await libraryIndex(rootId);
+  if (typeof index === "string") return { ok: false, error: index };
+  const { date, time, year } = kstNow();
+  const entry = `- ${time} ${line}`;
+
+  try {
+    const root = index.root;
+    let daily = root.children.find((c): c is FolderEntry => c.kind === "folder" && featureByName(c.name) === "diary");
+    if (!daily) {
+      if (!root.can.addChildren) return { ok: false, error: NO_PERMISSION };
+      const id = await createFolder(index, root, "daily");
+      daily = { ...root, id, name: "daily", parent: root, children: [] };
+    }
+    let target = daily.children.find((c): c is FolderEntry => c.kind === "folder" && c.name === year);
+    if (!target) {
+      if (!daily.can.addChildren) return { ok: false, error: NO_PERMISSION };
+      const id = await createFolder(index, daily, year);
+      target = { ...daily, id, name: year, parent: daily, children: [] };
+    }
+    const notes = target.children.filter((c): c is FileEntry => c.kind === "file" && c.isMarkdown);
+    const today = notes.find((n) => n.name === `${date}.md`) ?? notes.find((n) => n.slug.startsWith(date));
+
+    let id: string;
+    if (today) {
+      if (!today.can.edit) return { ok: false, error: NO_PERMISSION };
+      const { text } = await readNote(index, today); // 저장 직전의 최신 내용에 붙인다
+      await updateFile(index, today, `${text.replace(/\s*$/, "")}\n${entry}\n`);
+      id = today.id;
+    } else {
+      if (!target.can.addChildren) return { ok: false, error: NO_PERMISSION };
+      const template = (await loadTemplate(index, daily)).replaceAll("{{date}}", date).replaceAll("{{title}}", "");
+      id = await createFile(index, target, `${date}.md`, `${template.replace(/\s*$/, "")}\n\n${entry}\n`);
+    }
+    invalidateIndex(index);
+    revalidatePath("/", "layout");
+    return { ok: true, href: await freshHref(index, id, hrefFor(target)) };
+  } catch (e) {
+    return failure(e);
+  }
 }

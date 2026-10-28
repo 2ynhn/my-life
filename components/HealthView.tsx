@@ -3,22 +3,14 @@ import { hrefFor, type DriveIndex, type FileEntry, type FolderEntry } from "@/li
 import { collectNotes, dateOf } from "@/lib/folder-meta";
 import { splitFrontmatter } from "@/lib/markdown";
 import { todayKST } from "@/components/CalendarView";
+import { HEALTH_TEXT_KEYS, METRIC_ORDER, METRICS } from "@/lib/health-metrics";
 
 // 건강 폴더 위에 보이는 요약: 앞머리의 숫자 항목마다 선 그래프 하나씩 (작은 여러 개 — 축 하나에 한 항목)
 
 type Day = { file: FileEntry; date: string; values: Record<string, number> };
 
-/** 알려진 항목은 한글 이름·단위로. 처음 보는 숫자 항목도 그대로 그래프가 된다 */
-const KNOWN: Record<string, { label: string; unit: string; digits: number }> = {
-  weight: { label: "체중", unit: "kg", digits: 1 },
-  sleep: { label: "수면", unit: "시간", digits: 1 },
-  steps: { label: "걸음", unit: "보", digits: 0 },
-  bp_sys: { label: "혈압 (수축기)", unit: "mmHg", digits: 0 },
-  bp_dia: { label: "혈압 (이완기)", unit: "mmHg", digits: 0 },
-  condition: { label: "컨디션", unit: "/5", digits: 0 },
-};
-const ORDER = Object.keys(KNOWN);
-const SKIP = new Set(["date", "year", "month", "day"]);
+const KNOWN = METRICS;
+const ORDER = METRIC_ORDER;
 
 function parse(file: FileEntry, text: string): Day | null {
   const meta = splitFrontmatter(text).meta;
@@ -26,7 +18,7 @@ function parse(file: FileEntry, text: string): Day | null {
   if (!date) return null;
   const values: Record<string, number> = {};
   for (const [k, v] of Object.entries(meta)) {
-    if (SKIP.has(k)) continue;
+    if (HEALTH_TEXT_KEYS.has(k)) continue;
     const n = typeof v === "number" ? v : typeof v === "string" && /^-?\d+(\.\d+)?$/.test(v.trim()) ? Number(v) : NaN;
     if (Number.isFinite(n)) values[k] = n;
   }
@@ -74,6 +66,7 @@ function Chart({ metric, points, from, to }: { metric: string; points: { date: s
         </strong>
         <span className="muted small">
           평균 {fmt(metric, avg)} · {fmt(metric, Math.min(...vs))}~{fmt(metric, Math.max(...vs))} · {points.length}일
+          {KNOWN[metric]?.ref && ` · ${KNOWN[metric].ref}`}
         </span>
       </figcaption>
       <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${label(metric)} 그래프`}>
@@ -98,7 +91,7 @@ export async function HealthView({ index, folder, range: rawRange }: { index: Dr
     return (
       <section className="health empty">
         <p className="muted small">
-          아직 숫자가 적힌 건강 기록이 없어요. <b>새 글</b>에서 체중·수면·걸음 수 같은 칸에 숫자를 적으면 항목마다 그래프가 생깁니다.
+          아직 숫자가 적힌 건강 기록이 없어요. <b>새 글</b>에서 혈압·혈당·검진 수치 같은 칸에 숫자를 적으면 항목마다 그래프가 생깁니다.
         </p>
       </section>
     );
