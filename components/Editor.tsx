@@ -26,6 +26,8 @@ type Props = {
   initialText: string;
   /** 취소·닫기 시 돌아갈 주소 */
   closeHref: string;
+  /** 저장(만들기)을 마치면 돌아갈 카테고리 폴더 (새 글은 만든 폴더) */
+  doneHref?: string;
   /** 이 글이 있는 일기장 (Drive 폴더 id) */
   rootId: string;
   /** 사진을 올릴 때 기준이 되는 노트 폴더 (가장 가까운 attachments 폴더에 저장) */
@@ -234,19 +236,20 @@ export function Editor(props: Props) {
   }, [dirty]);
 
   const save = useCallback(
-    async (force = false) => {
+    async (force = false, leave = false) => {
       if (busy) return;
       setBusy(true);
       setMessage(null);
       const current = viewRef.current?.state.doc.toString() ?? text;
       try {
         if (props.mode === "edit") {
-          const res = await saveNote(props.rootId, props.fileId, checksum, current, force);
+          const res = await saveNote(props.rootId, props.fileId, checksum, current, force, leave);
           if (res.ok) {
             setChecksum(res.checksum);
             setSavedText(current);
             setConflict(null);
             writeDraft(draftKey, null);
+            if (leave && props.doneHref) return router.push(props.doneHref);
             setMessage({ kind: "ok", text: `저장됨 · ${fmtTime(Date.now())}` });
             // 미리 받아 둔 이 글 화면(저장 전 내용)을 비운다
             router.refresh();
@@ -259,7 +262,8 @@ export function Editor(props: Props) {
           if (res.ok) {
             writeDraft(draftKey, null);
             setSavedText(current);
-            router.push(res.href);
+            // 만든 글이 들어간 폴더(카테고리)로 돌아간다
+            router.push(res.href.replace(/\/[^/]+$/, ""));
           } else {
             setMessage({ kind: "error", text: res.error });
           }
@@ -478,7 +482,12 @@ export function Editor(props: Props) {
         <button className="btn" onClick={close} disabled={busy}>
           닫기
         </button>
-        <button className="btn btn-save" onClick={() => void save()} disabled={busy || (props.mode === "edit" && !dirty)}>
+        <button
+          className="btn btn-save"
+          onClick={() => void (props.mode === "edit" && !dirty && props.doneHref ? router.push(props.doneHref) : save(false, true))}
+          disabled={busy}
+          title={props.mode === "new" ? "만들고 목록으로" : "저장하고 목록으로 (Ctrl+S는 저장만)"}
+        >
           {busy ? "저장 중…" : props.mode === "new" ? "만들기" : "저장"}
         </button>
       </div>

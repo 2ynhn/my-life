@@ -74,6 +74,8 @@ export async function saveNote(
   baseChecksum: string,
   text: string,
   force = false,
+  /** 저장하고 목록으로 나갈 때: 화면들을 새로 그리게 한다 */
+  leaving = false,
 ): Promise<SaveResult> {
   const index = await libraryIndex(rootId);
   if (typeof index === "string") return { ok: false, error: index };
@@ -98,6 +100,7 @@ export async function saveNote(
     // 페이지를 다시 그리지 않는다: 편집기가 새로 만들어지면 커서·되돌리기 기록이 사라진다.
     // 보기 화면은 매번 Drive에서 내용을 읽으므로 목록(수정 시각)만 갱신하면 된다.
     invalidateIndex(index);
+    if (leaving) revalidatePath("/", "layout");
     return { ok: true, checksum };
   } catch (e) {
     return failure(e);

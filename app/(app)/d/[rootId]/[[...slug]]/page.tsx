@@ -261,6 +261,7 @@ async function EditNote({ entry, index }: { entry: FileEntry; index: DriveIndex 
       form={await formKindOf(index, entry.parent!)}
       initialText={note.text}
       closeHref={hrefFor(entry)}
+      doneHref={hrefFor(entry.parent!)}
       uploadFolderId={entry.parent!.id}
       links={linkTable(index, entry.parent!)}
     />
