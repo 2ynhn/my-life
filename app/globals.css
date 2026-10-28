@@ -7,6 +7,8 @@
   --accent: #b5562f;
   --accent-soft: #f6e7df;
   --sidebar-w: 240px;
+  /* 차트 막대: 배경 대비·밝기 검사를 통과한 값 (dataviz validate_palette) */
+  --chart: #b5562f;
   --font: "Pretendard", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", "Segoe UI", sans-serif;
   color-scheme: light;
 }
@@ -20,6 +22,7 @@
     --line: #36332f;
     --accent: #e08a62;
     --accent-soft: #3a2a22;
+    --chart: #d4794f;
     color-scheme: dark;
   }
 }
@@ -524,6 +527,9 @@ a {
 .status.error {
   color: #c0392b;
 }
+.status.info {
+  color: var(--accent);
+}
 
 .editor {
   display: flex;
@@ -932,4 +938,174 @@ mark {
 .chip.current {
   background: var(--accent);
   color: #fff;
+}
+
+/* ───── 영수증 설정 ───── */
+
+.ai-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  max-width: 520px;
+}
+.ai-form .field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.ai-form input,
+.ai-form select {
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+.ai-form .row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* ───── 지출 요약 ───── */
+
+.spending {
+  margin: 0 0 1.75rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.spending.empty {
+  padding: 0.75rem 1rem;
+}
+.spend-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+.spend-head .stat {
+  display: flex;
+  flex-direction: column;
+}
+.spend-head strong {
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
+.spend-nav {
+  margin-left: auto;
+  display: flex;
+  gap: 0.4rem;
+}
+.chart {
+  margin: 0.75rem 0 1rem;
+}
+.chart svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+.chart .axis {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+.chart .hit {
+  fill: transparent;
+}
+.chart .bar {
+  fill: var(--chart);
+  opacity: 0.55;
+}
+.chart .col:hover .bar,
+.chart .col.selected .bar {
+  opacity: 1;
+}
+.chart .col:hover .hit {
+  fill: var(--accent-soft);
+  opacity: 0.5;
+}
+.chart .lbl,
+.chart .val {
+  font-size: 12px;
+  fill: var(--muted);
+}
+.chart .lbl.on,
+.chart .val {
+  fill: var(--text);
+  font-weight: 700;
+}
+.hbars {
+  list-style: none;
+  padding: 0;
+  margin: 0.25rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.hbars li {
+  display: grid;
+  grid-template-columns: 5.5rem 1fr auto;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.9rem;
+}
+.hbars .track {
+  height: 12px;
+}
+.hbars .fill {
+  display: block;
+  height: 100%;
+  background: var(--chart);
+  border-radius: 0 4px 4px 0;
+}
+.hbars .amt {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.spend-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+}
+.spend-table caption {
+  text-align: left;
+  padding-bottom: 0.25rem;
+}
+.spend-table th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+  padding: 0.35rem 0.25rem;
+}
+.spend-table td {
+  border-bottom: 1px solid var(--line);
+  padding: 0.4rem 0.25rem;
+}
+.spend-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.spend-table a {
+  text-decoration: none;
+}
+@media (max-width: 768px) {
+  /* SVG가 화면에 맞춰 줄어드니 글자는 크게 잡는다 */
+  .chart .lbl,
+  .chart .val {
+    font-size: 21px;
+  }
+  .hbars li {
+    grid-template-columns: 4.5rem 1fr;
+  }
+  .hbars .amt {
+    grid-column: 2;
+    font-size: 0.8rem;
+  }
 }

@@ -53,7 +53,7 @@ export async function POST(req: Request) {
       .replaceAll(":", ".");
     const name = uniqueName(target, stamp, ext);
     const id = await uploadFile(index, target, name, bytes, type);
-    return json({ name, url: `/api/file/${encodeURIComponent(index.lib.rootId)}/${encodeURIComponent(id)}` });
+    return json({ id, name, url: `/api/file/${encodeURIComponent(index.lib.rootId)}/${encodeURIComponent(id)}` });
   } catch (e) {
     console.error("[upload]", e);
     if (e instanceof DriveError && e.status === 403) return json({ error: "이 일기장에 사진을 올릴 권한이 없습니다." }, 403);

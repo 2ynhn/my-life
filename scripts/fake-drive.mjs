@@ -31,6 +31,7 @@ const changeLog = [];
 const touch = (id) => changeLog.push(id);
 /** 테스트용: 폴더 목록 조회 횟수 (/__stats) */
 const stats = { listChildren: 0, changes: 0 };
+let lastAi = null;
 const now = () => new Date().toISOString();
 const newId = () => "f" + randomUUID().replace(/-/g, "").slice(0, 20);
 const rootOf = (email) => `root:${email}`;
@@ -192,6 +193,22 @@ const server = createServer(async (req, res) => {
       return send(res, 200, { ok: true });
     }
     if (url.pathname === "/__stats") return send(res, 200, stats);
+    // ── 가짜 Anthropic API (영수증 읽기 시험용). 키 "sk-ant-dev-ok…"만 통과
+    if (url.pathname.startsWith("/v1/")) {
+      // SDK 버전에 따라 x-api-key 또는 Authorization: Bearer 로 온다
+      const key = req.headers["x-api-key"] ?? String(req.headers.authorization ?? "").replace(/^Bearer /, "");
+      if (!String(key).startsWith("sk-ant-dev-ok"))
+        return send(res, 401, { type: "error", error: { type: "authentication_error", message: "invalid x-api-key" } });
+      const model = /^\/v1\/models\/([^/]+)$/.exec(url.pathname);
+      if (req.method === "GET" && model) return send(res, 200, { id: model[1], type: "model", display_name: model[1] });
+      if (req.method === "POST" && url.pathname === "/v1/messages") {
+        const params = JSON.parse(body.toString());
+        lastAi = { headers: { "anthropic-beta": req.headers["anthropic-beta"] ?? null }, params: { ...params, messages: params.messages.map((m2) => ({ ...m2, content: m2.content.map((c) => (c.type === "image" ? { ...c, source: { ...c.source, data: `<${c.source.data.length} chars>` } } : c)) })) } };
+        const receipt = { date: "2026-10-27", store: "이마트 성수점", amount: 58400, category: "식비", payment: "신한카드", items: [{ name: "우유", price: 2980 }, { name: "계란 30구", price: 8900 }] };
+        return send(res, 200, { id: "msg_fake", type: "message", role: "assistant", model: params.model, content: [{ type: "text", text: JSON.stringify(receipt) }], stop_reason: "end_turn", stop_sequence: null, usage: { input_tokens: 1500, output_tokens: 120 } });
+      }
+    }
+    if (url.pathname === "/__last-ai") return send(res, 200, lastAi);
     if (url.pathname === "/token") {
       const rt = new URLSearchParams(body.toString()).get("refresh_token") ?? "";
       if (!rt.startsWith("dev:") || revoked.has(rt.slice(4))) return send(res, 400, { error: "invalid_grant" });

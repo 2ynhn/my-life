@@ -13,6 +13,7 @@ import { createNote, saveNote } from "@/app/(app)/note-actions";
 import { NoteBody } from "@/components/NoteBody";
 import { imageFiles, uploadImage } from "@/lib/image-upload";
 import { tableResolver, type LinkTable } from "@/lib/markdown";
+import { fillReceipt, receiptFileName, type Receipt } from "@/lib/receipt-shape";
 
 type Props = {
   links: LinkTable;
@@ -25,7 +26,15 @@ type Props = {
   uploadFolderId: string;
 } & (
   | { mode: "edit"; fileId: string; fileName: string; checksum: string }
-  | { mode: "new"; folderId: string; folderName: string; defaultName: string; subfolder?: string }
+  | {
+      mode: "new";
+      folderId: string;
+      folderName: string;
+      defaultName: string;
+      subfolder?: string;
+      /** 지출 기록 폴더면 '영수증으로 채우기' 버튼을 보인다 */
+      receipt?: boolean;
+    }
 );
 
 type Draft = { text: string; name?: string; at: number };
@@ -79,6 +88,7 @@ export function Editor(props: Props) {
   const saveRef = useRef<() => void>(() => {});
   const uploadRef = useRef<(files: File[]) => void>(() => {});
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const receiptInputRef = useRef<HTMLInputElement>(null);
 
   const draftKey = props.mode === "edit" ? `my-life:draft:${props.fileId}` : `my-life:draft:new:${props.folderId}`;
 
@@ -87,7 +97,8 @@ export function Editor(props: Props) {
   const [checksum, setChecksum] = useState(props.mode === "edit" ? props.checksum : "");
   const [name, setName] = useState(props.mode === "new" ? props.defaultName : "");
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
+  // ok: 저장됨(다시 고치면 사라짐) · info: 안내(고쳐도 남음) · error
+  const [message, setMessage] = useState<{ kind: "ok" | "info" | "error"; text: string } | null>(null);
   const [conflict, setConflict] = useState<{ text: string; checksum: string } | null>(null);
   const [pendingDraft, setPendingDraft] = useState<Draft | null>(null);
   const [tab, setTab] = useState<"write" | "preview">("write");
@@ -257,6 +268,39 @@ export function Editor(props: Props) {
     }
   };
 
+  // 영수증: 사진을 올리고(attachments) → 서버가 Claude로 읽고 → 템플릿 앞머리를 채운다. 저장은 직접 확인 후
+  const fillFromReceipt = async (file: File) => {
+    if (uploading || props.mode !== "new") return;
+    setMessage(null);
+    let image: { id: string; name: string; url: string } | null = null;
+    try {
+      setUploading("영수증 올리는 중…");
+      image = await uploadImage(file, props.rootId, props.uploadFolderId);
+      setUploaded((prev) => ({ ...prev, [image!.name.toLowerCase()]: image!.url }));
+      setUploading("영수증 읽는 중… (10~30초)");
+      const res = await fetch("/api/receipt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ root: props.rootId, fileId: image.id }),
+      });
+      const body = (await res.json().catch(() => ({}))) as { receipt?: Receipt; error?: string };
+      if (!res.ok || !body.receipt) throw new Error(body.error ?? `영수증을 읽지 못했습니다 (${res.status})`);
+      const current = viewRef.current?.state.doc.toString() ?? text;
+      replaceDoc(fillReceipt(current, body.receipt, image.name));
+      const suggested = receiptFileName(body.receipt, props.defaultName.slice(0, 10));
+      if (suggested) setName(suggested);
+      setMessage({ kind: "info", text: "영수증 내용을 채웠어요. 확인하고 고친 뒤 '만들기'를 누르세요." });
+    } catch (e) {
+      // 읽기에 실패해도 올린 사진은 글에 붙여 둔다
+      const view = viewRef.current;
+      if (image && view && !view.state.doc.toString().includes(`![[${image.name}]]`))
+        view.dispatch({ changes: { from: view.state.doc.length, insert: `\n![[${image.name}]]\n` } });
+      setMessage({ kind: "error", text: e instanceof Error ? e.message : "영수증을 읽지 못했습니다." });
+    } finally {
+      setUploading(null);
+    }
+  };
+
   const close = () => {
     if (dirty && !confirm("저장하지 않은 내용이 있습니다. 닫을까요?\n(브라우저 임시저장에는 남아 있어요)")) return;
     router.push(props.closeHref);
@@ -308,10 +352,33 @@ export function Editor(props: Props) {
             if (files.length) uploadRef.current(files);
           }}
         />
+        {props.mode === "new" && props.receipt && (
+          <>
+            <button
+              className="btn"
+              onClick={() => receiptInputRef.current?.click()}
+              disabled={!!uploading}
+              title="영수증 사진이나 주문내역 캡처로 날짜·가게·금액을 채웁니다"
+            >
+              🧾 영수증으로 채우기
+            </button>
+            <input
+              ref={receiptInputRef}
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={(e) => {
+                const file = imageFiles(e.target.files)[0];
+                e.target.value = "";
+                if (file) void fillFromReceipt(file);
+              }}
+            />
+          </>
+        )}
         <span className="spacer" />
         {uploading && <span className="status small muted">{uploading}</span>}
         {/* 저장 후 다시 고치기 시작하면 '저장됨' 대신 '저장 안 됨' */}
-        {message && (message.kind === "error" || !dirty) ? (
+        {message && (message.kind !== "ok" || !dirty) ? (
           <span className={`status small ${message.kind}`}>{message.text}</span>
         ) : (
           dirty && <span className="status small muted">저장 안 됨</span>

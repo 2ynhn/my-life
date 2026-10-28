@@ -718,18 +718,91 @@ tags: []
 
 `;
 
-/** _templates/<최상위 폴더 이름>.md → _templates/default.md → 기본값 */
+/** 지출 기록: 영수증 한 장 = 글 하나. amount가 있으면 지출 요약·영수증 자동 입력이 켜진다 */
+export const PURCHASE_TEMPLATE = `---
+date: {{date}}
+store: ""            # 가게·쇼핑몰 이름
+amount: 0            # 총액, 원 단위 숫자만 (쉼표 없이). 환불은 음수
+category: 식비        # 식비 · 외식 · 생활용품 · 의류 · 의료 · 교육 · 교통 · 문화/여가 · 경조사 · 기타
+payment: ""          # 신한카드, 현금, 네이버페이 …
+items:               # 선택: 품목별로 적고 싶을 때만
+  - name: ""
+    price: 0
+tags: []
+---
+
+# {{title}}
+
+메모:
+`;
+
+/** Drive에 템플릿이 없을 때 최상위 폴더 이름별 내장 템플릿 */
+const BUILTIN_TEMPLATES: Record<string, string> = { purchase: PURCHASE_TEMPLATE };
+
+const topFolderOf = (index: DriveIndex, folder: FolderEntry) => {
+  let top: FolderEntry = folder;
+  while (top.parent && top.parent !== index.root) top = top.parent;
+  return top;
+};
+
+/** _templates/<최상위 폴더 이름>.md → _templates/default.md → 내장 기본값 */
 export async function loadTemplate(index: DriveIndex, folder: FolderEntry): Promise<string> {
+  const top = topFolderOf(index, folder);
+  const builtin = (top !== index.root && BUILTIN_TEMPLATES[top.name.toLowerCase()]) || DEFAULT_TEMPLATE;
   const templates = index.root.children.find(
     (c): c is FolderEntry => c.kind === "folder" && c.name === TEMPLATE_FOLDER,
   );
-  if (!templates) return DEFAULT_TEMPLATE;
-  let top: FolderEntry = folder;
-  while (top.parent && top.parent !== index.root) top = top.parent;
+  if (!templates) return builtin;
   const pick = (name: string) =>
     templates.children.find((c): c is FileEntry => c.kind === "file" && c.name.toLowerCase() === name.toLowerCase());
-  const file = (top !== index.root && pick(`${top.name}.md`)) || pick("default.md");
-  return file ? (await readNote(index, file)).text : DEFAULT_TEMPLATE;
+  const own = top !== index.root ? pick(`${top.name}.md`) : undefined;
+  if (own) return (await readNote(index, own)).text;
+  // 폴더 전용 내장 템플릿이 있으면 default.md보다 우선
+  if (builtin !== DEFAULT_TEMPLATE) return builtin;
+  const fallback = pick("default.md");
+  return fallback ? (await readNote(index, fallback)).text : DEFAULT_TEMPLATE;
+}
+
+/** 이 폴더의 템플릿에 amount가 있으면 지출 기록 폴더 (지출 요약·영수증 자동 입력) */
+export async function isSpendingFolder(index: DriveIndex, folder: FolderEntry): Promise<boolean> {
+  if (folder === index.root) return false;
+  try {
+    return /^amount:/m.test(await loadTemplate(index, folder));
+  } catch {
+    return false;
+  }
+}
+
+// ───────────── 앱 설정 파일 (내 일기장의 _settings) ─────────────
+// _로 시작해 목록에 안 보인다. 비밀값은 넣기 전에 암호화한다 (lib/ai-settings.ts) — 공유받은 사람이 열어도 읽을 수 없게.
+
+const SETTINGS_FOLDER = "_settings";
+
+export async function readSettingsJson<T>(index: DriveIndex, name: string): Promise<T | null> {
+  const folder = index.root.children.find(
+    (c): c is FolderEntry => c.kind === "folder" && c.name === SETTINGS_FOLDER,
+  );
+  const file = folder?.children.find((c): c is FileEntry => c.kind === "file" && c.name === name);
+  if (!file) return null;
+  try {
+    return JSON.parse((await readNote(index, file)).text) as T;
+  } catch {
+    return null;
+  }
+}
+
+export async function writeSettingsJson(index: DriveIndex, name: string, data: unknown): Promise<void> {
+  const text = JSON.stringify(data, null, 2) + "\n";
+  const fresh = await getIndex(index.user, index.lib, { fresh: true });
+  let folder = fresh.root.children.find((c): c is FolderEntry => c.kind === "folder" && c.name === SETTINGS_FOLDER);
+  if (!folder) {
+    const id = await createFolder(fresh, fresh.root, SETTINGS_FOLDER);
+    folder = { ...fresh.root, id, name: SETTINGS_FOLDER, parent: fresh.root, children: [] };
+  }
+  const file = folder.children.find((c): c is FileEntry => c.kind === "file" && c.name === name);
+  if (file) await updateFile(fresh, file, text);
+  else await createRaw(fresh.user, folder.id, name, text, "application/json");
+  invalidateIndex(fresh);
 }
 
 // ───────────── 주소·목록 ─────────────

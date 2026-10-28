@@ -9,12 +9,14 @@ import { FolderView } from "@/components/FolderView";
 import { NoteActions } from "@/components/NoteActions";
 import { NoteBody } from "@/components/NoteBody";
 import { SearchView } from "@/components/SearchView";
+import { SpendingView } from "@/components/SpendingView";
 import {
   DriveError,
   ReauthError,
   fileUrl,
   hrefFor,
   isListable,
+  isSpendingFolder,
   linkResolver,
   linkTable,
   loadTemplate,
@@ -32,7 +34,16 @@ import { requireUser } from "@/lib/session";
 
 type Props = {
   params: Promise<{ rootId: string; slug?: string[] }>;
-  searchParams: Promise<{ mode?: string; sub?: string; view?: string; q?: string; tag?: string; month?: string; day?: string }>;
+  searchParams: Promise<{
+    mode?: string;
+    sub?: string;
+    view?: string;
+    q?: string;
+    tag?: string;
+    month?: string;
+    day?: string;
+    spend?: string;
+  }>;
 };
 
 const decode = (s: string) => {
@@ -80,7 +91,7 @@ export default async function EntryPage({ params, searchParams }: Props) {
   // md가 아닌 파일(이미지 등)은 원본으로 보낸다
   if (entry.kind === "file" && !entry.isMarkdown) redirect(fileUrl(entry));
 
-  const { mode, sub, view, q, tag, month, day } = await searchParams;
+  const { mode, sub, view, q, tag, month, day, spend } = await searchParams;
 
   // 일기장 단위 화면: 검색·캘린더 (주소: /d/<id>?view=…)
   if (!entry.parent && view === "search") return <SearchView index={index} q={String(q ?? "")} tag={String(tag ?? "")} />;
@@ -107,7 +118,7 @@ export default async function EntryPage({ params, searchParams }: Props) {
         </a>
       </div>
       {entry.kind === "folder" ? (
-        <Folder folder={entry} index={index} />
+        <Folder folder={entry} index={index} spend={spend} />
       ) : (
         <Note entry={entry} index={index} />
       )}
@@ -127,7 +138,8 @@ function diaryHref(root: FolderEntry): string | null {
   return daily.can.addChildren ? `${hrefFor(daily)}?mode=new&sub=${year}` : null;
 }
 
-function Folder({ folder, index }: { folder: FolderEntry; index: DriveIndex }) {
+async function Folder({ folder, index, spend }: { folder: FolderEntry; index: DriveIndex; spend?: string }) {
+  const spending = await isSpendingFolder(index, folder);
   const isRoot = !folder.parent;
   const diary = isRoot ? diaryHref(folder) : null;
   const past = isRoot ? onThisDay(index) : [];
@@ -190,6 +202,7 @@ function Folder({ folder, index }: { folder: FolderEntry; index: DriveIndex }) {
           </ul>
         </section>
       )}
+      {spending && <SpendingView index={index} folder={folder} month={spend} />}
       <FolderView folder={folder} />
       {recent.length > 0 && (
         <section className="recent">
@@ -300,9 +313,11 @@ async function NewNote({ folder, index, subfolder }: { folder: FolderEntry; inde
     return readProblem(e);
   }
   const date = today();
+  const receipt = await isSpendingFolder(index, folder);
   return (
     <Editor
       mode="new"
+      receipt={receipt}
       rootId={index.lib.rootId}
       folderId={folder.id}
       folderName={subfolder ? `${folder.name} / ${subfolder}` : folder.name}

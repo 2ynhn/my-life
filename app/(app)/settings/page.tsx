@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { DriveProblem } from "@/components/DriveProblem";
+import { AiSettingsForm } from "@/components/AiSettingsForm";
 import { InviteLink, RestrictList, ShareList } from "@/components/ShareManager";
+import { AI_MODELS, getAiSettings } from "@/lib/ai-settings";
 import { DriveError, listShares, sharingFolders, type Share } from "@/lib/drive";
 import { loadLibrary, myLibrary } from "@/lib/library";
 import { requireUser } from "@/lib/session";
@@ -40,6 +42,8 @@ export default async function SettingsPage() {
   const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
   const link = `${proto}://${host}${index.lib.base}`;
 
+  const ai = await getAiSettings(index);
+
   const folders = sharingFolders(index).map((f) => ({
     id: f.id,
     path: f.slugPath.join(" / "),
@@ -69,6 +73,20 @@ export default async function SettingsPage() {
           있어요. 예전 앱 규칙인 <code>.private</code> 파일은 이제 쓰지 않으니, 표시가 남은 폴더는 여기서 제한을 켠 뒤 그 파일을 지우세요.
         </p>
         {folders.length === 0 ? <p className="muted small">폴더가 없습니다.</p> : <RestrictList folders={folders} />}
+      </section>
+
+      <section>
+        <h2>영수증 자동 입력 (Claude API)</h2>
+        <p className="muted small">
+          지출 글을 쓸 때 영수증 사진이나 주문내역 캡처를 올리면 Claude가 날짜·가게·금액·분류·품목을 채워 줍니다. 비용은{" "}
+          <b>여기 입력한 내 Anthropic API 키</b>로 청구돼요(다른 사람은 각자 자기 키를 씁니다). 키는 내 Drive의{" "}
+          <code>{index.lib.name}/_settings/ai.json</code>에 암호화되어 저장되고, 이 앱 서버에는 남지 않습니다. 키는{" "}
+          <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer">
+            Anthropic 콘솔
+          </a>
+          에서 만들 수 있어요.
+        </p>
+        <AiSettingsForm models={AI_MODELS} model={ai.model} hasKey={ai.hasKey} keyHint={ai.keyHint} />
       </section>
 
       <section>

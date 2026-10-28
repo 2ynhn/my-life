@@ -39,7 +39,11 @@ export async function prepareImage(file: File): Promise<Blob> {
 }
 
 /** 올린 뒤 파일 이름과 보기 주소를 돌려준다 */
-export async function uploadImage(file: File, rootId: string, folderId: string): Promise<{ name: string; url: string }> {
+export async function uploadImage(
+  file: File,
+  rootId: string,
+  folderId: string,
+): Promise<{ id: string; name: string; url: string }> {
   const blob = await prepareImage(file);
   if (blob.size > MAX_BYTES) throw new Error("사진이 너무 큽니다 (4MB 이하).");
   const res = await fetch(`/api/upload?root=${encodeURIComponent(rootId)}&folder=${encodeURIComponent(folderId)}`, {
@@ -47,9 +51,9 @@ export async function uploadImage(file: File, rootId: string, folderId: string):
     headers: { "Content-Type": blob.type || file.type },
     body: blob,
   });
-  const body = (await res.json().catch(() => ({}))) as { name?: string; url?: string; error?: string };
-  if (!res.ok || !body.name || !body.url) throw new Error(body.error ?? `업로드 실패 (${res.status})`);
-  return { name: body.name, url: body.url };
+  const body = (await res.json().catch(() => ({}))) as { id?: string; name?: string; url?: string; error?: string };
+  if (!res.ok || !body.id || !body.name || !body.url) throw new Error(body.error ?? `업로드 실패 (${res.status})`);
+  return { id: body.id, name: body.name, url: body.url };
 }
 
 export const imageFiles = (list: FileList | null | undefined): File[] =>

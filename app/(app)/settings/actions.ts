@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { DriveError, addShare, invalidateIndex, removeShare, setRestricted } from "@/lib/drive";
+import { AI_MODELS, DEFAULT_MODEL, saveAiSettings, type AiModel } from "@/lib/ai-settings";
+import { checkApiKey } from "@/lib/receipt";
 import { loadLibrary, myLibrary } from "@/lib/library";
 import { getUser } from "@/lib/session";
 
@@ -74,6 +76,25 @@ export async function restrictAction(folderId: string, on: boolean): Promise<Res
     if (folder?.kind !== "folder" || !folder.parent) return { ok: false, error: "폴더를 찾을 수 없습니다." };
     await setRestricted(index, folder, !!on);
     invalidateIndex(index);
+    return { ok: true };
+  });
+}
+
+/** 영수증 자동 입력용 Anthropic API 키·모델 (내 일기장 _settings/ai.json에 암호화해서 저장) */
+export async function saveAiAction(rawKey: string, rawModel: string, remove = false): Promise<Result> {
+  const model = rawModel in AI_MODELS ? (rawModel as AiModel) : DEFAULT_MODEL;
+  const apiKey = String(rawKey ?? "").trim();
+  if (apiKey && !/^sk-ant-[\w-]{10,}$/.test(apiKey)) return { ok: false, error: "Anthropic API 키 형식이 아닙니다 (sk-ant-로 시작)." };
+  return withMyIndex(async ({ index }) => {
+    if (remove) {
+      await saveAiSettings(index, { apiKey: null, model });
+      return { ok: true };
+    }
+    if (apiKey) {
+      const problem = await checkApiKey(apiKey, model);
+      if (problem) return { ok: false, error: problem };
+    }
+    await saveAiSettings(index, { apiKey: apiKey || undefined, model });
     return { ok: true };
   });
 }
