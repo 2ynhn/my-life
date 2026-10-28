@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarDays, Clock, ExternalLink, History, Layers, Plus, Search, Sparkles } from "lucide-react";
+import { CalendarDays, ChevronRight, Clock, ExternalLink, History, Layers, PenLine, Plus, Search, Sparkles } from "lucide-react";
 import { NewFolderButton } from "@/components/NewFolderButton";
 import { QuickNote } from "@/components/QuickNote";
 import { startFeature } from "@/app/(app)/note-actions";
@@ -83,25 +83,42 @@ function card(feature: Feature, folder: FolderEntry, today: string, diary: strin
   }
 }
 
-function FeatureCard({ c }: { c: Card }) {
+/** 일기 카드 위 띠: 오늘 일기 쓰기/보기 (카드의 바로가기를 크게) */
+function TodayBand({ c }: { c: Card }) {
+  if (!c.action) return null;
+  return (
+    <Link href={c.action.href} className="today-band">
+      <span className="today-icon">
+        <PenLine size={22} strokeWidth={1.8} aria-hidden />
+      </span>
+      <span className="today-text">
+        <strong>{c.action.label}</strong>
+        {c.sub && <span className="small">{c.sub}</span>}
+      </span>
+      <ChevronRight size={20} className="today-chevron" aria-hidden />
+    </Link>
+  );
+}
+
+function FeatureCard({ c, hideAction = false }: { c: Card; hideAction?: boolean }) {
   const { feature, folder } = c;
   return (
     <li className={`fcard fcard-${feature.key}`}>
       <Link href={hrefFor(folder)} className="fcard-main">
         <span className="fcard-head">
-          <FeatureIcon kind={feature.key} size="lg" />
+          <FeatureIcon kind={feature.key} size="md" />
           <span className="fcard-name">
             <strong>{feature.label}</strong>
             {folder.name.toLowerCase() !== feature.label && <span className="muted small">{folder.name}</span>}
           </span>
         </span>
         <span className="fcard-stat">
-          <span className="muted small">{c.stat.unit}</span>
           <strong>{c.stat.value.toLocaleString("ko-KR")}</strong>
+          <span className="muted small">{c.stat.unit}</span>
         </span>
         <span className="fcard-sub muted small">{c.sub ?? "아직 글이 없어요"}</span>
       </Link>
-      {c.action && (
+      {c.action && !hideAction && (
         <Link href={c.action.href} className="fcard-action">
           {c.action.href.includes("mode=new") && <Plus size={16} strokeWidth={2} aria-hidden />}
           {c.action.label}
@@ -151,8 +168,9 @@ export async function Home({
   const folders = visibleChildren(root).filter((c): c is FolderEntry => c.kind === "folder");
   // 쓰임새: 템플릿으로 판단(구매·여행·건강), 일기는 이름으로
   const kinds = await Promise.all(
-    folders.map(async (f): Promise<FeatureKey | null> =>
-      featureByName(f.name) === "diary" ? "diary" : ((await folderKind(index, f).catch(() => null)) ?? featureByName(f.name)),
+    folders.map(
+      async (f): Promise<FeatureKey | null> =>
+        featureByName(f.name) === "diary" ? "diary" : ((await folderKind(index, f).catch(() => null)) ?? featureByName(f.name)),
     ),
   );
   const cards: Card[] = [];
@@ -167,7 +185,8 @@ export async function Home({
     used.add(folders[i]);
     cards.push(card(feature, folders[i], today, diary));
   }
-  const diaryFolder = cards.find((c) => c.feature.key === "diary")?.folder;
+  const diaryCard = cards.find((c) => c.feature.key === "diary");
+  const diaryFolder = diaryCard?.folder;
   const canQuick = diaryFolder ? diaryFolder.can.addChildren || diaryFolder.can.edit : root.can.addChildren;
   const others = folders.map((f, i) => ({ f, kind: kinds[i] })).filter(({ f }) => !used.has(f));
   const rootNotes = visibleChildren(root).filter((c): c is FileEntry => c.kind === "file");
@@ -193,73 +212,81 @@ export async function Home({
         )}
       </div>
 
-      {canQuick && <QuickNote rootId={root.lib.rootId} />}
+      <div className="home-body">
+        <div className="home-main">
+          {canQuick && <QuickNote rootId={root.lib.rootId} />}
 
-      <form className="search-form home-search" action={root.lib.base}>
-        <Search size={18} className="search-icon" aria-hidden />
-        <input name="q" placeholder="검색하거나 물어보세요" aria-label="검색어 또는 질문" required />
-        {/* 엔터는 첫 버튼(검색) */}
-        <button className="btn" type="submit" name="view" value="search">
-          검색
-        </button>
-        <button className="btn btn-ask" type="submit" name="view" value="ask" title="Claude가 일기를 찾아 읽고 답해요">
-          <Sparkles size={16} aria-hidden />
-          물어보기
-        </button>
-      </form>
-      <div className="lib-tools">
-        <Link className="btn" href={`${root.lib.base}?view=calendar`}>
-          <CalendarDays size={16} aria-hidden />
-          캘린더
-        </Link>
-        <Link className="btn" href={`${root.lib.base}?view=collect`}>
-          <Layers size={16} aria-hidden />
-          모아보기
-        </Link>
+          {diaryCard && <TodayBand c={diaryCard} />}
+
+          <form className="search-form home-search" action={root.lib.base}>
+            <Search size={18} className="search-icon" aria-hidden />
+            <input name="q" placeholder="검색하거나 물어보세요" aria-label="검색어 또는 질문" required />
+            {/* 엔터는 첫 버튼(검색) */}
+            <button className="btn" type="submit" name="view" value="search">
+              검색
+            </button>
+            <button className="btn btn-ask" type="submit" name="view" value="ask" title="Claude가 일기를 찾아 읽고 답해요">
+              <Sparkles size={16} aria-hidden />
+              물어보기
+            </button>
+          </form>
+          <div className="lib-tools">
+            <Link className="btn" href={`${root.lib.base}?view=calendar`}>
+              <CalendarDays size={16} aria-hidden />
+              캘린더
+            </Link>
+            <Link className="btn" href={`${root.lib.base}?view=collect`}>
+              <Layers size={16} aria-hidden />
+              모아보기
+            </Link>
+          </div>
+
+          <ul className="features">
+            {cards.map((c) => (
+              <FeatureCard key={c.feature.key} c={c} hideAction={c === diaryCard} />
+            ))}
+            {root.can.addChildren && missing.map((f) => <StartCard key={f.key} feature={f} rootId={root.lib.rootId} />)}
+          </ul>
+        </div>
+
+        <aside className="home-side">
+          {past.length > 0 && (
+            <section className="on-this-day home-section">
+              <h2>
+                <History size={18} aria-hidden /> 지난 오늘
+              </h2>
+              <ul className="note-list">
+                {past.map(({ years, note }) => (
+                  <li key={note.id}>
+                    <Link href={hrefFor(note)}>
+                      <span className="past-years small">{years}년 전</span>
+                      <span className="title">{note.slug}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {recent.length > 0 && (
+            <section className="recent home-section">
+              <h2>
+                <Clock size={18} aria-hidden /> 최근 수정
+              </h2>
+              <ul className="note-list">
+                {recent.map((n) => (
+                  <li key={n.id}>
+                    <Link href={hrefFor(n)}>
+                      <span className="title">{n.slug}</span>
+                      <span className="muted small">{n.slugPath.slice(0, -1).join(" / ")}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </aside>
       </div>
-
-      <ul className="features">
-        {cards.map((c) => (
-          <FeatureCard key={c.feature.key} c={c} />
-        ))}
-        {root.can.addChildren && missing.map((f) => <StartCard key={f.key} feature={f} rootId={root.lib.rootId} />)}
-      </ul>
-
-      {past.length > 0 && (
-        <section className="on-this-day home-section">
-          <h2>
-            <History size={18} aria-hidden /> 지난 오늘
-          </h2>
-          <ul className="note-list">
-            {past.map(({ years, note }) => (
-              <li key={note.id}>
-                <Link href={hrefFor(note)}>
-                  <span className="title">{note.slug}</span>
-                  <span className="muted small">{years}년 전</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {recent.length > 0 && (
-        <section className="recent home-section">
-          <h2>
-            <Clock size={18} aria-hidden /> 최근 수정
-          </h2>
-          <ul className="note-list">
-            {recent.map((n) => (
-              <li key={n.id}>
-                <Link href={hrefFor(n)}>
-                  <span className="title">{n.slug}</span>
-                  <span className="muted small">{n.slugPath.slice(0, -1).join(" / ")}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
 
       {(others.length > 0 || rootNotes.length > 0 || root.can.addChildren) && (
         <section className="home-section">

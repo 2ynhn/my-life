@@ -30,15 +30,18 @@ export function QuickNote({ rootId }: { rootId: string }) {
         if (text.trim() && !pending) submit();
       }}
     >
-      <PenLine size={18} className="quick-icon" aria-hidden />
+      <label className="quick-label" htmlFor="quick-note-input">
+        <PenLine size={15} aria-hidden />
+        지금 한 줄 남기기 · 오늘 일기에 시간과 함께 붙어요
+      </label>
       <input
+        id="quick-note-input"
         value={text}
         onChange={(e) => {
           setText(e.target.value);
           if (result?.ok) setResult(null);
         }}
-        placeholder="지금 한 줄 (오늘 일기에 시간과 함께)"
-        aria-label="빠른 한 줄 기록"
+        placeholder="무슨 일이 있었나요?"
         maxLength={2000}
         enterKeyHint="send"
       />

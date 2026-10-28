@@ -1,4 +1,6 @@
+import { Suspense } from "react";
 import { Sidebar } from "@/components/Sidebar";
+import { TabBar } from "@/components/TabBar";
 import { folderTree } from "@/lib/drive";
 import { libraryTitle } from "@/lib/labels";
 import { loadLibrary } from "@/lib/library";
@@ -22,6 +24,9 @@ export default async function LibraryLayout({
     <>
       <Sidebar tree={folderTree(index.root)} title={libraryTitle(index.lib)} homeHref={index.lib.base} />
       <div className="with-sidebar">{children}</div>
+      <Suspense fallback={null}>
+        <TabBar base={index.lib.base} />
+      </Suspense>
     </>
   );
 }

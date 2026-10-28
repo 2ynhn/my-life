@@ -2602,3 +2602,353 @@ mark {
 .seg-add-form .btn {
   padding: 0.3rem 0.7rem;
 }
+
+/* ───── 디자인 개선 (2026-10): 카드 위계·하단 탭·첫 화면 두 단 ───── */
+
+:root {
+  /* 바탕 대비 4.5:1 이상 */
+  --muted: #6f685f;
+  --radius-card: 18px;
+  --shadow-lift: 0 1px 2px rgb(60 40 20 / 0.05), 0 4px 16px rgb(60 40 20 / 0.05);
+}
+
+.page-title {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.home-head .page-title {
+  font-size: clamp(1.6rem, 5vw, 2rem);
+}
+
+/* 빠른 한 줄: 입력 카드 */
+.quick-note {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.6rem;
+  padding: 1rem;
+  margin: 0 0 1rem;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: var(--shadow-lift);
+}
+.quick-note .quick-label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.quick-note .quick-label svg {
+  color: var(--accent);
+}
+.quick-note input {
+  padding: 0.25rem 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  font-size: 1.05rem;
+}
+.quick-note input:focus {
+  outline: none;
+}
+.quick-note:focus-within {
+  border-color: var(--accent);
+}
+.quick-note .btn {
+  align-self: flex-end;
+  min-height: 44px;
+  padding: 0 1.25rem;
+  border-radius: 12px;
+  font-weight: 700;
+}
+
+/* 오늘 일기 띠 */
+.today-band {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 1rem;
+  margin: 0 0 1rem;
+  border-radius: 20px;
+  background: var(--c-diary-soft);
+  color: var(--text);
+  text-decoration: none;
+  transition: background 0.15s;
+}
+.today-band:hover {
+  background: #f3dccf;
+}
+.today-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: var(--accent);
+  color: #fff;
+}
+.today-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.4;
+}
+.today-text strong {
+  font-size: 1.05rem;
+}
+.today-text .small {
+  color: var(--muted);
+}
+.today-chevron {
+  color: #8f4022;
+}
+
+/* 쓰임새 카드: 큰 숫자가 먼저 */
+.features {
+  gap: 0.75rem;
+}
+.fcard {
+  border-radius: var(--radius-card);
+  box-shadow: none;
+}
+.fcard:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-lift);
+}
+.fcard-main {
+  gap: 0.6rem;
+  padding: 1rem;
+}
+.fcard-head {
+  gap: 0.55rem;
+}
+.fcard .ficon-md {
+  width: 32px;
+  height: 32px;
+}
+.fcard-name strong {
+  font-size: 1rem;
+}
+.fcard-stat {
+  gap: 0.25rem;
+}
+.fcard-stat strong {
+  font-size: 1.85rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.fcard-action {
+  justify-content: flex-start;
+  width: auto;
+  margin: 0 1rem 1rem;
+  padding: 0.35rem 0.8rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--fc-soft);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.fcard-action:hover {
+  filter: brightness(0.97);
+}
+.fcard-start .fcard-action {
+  background: transparent;
+  border: 1px dashed var(--fc);
+}
+
+/* 지난 오늘·최근 수정: 카드 안 목록 */
+.home-side .home-section {
+  margin: 0 0 1.5rem;
+}
+.on-this-day .note-list,
+.recent .note-list {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.on-this-day .note-list li:last-child a,
+.recent .note-list li:last-child a {
+  border-bottom: 0;
+}
+.on-this-day .note-list a,
+.recent .note-list a {
+  padding: 0.75rem 1rem;
+}
+.on-this-day .note-list a {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+}
+.past-years {
+  font-weight: 700;
+  color: var(--accent);
+}
+.recent {
+  margin-top: 0;
+}
+.recent h2 {
+  color: var(--text);
+}
+
+/* 데스크톱 넓은 화면: 첫 화면 두 단 (오른쪽에 지난 오늘·최근 수정) */
+.with-sidebar:has(.home) {
+  max-width: 1120px;
+}
+@media (min-width: 1100px) {
+  .home-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    gap: 1.5rem;
+    align-items: start;
+  }
+  .home-side {
+    padding-top: 0.25rem;
+  }
+}
+
+/* 사이드바: 옅은 바탕, 넉넉한 누름 영역 */
+.sidebar {
+  background: #f5f1eb;
+}
+.sidebar a {
+  padding: 0.3rem 0.5rem;
+  border-radius: 8px;
+}
+.sidebar .home {
+  font-size: 1.05rem;
+}
+.side-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  margin: 0.25rem 0 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--line);
+}
+.sidebar .side-tools .side-cal {
+  margin: 0;
+}
+.sidebar .side-tools svg {
+  color: var(--muted);
+}
+
+/* 모바일 하단 탭 */
+.tabbar {
+  display: none;
+}
+@media (max-width: 768px) {
+  .tabbar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 30;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    padding: 0.35rem 0.5rem calc(0.35rem + env(safe-area-inset-bottom));
+    background: var(--surface);
+    border-top: 1px solid var(--line);
+  }
+  .tabbar a {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.1rem;
+    min-height: 48px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: var(--muted);
+    text-decoration: none;
+  }
+  .tabbar a.on {
+    color: var(--accent);
+    font-weight: 700;
+  }
+  /* 탭에 가리지 않게 */
+  .content:has(.tabbar) {
+    padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
+  }
+  /* 캘린더·모아보기 버튼은 탭으로 */
+  .home .lib-tools {
+    display: none;
+  }
+  .home-search {
+    margin-bottom: 1rem;
+  }
+}
+
+/* 구매·여행·건강: 같은 카드 모양 */
+.spending,
+.trips,
+.health {
+  border-radius: var(--radius-card);
+}
+.spending .spend-head .stat {
+  border-radius: 14px;
+}
+.spending .spend-head strong {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.budget-track {
+  height: 10px;
+  background: var(--c-spending-soft);
+}
+.travel-map {
+  border-radius: 16px;
+}
+.trip {
+  border-radius: 12px;
+}
+.trip:hover {
+  background: var(--c-travel-soft);
+}
+.timeline li::before {
+  background: var(--c-travel);
+}
+.range-tabs {
+  gap: 0.2rem;
+  padding: 0.25rem;
+  border: 0;
+  border-radius: 12px;
+  background: #f5f1eb;
+}
+.range-tabs a {
+  padding: 0.35rem 0.9rem;
+  border-radius: 9px;
+  font-weight: 600;
+}
+.range-tabs a.on {
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgb(60 40 20 / 0.12);
+}
+.chart.metric figcaption strong {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+@media (max-width: 768px) {
+  .sidebar.open {
+    padding-bottom: 6rem;
+  }
+}
+/* 쓰임새 카드: 좁으면 2열, 넓으면 4열 한 줄 */
+.home-main {
+  container-type: inline-size;
+}
+.home-main .features {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@container (min-width: 720px) {
+  .home-main .features {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

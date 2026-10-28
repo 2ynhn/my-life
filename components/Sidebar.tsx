@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, CalendarDays, Folder, HeartPulse, FolderTree, Lock, NotebookPen, Plane, Receipt, X } from "lucide-react";
+import { ArrowLeft, CalendarDays, Folder, HeartPulse, FolderTree, Layers, Lock, NotebookPen, Plane, Receipt, Sparkles, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -81,10 +81,20 @@ export function Sidebar({ tree, title, homeHref }: { tree: TreeNode[]; title: st
           <input type="hidden" name="view" value="search" />
           <input name="q" placeholder="검색" aria-label="일기 검색" />
         </form>
-        <Link href={`${homeHref}?view=calendar`} className="side-cal small">
-          <CalendarDays size={15} aria-hidden />
-          캘린더
-        </Link>
+        <div className="side-tools">
+          <Link href={`${homeHref}?view=calendar`} className="side-cal">
+            <CalendarDays size={15} aria-hidden />
+            캘린더
+          </Link>
+          <Link href={`${homeHref}?view=collect`} className="side-cal">
+            <Layers size={15} aria-hidden />
+            모아보기
+          </Link>
+          <Link href={`${homeHref}?view=ask`} className="side-cal">
+            <Sparkles size={15} aria-hidden />
+            물어보기
+          </Link>
+        </div>
         <Branch nodes={tree} pathname={pathname} top />
       </nav>
     </>
