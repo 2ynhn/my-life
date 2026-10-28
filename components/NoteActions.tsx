@@ -5,8 +5,22 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { renameNote, trashNote } from "@/app/(app)/note-actions";
 
-/** 보기 화면의 소유자용 버튼: 편집 / 이름 바꾸기 / 삭제 */
-export function NoteActions({ fileId, fileName, editHref }: { fileId: string; fileName: string; editHref: string }) {
+/** 보기 화면의 버튼: 편집 / 이름 바꾸기 / 삭제 — Drive 권한이 허락한 것만 보인다 */
+export function NoteActions({
+  rootId,
+  fileId,
+  fileName,
+  editHref,
+  canRename,
+  canTrash,
+}: {
+  rootId: string;
+  fileId: string;
+  fileName: string;
+  editHref: string | null;
+  canRename: boolean;
+  canTrash: boolean;
+}) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,29 +41,35 @@ export function NoteActions({ fileId, fileName, editHref }: { fileId: string; fi
 
   return (
     <div className="note-actions">
-      <Link className="btn btn-save" href={editHref}>
-        편집
-      </Link>
-      <button
-        className="btn"
-        disabled={busy}
-        onClick={() => {
-          const next = prompt("새 파일 이름", fileName.replace(/\.md$/i, ""));
-          if (next !== null && next.trim()) void run(() => renameNote(fileId, next));
-        }}
-      >
-        이름 바꾸기
-      </button>
-      <button
-        className="btn danger"
-        disabled={busy}
-        onClick={() => {
-          if (confirm(`'${fileName}'을(를) 휴지통으로 옮길까요?\nDrive 휴지통에서 30일 안에 복구할 수 있어요.`))
-            void run(() => trashNote(fileId));
-        }}
-      >
-        삭제
-      </button>
+      {editHref && (
+        <Link className="btn btn-save" href={editHref}>
+          편집
+        </Link>
+      )}
+      {canRename && (
+        <button
+          className="btn"
+          disabled={busy}
+          onClick={() => {
+            const next = prompt("새 파일 이름", fileName.replace(/\.md$/i, ""));
+            if (next !== null && next.trim()) void run(() => renameNote(rootId, fileId, next));
+          }}
+        >
+          이름 바꾸기
+        </button>
+      )}
+      {canTrash && (
+        <button
+          className="btn danger"
+          disabled={busy}
+          onClick={() => {
+            if (confirm(`'${fileName}'을(를) 휴지통으로 옮길까요?\nDrive 휴지통에서 30일 안에 복구할 수 있어요.`))
+              void run(() => trashNote(rootId, fileId));
+          }}
+        >
+          삭제
+        </button>
+      )}
       {error && <span className="status small error">{error}</span>}
     </div>
   );

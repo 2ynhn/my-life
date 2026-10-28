@@ -19,6 +19,8 @@ type Props = {
   initialText: string;
   /** 취소·닫기 시 돌아갈 주소 */
   closeHref: string;
+  /** 이 글이 있는 일기장 (Drive 폴더 id) */
+  rootId: string;
   /** 사진을 올릴 때 기준이 되는 노트 폴더 (가장 가까운 attachments 폴더에 저장) */
   uploadFolderId: string;
 } & (
@@ -198,7 +200,7 @@ export function Editor(props: Props) {
       const current = viewRef.current?.state.doc.toString() ?? text;
       try {
         if (props.mode === "edit") {
-          const res = await saveNote(props.fileId, checksum, current, force);
+          const res = await saveNote(props.rootId, props.fileId, checksum, current, force);
           if (res.ok) {
             setChecksum(res.checksum);
             setSavedText(current);
@@ -210,7 +212,7 @@ export function Editor(props: Props) {
             setMessage({ kind: "error", text: res.error });
           }
         } else {
-          const res = await createNote(props.folderId, name, current, props.subfolder);
+          const res = await createNote(props.rootId, props.folderId, name, current, props.subfolder);
           if (res.ok) {
             writeDraft(draftKey, null);
             setSavedText(current);
@@ -237,7 +239,7 @@ export function Editor(props: Props) {
     try {
       for (const [i, file] of files.entries()) {
         setUploading(files.length > 1 ? `사진 올리는 중… (${i + 1}/${files.length})` : "사진 올리는 중…");
-        const { name, url } = await uploadImage(file, props.uploadFolderId);
+        const { name, url } = await uploadImage(file, props.rootId, props.uploadFolderId);
         setUploaded((prev) => ({ ...prev, [name.toLowerCase()]: url }));
         const view = viewRef.current;
         if (view) {

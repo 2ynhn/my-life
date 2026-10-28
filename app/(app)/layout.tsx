@@ -1,32 +1,24 @@
 import Link from "next/link";
-import { Sidebar } from "@/components/Sidebar";
-import { folderTree, loadIndex } from "@/lib/drive";
+import { RefreshButton } from "@/components/RefreshButton";
 import { requireUser } from "@/lib/session";
-import { logout, refreshIndex } from "./actions";
+import { logout } from "./actions";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
-  // Drive 문제는 페이지 쪽에서 안내하므로 여기서는 빈 트리로 둔다
-  const { index } = await loadIndex();
 
   return (
     <div className="shell">
       <header className="topbar">
-        <Sidebar tree={index ? folderTree(index.root, user.role) : []} />
+        <Link href="/" className="brand">
+          my-life
+        </Link>
         <div className="spacer" />
-        <form action={refreshIndex}>
-          <button className="btn" type="submit" title="Drive에서 다시 불러오기">
-            새로고침
-          </button>
-        </form>
-        {user.role === "owner" && (
-          <Link className="btn" href="/settings">
-            설정
-          </Link>
-        )}
+        <RefreshButton />
+        <Link className="btn" href="/settings">
+          설정
+        </Link>
         <span className="user small" title={user.email}>
           {user.name ?? user.email}
-          <span className={`badge ${user.role}`}>{user.role === "owner" ? "소유자" : "게스트"}</span>
         </span>
         <form action={logout}>
           <button className="btn" type="submit">

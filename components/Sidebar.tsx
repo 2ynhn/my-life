@@ -20,8 +20,8 @@ function Branch({ nodes, pathname }: { nodes: TreeNode[]; pathname: string }) {
         const link = (
           <Link href={node.href} className={current ? "current" : undefined} aria-current={current ? "page" : undefined}>
             {node.name}
-            {node.private && (
-              <span className="lock" title="비공개: 게스트에게 안 보임" aria-label="비공개">
+            {node.restricted && (
+              <span className="lock" title="접근 제한: 상위 폴더를 공유받은 사람도 볼 수 없음" aria-label="접근 제한">
                 🔒
               </span>
             )}
@@ -44,7 +44,8 @@ function Branch({ nodes, pathname }: { nodes: TreeNode[]; pathname: string }) {
   );
 }
 
-export function Sidebar({ tree }: { tree: TreeNode[] }) {
+/** 일기장 하나의 폴더 트리. title은 일기장 이름(공유받은 것이면 '누구의 my-life') */
+export function Sidebar({ tree, title, homeHref }: { tree: TreeNode[]; title: string; homeHref: string }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -59,8 +60,11 @@ export function Sidebar({ tree }: { tree: TreeNode[] }) {
         // 모바일: 링크를 누르면 메뉴를 닫는다
         onClick={(e) => (e.target as HTMLElement).closest("a") && setOpen(false)}
       >
-        <Link href="/" className={`home${pathname === "/" ? " current" : ""}`}>
-          my-life
+        <Link href="/libraries" className="libs small muted">
+          ← 일기장 목록
+        </Link>
+        <Link href={homeHref} className={`home${decodeURIComponent(pathname) === decodeURIComponent(homeHref) ? " current" : ""}`}>
+          {title}
         </Link>
         <Branch nodes={tree} pathname={pathname} />
       </nav>

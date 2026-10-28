@@ -1,285 +1,124 @@
 import "server-only";
 import { createHash } from "node:crypto";
-import { mkdir, readdir, readFile, rename, stat, writeFile } from "node:fs/promises";
-import path from "node:path";
-import type { Role } from "@/lib/access";
+import { API, DriveError, driveFetch, isNotFound, type DriveUser } from "@/lib/google";
 import type { LinkResolver, LinkTable } from "@/lib/markdown";
 
+export { DriveError, ReauthError, type DriveUser } from "@/lib/google";
+
+// 일기장(library) = 누군가의 Drive에 있는 my-life 폴더 하나.
+// 누가 무엇을 읽고 쓸 수 있는지는 전부 Drive 권한이 정한다: 모든 호출은 로그인한 사람 본인의 토큰으로 하고,
+// 앱은 Drive가 알려 주는 capabilities(편집 가능 여부 등)로 버튼을 보여 줄지만 정한다.
+
 const FOLDER_MIME = "application/vnd.google-apps.folder";
-const DRIVE_API = "https://www.googleapis.com/drive/v3";
-const UPLOAD_API = "https://www.googleapis.com/upload/drive/v3";
 const MD_MIME = "text/markdown; charset=UTF-8";
+export const LIBRARY_NAME = "my-life";
 const INDEX_TTL_MS = 2 * 60 * 1000;
 
-export class DriveError extends Error {}
+const CAP_FIELDS = "capabilities(canEdit,canAddChildren,canListChildren,canRename,canTrash)";
+const ITEM_FIELDS = `id,name,mimeType,modifiedTime,size,inheritedPermissionsDisabled,${CAP_FIELDS}`;
 
+type RawCaps = {
+  canEdit?: boolean;
+  canAddChildren?: boolean;
+  canListChildren?: boolean;
+  canRename?: boolean;
+  canTrash?: boolean;
+};
 type RawItem = {
   id: string;
   name: string;
   mimeType: string;
   modifiedTime: string;
   size?: string;
+  inheritedPermissionsDisabled?: boolean;
+  capabilities?: RawCaps;
 };
 
-/** 저장소 추상화: 운영은 Google Drive, 로컬 개발은 디스크 폴더 */
-interface Source {
-  rootId: string;
-  list(folderId: string): Promise<RawItem[]>;
-  download(fileId: string): Promise<Response>;
-  /** 현재 내용의 md5 (충돌 감지용) */
-  checksum(fileId: string): Promise<string>;
-  /** 내용 교체 후 새 md5 반환 */
-  update(fileId: string, text: string): Promise<string>;
-  /** 새 파일 id 반환 */
-  create(parentId: string, name: string, content: string | Uint8Array, mimeType: string): Promise<string>;
-  createFolder(parentId: string, name: string): Promise<string>;
-  /** 바뀐 id 반환 (Drive는 그대로, 로컬은 경로가 바뀜) */
-  rename(fileId: string, name: string): Promise<string>;
-  trash(fileId: string): Promise<void>;
-  webUrl(item: { id: string; isFolder: boolean }): string | null;
-}
-
-// ───────────── Google Drive ─────────────
-
-let token: { value: string; expiresAt: number } | null = null;
-
-/** 붙여넣다 딸려 온 공백·줄바꿈 제거 */
-const env = (name: string) => process.env[name]?.trim() || undefined;
-
-const TOKEN_HINTS: Record<string, string> = {
-  invalid_grant:
-    "refresh token이 만료·취소되었거나 다른 OAuth 클라이언트로 발급된 토큰입니다. OAuth Playground에서 'Use your own OAuth credentials'를 켜고 다시 발급하세요. (앱이 '테스트' 상태면 7일마다 만료됩니다)",
-  unauthorized_client:
-    "refresh token을 발급한 클라이언트와 AUTH_GOOGLE_ID가 다릅니다. OAuth Playground에서 내 클라이언트 ID/보안 비밀번호로 다시 발급하세요.",
-  invalid_client: "AUTH_GOOGLE_ID 또는 AUTH_GOOGLE_SECRET 값이 잘못되었습니다.",
-};
-
-async function accessToken(): Promise<string> {
-  if (token && token.expiresAt > Date.now() + 60_000) return token.value;
-
-  const clientId = env("AUTH_GOOGLE_ID");
-  const clientSecret = env("AUTH_GOOGLE_SECRET");
-  const refreshToken = env("GOOGLE_DRIVE_REFRESH_TOKEN");
-  const missing = [
-    !clientId && "AUTH_GOOGLE_ID",
-    !clientSecret && "AUTH_GOOGLE_SECRET",
-    !refreshToken && "GOOGLE_DRIVE_REFRESH_TOKEN",
-  ].filter(Boolean);
-  if (missing.length) throw new DriveError(`환경변수가 비어 있습니다: ${missing.join(", ")}`);
-
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    body: new URLSearchParams({
-      client_id: clientId!,
-      client_secret: clientSecret!,
-      refresh_token: refreshToken!,
-      grant_type: "refresh_token",
-    }),
-    cache: "no-store",
-  });
-  if (!res.ok) {
-    const { error } = (await res.json().catch(() => ({}))) as { error?: string };
-    const hint = (error && TOKEN_HINTS[error]) ?? "";
-    throw new DriveError(`Drive 토큰 갱신 실패 (${res.status}${error ? `, ${error}` : ""}). ${hint}`.trim());
-  }
-  const json = (await res.json()) as { access_token: string; expires_in: number; scope?: string };
-  if (json.scope && !json.scope.split(" ").includes("https://www.googleapis.com/auth/drive")) {
-    throw new DriveError(
-      "refresh token에 Drive 권한(https://www.googleapis.com/auth/drive)이 없습니다. OAuth Playground에서 이 범위로 다시 발급하세요.",
-    );
-  }
-  token = { value: json.access_token, expiresAt: Date.now() + json.expires_in * 1000 };
-  return token.value;
-}
-
-async function driveFetch(url: string, init: RequestInit = {}): Promise<Response> {
-  const res = await fetch(url, {
-    ...init,
-    headers: { ...init.headers, Authorization: `Bearer ${await accessToken()}` },
-    cache: "no-store",
-  });
-  if (res.ok) return res;
-
-  const body = (await res.json().catch(() => ({}))) as {
-    error?: { message?: string; errors?: { reason?: string }[] };
-  };
-  const reason = body.error?.errors?.[0]?.reason ?? "";
-  const hint =
-    reason === "accessNotConfigured" || /has not been used|is disabled/.test(body.error?.message ?? "")
-      ? "GCP 프로젝트에서 Google Drive API를 '사용'으로 설정하세요."
-      : res.status === 404
-        ? "DRIVE_ROOT_FOLDER_ID가 틀렸거나, refresh token을 발급한 계정이 이 폴더에 접근할 수 없습니다."
-        : reason === "insufficientPermissions"
-          ? "refresh token에 Drive 권한이 부족합니다. drive 범위로 다시 발급하세요."
-          : (body.error?.message ?? "");
-  throw new DriveError(`Drive API 오류 (${res.status}${reason ? `, ${reason}` : ""}). ${hint}`.trim());
-}
-
-const googleSource = (rootId: string): Source => ({
-  rootId,
-  async list(folderId) {
-    const items: RawItem[] = [];
-    let pageToken: string | undefined;
-    do {
-      const params = new URLSearchParams({
-        q: `'${folderId}' in parents and trashed = false`,
-        fields: "nextPageToken, files(id, name, mimeType, modifiedTime, size)",
-        pageSize: "1000",
-      });
-      if (pageToken) params.set("pageToken", pageToken);
-      const res = await driveFetch(`${DRIVE_API}/files?${params}`);
-      const json = (await res.json()) as { files: RawItem[]; nextPageToken?: string };
-      items.push(...json.files);
-      pageToken = json.nextPageToken;
-    } while (pageToken);
-    return items;
-  },
-  download(fileId) {
-    return driveFetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}?alt=media`);
-  },
-  async checksum(fileId) {
-    const res = await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}?fields=md5Checksum`);
-    return ((await res.json()) as { md5Checksum: string }).md5Checksum;
-  },
-  async update(fileId, text) {
-    const res = await driveFetch(
-      `${UPLOAD_API}/files/${encodeURIComponent(fileId)}?uploadType=media&fields=md5Checksum`,
-      { method: "PATCH", headers: { "Content-Type": MD_MIME }, body: text },
-    );
-    return ((await res.json()) as { md5Checksum: string }).md5Checksum;
-  },
-  async create(parentId, name, content, mimeType) {
-    const boundary = `my-life-${crypto.randomUUID()}`;
-    const meta = JSON.stringify({ name, parents: [parentId], mimeType });
-    const contentType = mimeType === "text/markdown" ? MD_MIME : mimeType;
-    // 이미지 같은 바이너리도 그대로 넣을 수 있게 Blob으로 이어 붙인다
-    const body = new Blob([
-      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n` +
-        `--${boundary}\r\nContent-Type: ${contentType}\r\n\r\n`,
-      content as BlobPart,
-      `\r\n--${boundary}--`,
-    ]);
-    const res = await driveFetch(`${UPLOAD_API}/files?uploadType=multipart&fields=id`, {
-      method: "POST",
-      headers: { "Content-Type": `multipart/related; boundary=${boundary}` },
-      body,
-    });
-    return ((await res.json()) as { id: string }).id;
-  },
-  async createFolder(parentId, name) {
-    const res = await driveFetch(`${DRIVE_API}/files?fields=id`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, parents: [parentId], mimeType: FOLDER_MIME }),
-    });
-    return ((await res.json()) as { id: string }).id;
-  },
-  async rename(fileId, name) {
-    await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}?fields=id`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name }),
-    });
-    return fileId;
-  },
-  async trash(fileId) {
-    await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}?fields=id`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ trashed: true }),
-    });
-  },
-  webUrl({ id, isFolder }) {
-    return isFolder
-      ? `https://drive.google.com/drive/folders/${id}`
-      : `https://drive.google.com/file/d/${id}/view`;
-  },
+export type Caps = { edit: boolean; addChildren: boolean; listChildren: boolean; rename: boolean; trash: boolean };
+const caps = (c: RawCaps = {}): Caps => ({
+  edit: !!c.canEdit,
+  addChildren: !!c.canAddChildren,
+  listChildren: c.canListChildren !== false,
+  rename: !!c.canRename,
+  trash: !!c.canTrash,
 });
 
-// ───────────── 로컬 폴더 (개발용) ─────────────
-
-const MIME_BY_EXT: Record<string, string> = {
-  ".md": "text/markdown",
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".png": "image/png",
-  ".gif": "image/gif",
-  ".webp": "image/webp",
-  ".svg": "image/svg+xml",
-};
-
-const localSource = (dir: string): Source => {
-  const base = path.resolve(dir);
-  // id = 루트 기준 상대경로. 루트 밖으로 나가는 경로는 거부
-  const resolve = (id: string) => {
-    const p = path.resolve(base, id);
-    if (p !== base && !p.startsWith(base + path.sep)) throw new DriveError("잘못된 경로");
-    return p;
-  };
-  return {
-    rootId: ".",
-    async list(folderId) {
-      const entries = await readdir(resolve(folderId), { withFileTypes: true });
-      return Promise.all(
-        entries.map(async (e) => {
-          const id = path.posix.join(folderId, e.name);
-          const s = await stat(resolve(id));
-          return {
-            id,
-            name: e.name,
-            mimeType: e.isDirectory()
-              ? FOLDER_MIME
-              : (MIME_BY_EXT[path.extname(e.name).toLowerCase()] ?? "application/octet-stream"),
-            modifiedTime: s.mtime.toISOString(),
-            size: String(s.size),
-          };
-        }),
-      );
-    },
-    async download(fileId) {
-      const buf = await readFile(resolve(fileId));
-      const type = MIME_BY_EXT[path.extname(fileId).toLowerCase()] ?? "application/octet-stream";
-      return new Response(buf, { headers: { "Content-Type": type } });
-    },
-    async checksum(fileId) {
-      return md5(await readFile(resolve(fileId)));
-    },
-    async update(fileId, text) {
-      await writeFile(resolve(fileId), text);
-      return md5(Buffer.from(text));
-    },
-    async create(parentId, name, content) {
-      const id = path.posix.join(parentId, name);
-      await writeFile(resolve(id), content, { flag: "wx" });
-      return id;
-    },
-    async createFolder(parentId, name) {
-      const id = path.posix.join(parentId, name);
-      await mkdir(resolve(id));
-      return id;
-    },
-    async rename(fileId, name) {
-      const id = path.posix.join(path.posix.dirname(fileId), name);
-      await rename(resolve(fileId), resolve(id));
-      return id;
-    },
-    async trash(fileId) {
-      // 로컬 휴지통: 숨김 폴더라 인덱스에 잡히지 않는다
-      await mkdir(resolve(".trash"), { recursive: true });
-      await rename(resolve(fileId), resolve(path.posix.join(".trash", `${Date.now()}-${path.posix.basename(fileId)}`)));
-    },
-    webUrl: () => null,
-  };
-};
-
 const md5 = (buf: Uint8Array) => createHash("md5").update(buf).digest("hex");
+const fileApi = (id: string) => `${API.drive}/files/${encodeURIComponent(id)}`;
+const q = (s: string) => s.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 
-function getSource(): Source {
-  const localDir = process.env.NODE_ENV !== "production" ? process.env.DEV_LOCAL_DRIVE_DIR : undefined;
-  if (localDir) return localSource(localDir);
-  const rootId = env("DRIVE_ROOT_FOLDER_ID");
-  if (!rootId) throw new DriveError("DRIVE_ROOT_FOLDER_ID 환경변수가 없습니다.");
-  return googleSource(rootId);
+// ───────────── 일기장 찾기 ─────────────
+
+export type Library = {
+  rootId: string;
+  name: string;
+  ownedByMe: boolean;
+  ownerName: string;
+  ownerEmail: string;
+  /** 소유자이거나 공유 권한이 있으면 게스트를 초대할 수 있다 */
+  canShare: boolean;
+  /** 이 일기장 안의 페이지 주소 앞부분: /d/<rootId> */
+  base: string;
+};
+
+export const libraryBase = (rootId: string) => `/d/${encodeURIComponent(rootId)}`;
+
+type RawLibrary = {
+  id: string;
+  name: string;
+  mimeType: string;
+  trashed?: boolean;
+  ownedByMe?: boolean;
+  owners?: { displayName?: string; emailAddress?: string }[];
+  capabilities?: { canShare?: boolean };
+  modifiedTime?: string;
+};
+const LIB_FIELDS = "id,name,mimeType,trashed,ownedByMe,modifiedTime,owners(displayName,emailAddress),capabilities(canShare)";
+
+const toLibrary = (f: RawLibrary): Library => ({
+  rootId: f.id,
+  name: f.name,
+  ownedByMe: !!f.ownedByMe,
+  ownerName: f.owners?.[0]?.displayName ?? f.owners?.[0]?.emailAddress ?? "",
+  ownerEmail: f.owners?.[0]?.emailAddress ?? "",
+  canShare: !!f.capabilities?.canShare,
+  base: libraryBase(f.id),
+});
+
+/** 이 사람이 열 수 있는 폴더면 일기장 정보, 아니면 null (Drive가 판단) */
+export async function openLibrary(user: DriveUser, rootId: string): Promise<Library | null> {
+  try {
+    const res = await driveFetch(user, `${fileApi(rootId)}?fields=${LIB_FIELDS}`);
+    const f = (await res.json()) as RawLibrary;
+    return f.mimeType === FOLDER_MIME && !f.trashed ? toLibrary(f) : null;
+  } catch (e) {
+    if (isNotFound(e) || (e instanceof DriveError && e.status === 400)) return null;
+    throw e;
+  }
+}
+
+async function searchFolders(user: DriveUser, query: string): Promise<Library[]> {
+  const params = new URLSearchParams({ q: query, fields: `files(${LIB_FIELDS})`, pageSize: "50", orderBy: "modifiedTime desc" });
+  const res = await driveFetch(user, `${API.drive}/files?${params}`);
+  return ((await res.json()) as { files: RawLibrary[] }).files.map(toLibrary);
+}
+
+/** 내 Drive에 있는 my-life 폴더들 */
+export const findMyLibraries = (user: DriveUser) =>
+  searchFolders(user, `name = '${LIBRARY_NAME}' and mimeType = '${FOLDER_MIME}' and 'me' in owners and trashed = false`);
+
+/** 나에게 공유된 my-life 폴더들 (Drive 공유 = 초대) */
+export const sharedLibraries = (user: DriveUser) =>
+  searchFolders(user, `sharedWithMe = true and name = '${LIBRARY_NAME}' and mimeType = '${FOLDER_MIME}' and trashed = false`);
+
+/** 내 Drive 맨 위에 my-life 폴더를 만든다 */
+export async function createMyLibrary(user: DriveUser): Promise<string> {
+  const res = await driveFetch(user, `${API.drive}/files?fields=id`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: LIBRARY_NAME, mimeType: FOLDER_MIME }),
+  });
+  return ((await res.json()) as { id: string }).id;
 }
 
 // ───────────── 인덱스 ─────────────
@@ -292,23 +131,50 @@ type BaseEntry = {
   slugPath: string[];
   modifiedTime: string;
   parent: FolderEntry | null;
-  /** 이 폴더나 상위 폴더에 .private 표시 파일이 있으면 true → 게스트에게 안 보임 */
-  private: boolean;
+  lib: Library;
+  /** 이 사람이 이 항목에 대해 할 수 있는 일 (Drive capabilities) */
+  can: Caps;
 };
-export type FolderEntry = BaseEntry & { kind: "folder"; children: Entry[] };
+export type FolderEntry = BaseEntry & {
+  kind: "folder";
+  children: Entry[];
+  /** Drive '접근 제한'(상위 공유를 상속하지 않음)이 켜진 폴더 */
+  restricted: boolean;
+  /** 예전 앱 규칙의 .private 표시 파일이 남아 있는 폴더 (Drive 제한으로 옮기라고 안내) */
+  legacyPrivate: boolean;
+};
 export type FileEntry = BaseEntry & { kind: "file"; mimeType: string; size: number; isMarkdown: boolean };
 export type Entry = FolderEntry | FileEntry;
 
 export type DriveIndex = {
+  lib: Library;
+  user: DriveUser;
   root: FolderEntry;
   byId: Map<string, Entry>;
   builtAt: number;
 };
 
 const isHidden = (name: string) => name.startsWith(".");
-/** .private, .private.md, .private.txt … 어떤 형식이든 이 이름으로 시작하는 파일이면 비공개 표시 */
-const isPrivateMarker = (item: RawItem) => item.mimeType !== FOLDER_MIME && /^\.private(\.|$)/i.test(item.name);
+const isLegacyPrivateMarker = (item: RawItem) => item.mimeType !== FOLDER_MIME && /^\.private(\.|$)/i.test(item.name);
 const isMarkdownName = (name: string) => name.toLowerCase().endsWith(".md");
+
+async function listChildren(user: DriveUser, folderId: string): Promise<RawItem[]> {
+  const items: RawItem[] = [];
+  let pageToken: string | undefined;
+  do {
+    const params = new URLSearchParams({
+      q: `'${q(folderId)}' in parents and trashed = false`,
+      fields: `nextPageToken, files(${ITEM_FIELDS})`,
+      pageSize: "1000",
+    });
+    if (pageToken) params.set("pageToken", pageToken);
+    const res = await driveFetch(user, `${API.drive}/files?${params}`);
+    const json = (await res.json()) as { files: RawItem[]; nextPageToken?: string };
+    items.push(...json.files);
+    pageToken = json.nextPageToken;
+  } while (pageToken);
+  return items;
+}
 
 function assignSlugs(folder: FolderEntry) {
   const seen = new Map<string, number>();
@@ -322,33 +188,42 @@ function assignSlugs(folder: FolderEntry) {
   }
 }
 
-async function buildIndex(): Promise<DriveIndex> {
-  const source = getSource();
+/** 폴더 먼저. 숫자로 시작하는 이름(연도·날짜)은 최신이 위로, 나머지는 가나다순 */
+function compareEntries(a: Entry, b: Entry): number {
+  if (a.kind !== b.kind) return a.kind === "folder" ? -1 : 1;
+  const aDated = /^\d/.test(a.name);
+  const bDated = /^\d/.test(b.name);
+  if (aDated !== bDated) return aDated ? -1 : 1;
+  return aDated ? b.name.localeCompare(a.name, "ko") : a.name.localeCompare(b.name, "ko");
+}
+
+async function buildIndex(user: DriveUser, lib: Library): Promise<DriveIndex> {
+  const rootMeta = (await (
+    await driveFetch(user, `${fileApi(lib.rootId)}?fields=${ITEM_FIELDS}`)
+  ).json()) as RawItem;
   const root: FolderEntry = {
     kind: "folder",
-    id: source.rootId,
-    name: "my-life",
+    id: lib.rootId,
+    name: lib.name,
     slug: "",
     slugPath: [],
-    modifiedTime: "",
+    modifiedTime: rootMeta.modifiedTime,
     parent: null,
-    private: false,
+    lib,
+    can: caps(rootMeta.capabilities),
+    restricted: false,
+    legacyPrivate: false,
     children: [],
   };
   const byId = new Map<string, Entry>([[root.id, root]]);
 
-  // 폴더 단위 너비우선 탐색 — 같은 깊이의 폴더는 병렬로 조회
+  // 폴더 단위 너비우선 탐색. 목록을 볼 수 없는 폴더(접근 제한)는 들어가지 않는다
   let level: FolderEntry[] = [root];
   while (level.length) {
-    const lists = await Promise.all(level.map((f) => source.list(f.id)));
+    const lists = await Promise.all(level.map((f) => listChildren(user, f.id)));
     const next: FolderEntry[] = [];
     level.forEach((folder, i) => {
-      // 비공개는 하위로 상속된다 (부모는 이미 앞 단계에서 확정됨).
-      // _로 시작하는 폴더(_settings, _templates)는 앱 내부용이라 항상 소유자 전용
-      folder.private =
-        (folder.parent?.private ?? false) ||
-        (folder.parent !== null && folder.name.startsWith("_")) ||
-        lists[i].some(isPrivateMarker);
+      folder.legacyPrivate = lists[i].some(isLegacyPrivateMarker);
       for (const item of lists[i]) {
         if (isHidden(item.name)) continue;
         const base = {
@@ -357,12 +232,20 @@ async function buildIndex(): Promise<DriveIndex> {
           modifiedTime: item.modifiedTime,
           parent: folder,
           slugPath: [],
-          private: folder.private,
+          lib,
+          can: caps(item.capabilities),
         };
         let entry: Entry;
         if (item.mimeType === FOLDER_MIME) {
-          entry = { ...base, kind: "folder", slug: item.name, children: [] };
-          next.push(entry);
+          entry = {
+            ...base,
+            kind: "folder",
+            slug: item.name,
+            children: [],
+            restricted: !!item.inheritedPermissionsDisabled,
+            legacyPrivate: false,
+          };
+          if (entry.can.listChildren) next.push(entry);
         } else {
           const md = isMarkdownName(item.name);
           entry = {
@@ -383,50 +266,33 @@ async function buildIndex(): Promise<DriveIndex> {
     level = next;
   }
 
-  return { root, byId, builtAt: Date.now() };
+  return { lib, user, root, byId, builtAt: Date.now() };
 }
 
-/** 폴더 먼저. 숫자로 시작하는 이름(연도·날짜)은 최신이 위로, 나머지는 가나다순 */
-function compareEntries(a: Entry, b: Entry): number {
-  if (a.kind !== b.kind) return a.kind === "folder" ? -1 : 1;
-  const aDated = /^\d/.test(a.name);
-  const bDated = /^\d/.test(b.name);
-  if (aDated !== bDated) return aDated ? -1 : 1;
-  return aDated ? b.name.localeCompare(a.name, "ko") : a.name.localeCompare(b.name, "ko");
+// 사람마다·일기장마다 따로 캐시한다. 같은 폴더라도 사람마다 Drive 권한이 달라 보이는 내용이 다르기 때문
+const indexes = new Map<string, { index?: DriveIndex; building?: Promise<DriveIndex> }>();
+const cacheKey = (user: DriveUser, rootId: string) => `${user.email.toLowerCase()}\n${rootId}`;
+const MAX_CACHED = 100;
+
+export async function getIndex(user: DriveUser, lib: Library, options: { fresh?: boolean } = {}): Promise<DriveIndex> {
+  const key = cacheKey(user, lib.rootId);
+  const slot = indexes.get(key) ?? {};
+  if (!options.fresh && slot.index && Date.now() - slot.index.builtAt < INDEX_TTL_MS) return slot.index;
+  slot.building ??= buildIndex(user, lib)
+    .then((idx) => {
+      slot.index = idx;
+      return idx;
+    })
+    .finally(() => (slot.building = undefined));
+  indexes.delete(key); // 최근 쓴 것이 뒤로 가게 (오래된 것부터 지운다)
+  indexes.set(key, slot);
+  if (indexes.size > MAX_CACHED) indexes.delete(indexes.keys().next().value!);
+  return slot.building;
 }
 
-let cached: DriveIndex | null = null;
-/** 쓰기 직후 호출: 다음 getIndex()가 Drive에서 다시 읽는다 */
-export function invalidateIndex() {
-  cached = null;
-}
-
-let building: Promise<DriveIndex> | null = null;
-
-export async function getIndex(options: { fresh?: boolean } = {}): Promise<DriveIndex> {
-  if (!options.fresh && cached && Date.now() - cached.builtAt < INDEX_TTL_MS) return cached;
-  building ??= buildIndex()
-    .then((idx) => (cached = idx))
-    .finally(() => (building = null));
-  return building;
-}
-
-/**
- * 운영 환경에서는 서버 오류 메시지가 화면에 숨겨지므로,
- * Drive 문제는 던지지 않고 값으로 돌려줘서 페이지가 직접 보여 주게 한다.
- */
-export async function loadIndex(): Promise<{ index: DriveIndex; problem?: never } | { index?: never; problem: string }> {
-  try {
-    return { index: await getIndex() };
-  } catch (e) {
-    console.error("[drive] index load failed:", e);
-    return { problem: e instanceof DriveError ? e.message : "Drive를 불러오는 중 알 수 없는 오류가 났습니다. Vercel 로그를 확인하세요." };
-  }
-}
-
-/** 소유자는 전부, 게스트는 비공개가 아닌 것만 */
-export function canView(entry: Entry, role: Role): boolean {
-  return role === "owner" || !entry.private;
+/** 쓰기 직후: 이 사람의 이 일기장 목록을 다음에 다시 읽게 한다 */
+export function invalidateIndex(index: { user: DriveUser; lib: Library }) {
+  indexes.delete(cacheKey(index.user, index.lib.rootId));
 }
 
 export function resolveSlugPath(index: DriveIndex, slugs: string[]): Entry | null {
@@ -440,17 +306,16 @@ export function resolveSlugPath(index: DriveIndex, slugs: string[]): Entry | nul
   return current;
 }
 
+// ───────────── 링크·첨부 ─────────────
+
 /**
  * 옵시디언식 첨부 찾기: 노트가 있는 폴더부터 위로 올라가며
  * 같은 폴더 → 그 폴더의 attachments 하위 폴더 순서로 이름을 찾는다.
  */
-export function findAttachment(from: FolderEntry, name: string, role: Role): FileEntry | null {
+export function findAttachment(from: FolderEntry, name: string): FileEntry | null {
   const target = name.toLowerCase();
   const match = (folder: FolderEntry) =>
-    folder.children.find(
-      (c): c is FileEntry => c.kind === "file" && c.name.toLowerCase() === target && canView(c, role),
-    );
-
+    folder.children.find((c): c is FileEntry => c.kind === "file" && c.name.toLowerCase() === target);
   for (let folder: FolderEntry | null = from; folder; folder = folder.parent) {
     const direct = match(folder);
     if (direct) return direct;
@@ -465,33 +330,32 @@ export function findAttachment(from: FolderEntry, name: string, role: Role): Fil
 }
 
 /** [[노트 이름]] 링크용: 이름(확장자 제외)이 같은 첫 번째 md 파일 */
-export function findNoteByName(index: DriveIndex, name: string, role: Role): FileEntry | null {
+export function findNoteByName(index: DriveIndex, name: string): FileEntry | null {
   const target = name.toLowerCase().replace(/\.md$/, "");
   for (const entry of index.byId.values()) {
-    if (entry.kind === "file" && entry.isMarkdown && entry.slug.toLowerCase() === target && canView(entry, role))
-      return entry;
+    if (entry.kind === "file" && entry.isMarkdown && entry.slug.toLowerCase() === target) return entry;
   }
   return null;
 }
 
-const fileUrl = (file: FileEntry) => `/api/file/${encodeURIComponent(file.id)}`;
+/** 첨부 주소에 일기장 id를 넣어, 서버가 그 사람의 그 일기장 안에 있는 파일인지 확인할 수 있게 한다 */
+export const fileUrl = (file: FileEntry) =>
+  `/api/file/${encodeURIComponent(file.lib.rootId)}/${encodeURIComponent(file.id)}`;
 
-/** 서버 렌더링용 링크 해석기 */
-export function linkResolver(index: DriveIndex, folder: FolderEntry, role: Role): LinkResolver {
+export function linkResolver(index: DriveIndex, folder: FolderEntry): LinkResolver {
   return {
     attachment(name) {
-      const file = findAttachment(folder, name, role);
+      const file = findAttachment(folder, name);
       return file && !file.isMarkdown ? fileUrl(file) : null;
     },
     note(name) {
-      const note = findNoteByName(index, name, role);
+      const note = findNoteByName(index, name);
       return note ? hrefFor(note) : null;
     },
   };
 }
 
 /** 편집기 미리보기용: 이 폴더에서 보이는 첨부와 전체 노트 링크를 표로 만들어 넘긴다 */
-/** 편집기는 소유자만 쓰므로 비공개 파일도 포함한다 */
 export function linkTable(index: DriveIndex, folder: FolderEntry): LinkTable {
   const attachments: Record<string, string> = {};
   const add = (f: FolderEntry) => {
@@ -511,21 +375,83 @@ export function linkTable(index: DriveIndex, folder: FolderEntry): LinkTable {
   return { attachments, notes };
 }
 
-export async function readNote(file: FileEntry): Promise<{ text: string; checksum: string }> {
-  const res = await getSource().download(file.id);
+// ───────────── 읽기 ─────────────
+
+export function downloadFile(index: DriveIndex, file: FileEntry): Promise<Response> {
+  return driveFetch(index.user, `${fileApi(file.id)}?alt=media`);
+}
+
+export async function readNote(index: DriveIndex, file: FileEntry): Promise<{ text: string; checksum: string }> {
+  const res = await downloadFile(index, file);
   const buf = new Uint8Array(await res.arrayBuffer());
   return { text: new TextDecoder().decode(buf), checksum: md5(buf) };
 }
 
-// ───────────── 쓰기 ─────────────
+// ───────────── 쓰기 (Drive가 권한을 확인한다) ─────────────
 
-export const fileChecksum = (file: FileEntry) => getSource().checksum(file.id);
-export const updateFile = (file: FileEntry, text: string) => getSource().update(file.id, text);
-export const createFile = (folder: FolderEntry, name: string, text: string) =>
-  getSource().create(folder.id, name, text, "text/markdown");
-export const createFolder = (parent: FolderEntry, name: string) => getSource().createFolder(parent.id, name);
-export const renameFile = (file: FileEntry, name: string) => getSource().rename(file.id, name);
-export const trashFile = (file: FileEntry) => getSource().trash(file.id);
+export async function fileChecksum(index: DriveIndex, file: FileEntry): Promise<string> {
+  const res = await driveFetch(index.user, `${fileApi(file.id)}?fields=md5Checksum`);
+  return ((await res.json()) as { md5Checksum: string }).md5Checksum;
+}
+
+export async function updateFile(index: DriveIndex, file: FileEntry, text: string): Promise<string> {
+  const res = await driveFetch(index.user, `${API.upload}/files/${encodeURIComponent(file.id)}?uploadType=media&fields=md5Checksum`, {
+    method: "PATCH",
+    headers: { "Content-Type": MD_MIME },
+    body: text,
+  });
+  return ((await res.json()) as { md5Checksum: string }).md5Checksum;
+}
+
+async function createRaw(user: DriveUser, parentId: string, name: string, content: string | Uint8Array, mimeType: string) {
+  const boundary = `my-life-${crypto.randomUUID()}`;
+  const meta = JSON.stringify({ name, parents: [parentId], mimeType });
+  const contentType = mimeType === "text/markdown" ? MD_MIME : mimeType;
+  // 이미지 같은 바이너리도 그대로 넣을 수 있게 Blob으로 이어 붙인다
+  const body = new Blob([
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n` +
+      `--${boundary}\r\nContent-Type: ${contentType}\r\n\r\n`,
+    content as BlobPart,
+    `\r\n--${boundary}--`,
+  ]);
+  const res = await driveFetch(user, `${API.upload}/files?uploadType=multipart&fields=id`, {
+    method: "POST",
+    headers: { "Content-Type": `multipart/related; boundary=${boundary}` },
+    body,
+  });
+  return ((await res.json()) as { id: string }).id;
+}
+
+async function patchMeta(user: DriveUser, id: string, body: Record<string, unknown>) {
+  await driveFetch(user, `${fileApi(id)}?fields=id`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+export const createFile = (index: DriveIndex, folder: FolderEntry, name: string, text: string) =>
+  createRaw(index.user, folder.id, name, text, "text/markdown");
+
+export async function createFolder(index: DriveIndex, parent: FolderEntry, name: string): Promise<string> {
+  const res = await driveFetch(index.user, `${API.drive}/files?fields=id`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, parents: [parent.id], mimeType: FOLDER_MIME }),
+  });
+  return ((await res.json()) as { id: string }).id;
+}
+
+export async function renameFile(index: DriveIndex, file: FileEntry, name: string): Promise<string> {
+  await patchMeta(index.user, file.id, { name });
+  return file.id;
+}
+
+export const trashFile = (index: DriveIndex, file: FileEntry) => patchMeta(index.user, file.id, { trashed: true });
+
+/** Drive '접근 제한': 켜면 상위 폴더 공유가 이 폴더로 이어지지 않는다 (게스트에게 숨김) */
+export const setRestricted = (index: DriveIndex, folder: FolderEntry, on: boolean) =>
+  patchMeta(index.user, folder.id, { inheritedPermissionsDisabled: on });
 
 /** 파일 이름 검사. 문제가 있으면 오류 메시지, 없으면 .md를 붙인 이름 */
 export function checkNoteName(raw: string, folder: FolderEntry, self?: FileEntry): { name: string } | { error: string } {
@@ -556,8 +482,18 @@ export async function attachmentFolderFor(index: DriveIndex, folder: FolderEntry
   }
   let top = folder;
   while (top.parent && top.parent !== index.root) top = top.parent;
-  const id = await getSource().createFolder(top.id, ATTACHMENTS);
-  return { ...top, id, name: ATTACHMENTS, parent: top, children: [], slug: ATTACHMENTS, slugPath: [...top.slugPath, ATTACHMENTS] };
+  const id = await createFolder(index, top, ATTACHMENTS);
+  return {
+    ...top,
+    id,
+    name: ATTACHMENTS,
+    parent: top,
+    children: [],
+    slug: ATTACHMENTS,
+    slugPath: [...top.slugPath, ATTACHMENTS],
+    restricted: false,
+    legacyPrivate: false,
+  };
 }
 
 /** 폴더 안에서 겹치지 않는 이름: "이름.jpg" → "이름-2.jpg" … */
@@ -574,9 +510,9 @@ export function uniqueName(folder: FolderEntry, base: string, ext: string): stri
  * Drive 전체를 다시 훑지 않도록. (새로 만든 폴더라 인덱스에 없으면 그냥 무효화)
  */
 export async function uploadFile(index: DriveIndex, folder: FolderEntry, name: string, bytes: Uint8Array, mimeType: string) {
-  const id = await getSource().create(folder.id, name, bytes, mimeType);
+  const id = await createRaw(index.user, folder.id, name, bytes, mimeType);
   const cachedFolder = index.byId.get(folder.id);
-  if (cached === index && cachedFolder?.kind === "folder") {
+  if (indexes.get(cacheKey(index.user, index.lib.rootId))?.index === index && cachedFolder?.kind === "folder") {
     const entry: FileEntry = {
       kind: "file",
       id,
@@ -585,7 +521,8 @@ export async function uploadFile(index: DriveIndex, folder: FolderEntry, name: s
       slugPath: [...cachedFolder.slugPath, name],
       modifiedTime: new Date().toISOString(),
       parent: cachedFolder,
-      private: cachedFolder.private,
+      lib: index.lib,
+      can: { ...cachedFolder.can, addChildren: false, listChildren: false },
       mimeType,
       size: bytes.length,
       isMarkdown: false,
@@ -593,53 +530,42 @@ export async function uploadFile(index: DriveIndex, folder: FolderEntry, name: s
     cachedFolder.children.push(entry);
     index.byId.set(id, entry);
   } else {
-    invalidateIndex();
+    invalidateIndex(index);
   }
   return id;
 }
 
-// ───────────── 앱 설정 파일 (_settings) ─────────────
+// ───────────── 공유 (Drive 공유 = 초대) ─────────────
 
-const SETTINGS_FOLDER = "_settings";
+export type Share = { id: string; email: string; name: string; role: "reader" | "commenter" | "writer" | "owner" | string };
 
-function settingsFolder(index: DriveIndex): FolderEntry | undefined {
-  return index.root.children.find((c): c is FolderEntry => c.kind === "folder" && c.name === SETTINGS_FOLDER);
-}
-
-/** _settings/<name> 을 읽는다. 캐시를 거치지 않고 매번 Drive에서 (없으면 null) */
-export async function readSettingsFile(name: string): Promise<{ text: string; checksum: string } | null> {
-  const index = await getIndex();
-  const file = settingsFolder(index)?.children.find((c): c is FileEntry => c.kind === "file" && c.name === name);
-  return file ? readNote(file) : null;
-}
-
-/** _settings/<name> 을 쓴다. 폴더·파일이 없으면 만든다 */
-export async function writeSettingsFile(name: string, text: string, mimeType = "application/json"): Promise<void> {
-  // 다른 인스턴스가 방금 만들었을 수도 있으니 최신 목록으로 확인
-  const index = await getIndex({ fresh: true });
-  let folder = settingsFolder(index);
-  if (!folder) {
-    const id = await getSource().createFolder(index.root.id, SETTINGS_FOLDER);
-    folder = { ...index.root, id, name: SETTINGS_FOLDER, parent: index.root, children: [], private: true };
-  }
-  const file = folder.children.find((c): c is FileEntry => c.kind === "file" && c.name === name);
-  if (file) await getSource().update(file.id, text);
-  else await getSource().create(folder.id, name, text, mimeType);
-  invalidateIndex();
-}
-
-/** 비공개가 시작되는 폴더 목록 (설정 화면 안내용, 앱 내부 _폴더 제외) */
-export function privateFolders(index: DriveIndex): FolderEntry[] {
-  const out: FolderEntry[] = [];
-  const walk = (f: FolderEntry) => {
-    for (const c of f.children) {
-      if (c.kind !== "folder" || c.name.startsWith("_") || c.name.toLowerCase() === "attachments") continue;
-      if (c.private && !f.private) out.push(c);
-      else if (!c.private) walk(c);
-    }
+export async function listShares(index: DriveIndex): Promise<Share[]> {
+  const res = await driveFetch(
+    index.user,
+    `${fileApi(index.lib.rootId)}/permissions?fields=permissions(id,type,role,emailAddress,displayName,deleted)`,
+  );
+  const { permissions } = (await res.json()) as {
+    permissions: { id: string; type: string; role: string; emailAddress?: string; displayName?: string; deleted?: boolean }[];
   };
-  walk(index.root);
-  return out;
+  return permissions
+    .filter((p) => p.type === "user" && p.role !== "owner" && !p.deleted)
+    .map((p) => ({ id: p.id, email: p.emailAddress ?? "", name: p.displayName ?? "", role: p.role }));
+}
+
+/** 일기장 폴더를 이 사람과 공유한다. Drive가 초대 메일(앱 주소 포함)을 보낸다 */
+export async function addShare(index: DriveIndex, email: string, role: "reader" | "writer", message: string) {
+  const params = new URLSearchParams({ sendNotificationEmail: "true", emailMessage: message, fields: "id" });
+  await driveFetch(index.user, `${fileApi(index.lib.rootId)}/permissions?${params}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ type: "user", role, emailAddress: email }),
+  });
+}
+
+export async function removeShare(index: DriveIndex, permissionId: string) {
+  await driveFetch(index.user, `${fileApi(index.lib.rootId)}/permissions/${encodeURIComponent(permissionId)}`, {
+    method: "DELETE",
+  });
 }
 
 // ───────────── 템플릿 ─────────────
@@ -668,38 +594,52 @@ export async function loadTemplate(index: DriveIndex, folder: FolderEntry): Prom
   const pick = (name: string) =>
     templates.children.find((c): c is FileEntry => c.kind === "file" && c.name.toLowerCase() === name.toLowerCase());
   const file = (top !== index.root && pick(`${top.name}.md`)) || pick("default.md");
-  return file ? (await readNote(file)).text : DEFAULT_TEMPLATE;
+  return file ? (await readNote(index, file)).text : DEFAULT_TEMPLATE;
 }
 
-export function downloadFile(file: FileEntry): Promise<Response> {
-  return getSource().download(file.id);
-}
+// ───────────── 주소·목록 ─────────────
 
-export function webUrlFor(entry: Entry): string | null {
-  return getSource().webUrl({ id: entry.id, isFolder: entry.kind === "folder" });
+export function webUrlFor(entry: Entry): string {
+  return entry.kind === "folder"
+    ? `https://drive.google.com/drive/folders/${entry.id}`
+    : `https://drive.google.com/file/d/${entry.id}/view`;
 }
 
 export function hrefFor(entry: Entry): string {
-  return "/" + entry.slugPath.map(encodeURIComponent).join("/");
+  return [entry.lib.base, ...entry.slugPath.map(encodeURIComponent)].join("/");
 }
 
-/** attachments(이미지 보관)와 _로 시작하는 앱 내부 폴더(_templates, _settings)는 목록에서 숨긴다 */
+/** attachments(이미지 보관)와 _로 시작하는 앱 내부 폴더(_templates)는 목록에서 숨긴다 */
 export function isListable(entry: Entry): boolean {
-  if (entry.kind === "folder") return entry.name.toLowerCase() !== "attachments" && !entry.name.startsWith("_");
+  if (entry.kind === "folder")
+    return entry.name.toLowerCase() !== "attachments" && !entry.name.startsWith("_") && entry.can.listChildren;
   return entry.isMarkdown;
 }
 
-/** 목록에 보여 줄 하위 항목 (숨김 폴더·비공개 제외) */
-export function visibleChildren(folder: FolderEntry, role: Role): Entry[] {
-  return folder.children.filter((c) => isListable(c) && canView(c, role));
+/** 목록에 보여 줄 하위 항목. 열 수 없는 폴더(Drive 접근 제한)는 빠진다 */
+export function visibleChildren(folder: FolderEntry): Entry[] {
+  return folder.children.filter(isListable);
 }
 
-export type TreeNode = { name: string; href: string; private: boolean; children: TreeNode[] };
+export type TreeNode = { name: string; href: string; restricted: boolean; children: TreeNode[] };
 
 /** 사이드바용: 폴더만, 클라이언트로 넘길 수 있는 순수 객체 */
-export function folderTree(folder: FolderEntry, role: Role): TreeNode[] {
-  return visibleChildren(folder, role)
+export function folderTree(folder: FolderEntry): TreeNode[] {
+  return visibleChildren(folder)
     .filter((c): c is FolderEntry => c.kind === "folder")
-    // 자물쇠는 비공개가 시작되는 폴더에만 (상속된 하위 폴더에는 표시 안 함)
-    .map((c) => ({ name: c.name, href: hrefFor(c), private: c.private && !folder.private, children: folderTree(c, role) }));
+    .map((c) => ({ name: c.name, href: hrefFor(c), restricted: c.restricted, children: folderTree(c) }));
+}
+
+/** 설정 화면용: 최상위 폴더 + 더 깊은 곳에서 접근 제한이 켜졌거나 .private 표시가 남은 폴더 */
+export function sharingFolders(index: DriveIndex): FolderEntry[] {
+  const out: FolderEntry[] = [];
+  const walk = (f: FolderEntry, depth: number) => {
+    for (const c of f.children) {
+      if (c.kind !== "folder" || c.name.startsWith("_") || c.name.toLowerCase() === "attachments") continue;
+      if (depth === 0 || c.restricted || c.legacyPrivate) out.push(c);
+      walk(c, depth + 1);
+    }
+  };
+  walk(index.root, 0);
+  return out;
 }

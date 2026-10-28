@@ -1,11 +1,10 @@
 import Link from "next/link";
-import type { Role } from "@/lib/access";
 import { hrefFor, visibleChildren, type FolderEntry } from "@/lib/drive";
 
 const fmtDate = (iso: string) => (iso ? iso.slice(0, 10) : "");
 
-export function FolderView({ folder, role }: { folder: FolderEntry; role: Role }) {
-  const items = visibleChildren(folder, role);
+export function FolderView({ folder }: { folder: FolderEntry }) {
+  const items = visibleChildren(folder);
   const folders = items.filter((c) => c.kind === "folder");
   const notes = items.filter((c) => c.kind === "file");
 
@@ -22,12 +21,12 @@ export function FolderView({ folder, role }: { folder: FolderEntry; role: Role }
                   📁
                 </span>
                 {f.name}
-                {f.private && !folder.private && (
-                  <span className="lock" title="비공개: 게스트에게 안 보임" aria-label="비공개">
+                {f.restricted && (
+                  <span className="lock" title="접근 제한: 상위 폴더를 공유받은 사람도 볼 수 없음" aria-label="접근 제한">
                     🔒
                   </span>
                 )}
-                <span className="count">{visibleChildren(f, role).length}</span>
+                <span className="count">{visibleChildren(f).length}</span>
               </Link>
             </li>
           ))}

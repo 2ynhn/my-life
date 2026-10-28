@@ -1,86 +1,87 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { DriveProblem } from "@/components/DriveProblem";
-import { GuestManager } from "@/components/GuestManager";
-import { emailList } from "@/lib/access";
-import { hrefFor, loadIndex, privateFolders } from "@/lib/drive";
-import { driveGuests } from "@/lib/guests";
+import { InviteLink, RestrictList, ShareList } from "@/components/ShareManager";
+import { DriveError, listShares, sharingFolders, type Share } from "@/lib/drive";
+import { loadLibrary, myLibrary } from "@/lib/library";
 import { requireUser } from "@/lib/session";
 
 export const metadata: Metadata = { title: "설정" };
 
 export default async function SettingsPage() {
   const user = await requireUser();
-  // 게스트에게는 이 화면이 있다는 것도 알리지 않는다
-  if (user.role !== "owner") notFound();
+  const mine = await myLibrary(user);
+  if (mine.kind === "problem") return <DriveProblem message={mine.problem} reauth={mine.reauth} />;
+  if (mine.kind !== "ok")
+    return (
+      <div className="settings">
+        <h1 className="page-title">설정</h1>
+        <p className="muted">
+          먼저 <Link href="/libraries">내 일기장</Link>을 만들거나 고르세요.
+        </p>
+      </div>
+    );
+  const loaded = await loadLibrary(user, mine.lib.rootId);
+  if (loaded.kind !== "ok")
+    return <DriveProblem message={loaded.kind === "problem" ? loaded.problem : "일기장을 열 수 없습니다."} />;
+  const { index } = loaded;
 
-  const { index, problem } = await loadIndex();
-  if (!index) return <DriveProblem message={problem} />;
+  let shares: Share[] = [];
+  let shareError: string | null = null;
+  try {
+    shares = await listShares(index);
+  } catch (e) {
+    shareError = e instanceof DriveError ? e.message : "공유 목록을 읽지 못했습니다.";
+  }
 
-  const owners = emailList(process.env.OWNER_EMAILS);
-  const envGuests = emailList(process.env.GUEST_EMAILS);
-  const guests = await driveGuests();
-  const hidden = privateFolders(index);
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "";
+  const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
+  const link = `${proto}://${host}${index.lib.base}`;
+
+  const folders = sharingFolders(index).map((f) => ({
+    id: f.id,
+    path: f.slugPath.join(" / "),
+    restricted: f.restricted,
+    legacyPrivate: f.legacyPrivate,
+  }));
 
   return (
     <div className="settings">
       <h1 className="page-title">설정</h1>
 
       <section>
-        <h2>게스트</h2>
+        <h2>게스트 초대</h2>
         <p className="muted small">
-          게스트는 글을 읽기만 할 수 있고, 🔒 비공개 폴더는 볼 수 없습니다. 해제하면 1분 안에 차단됩니다. 목록은 Drive의{" "}
-          <code>_settings/guests.json</code>에 저장됩니다.
+          초대하면 Drive에서 내 <b>{index.lib.name}</b> 폴더가 그 사람에게 공유되고, Drive가 초대 메일을 보냅니다. 게스트는 자기 구글
+          계정으로 로그인해 <b>자기 권한으로</b> 읽습니다. <b>보기</b>는 읽기만, <b>편집</b>은 글쓰기·수정도 됩니다. 해제하면 바로
+          막힙니다. Drive 앱에서 공유를 바꿔도 똑같이 적용돼요.
         </p>
-        <GuestManager guests={guests} />
-        {envGuests.length > 0 && (
-          <>
-            <h3>환경변수로 등록된 게스트</h3>
-            <p className="muted small">Vercel의 GUEST_EMAILS에서만 바꿀 수 있습니다.</p>
-            <ul className="person-list">
-              {envGuests.map((e) => (
-                <li key={e}>
-                  <span className="email">{e}</span>
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
+        <InviteLink link={link} />
+        {shareError ? <p className="status small error">{shareError}</p> : <ShareList shares={shares} />}
       </section>
 
       <section>
-        <h2>게스트에게 숨겨진 폴더</h2>
+        <h2>게스트에게 숨길 폴더</h2>
         <p className="muted small">
-          폴더에 <code>.private</code> 파일을 두면 그 폴더와 하위 폴더가 숨겨집니다. <code>_</code>로 시작하는 앱
-          내부 폴더(_settings, _templates)는 항상 숨겨집니다.
+          Drive의 <b>접근 제한</b>을 켜면 일기장을 공유받은 사람도 그 폴더는 열 수 없습니다(Drive 웹에서도 마찬가지). 나는 계속 볼 수
+          있어요. 예전 앱 규칙인 <code>.private</code> 파일은 이제 쓰지 않으니, 표시가 남은 폴더는 여기서 제한을 켠 뒤 그 파일을 지우세요.
         </p>
-        {hidden.length === 0 ? (
-          <p className="muted small">없음</p>
-        ) : (
-          <ul className="person-list">
-            {hidden.map((f) => (
-              <li key={f.id}>
-                <Link href={hrefFor(f)}>🔒 {f.slugPath.join(" / ")}</Link>
-              </li>
-            ))}
-          </ul>
-        )}
+        {folders.length === 0 ? <p className="muted small">폴더가 없습니다.</p> : <RestrictList folders={folders} />}
       </section>
 
       <section>
-        <h2>소유자</h2>
-        <p className="muted small">
-          보안을 위해 소유자는 이 화면에서 바꿀 수 없고, Vercel 환경변수 OWNER_EMAILS로만 정합니다.
-        </p>
+        <h2>계정</h2>
         <ul className="person-list">
-          {owners.map((e) => (
-            <li key={e}>
-              <span className="email">{e}</span>
-              <span className="badge owner">소유자</span>
-            </li>
-          ))}
+          <li>
+            <span className="email">{user.email}</span>
+            <span className="muted small">내 Drive의 {index.lib.name} 폴더 사용 중</span>
+          </li>
         </ul>
+        <p className="muted small">
+          <Link href="/libraries">일기장 목록</Link>에서 공유받은 일기장을 열거나 내 일기장 폴더를 바꿀 수 있어요.
+        </p>
       </section>
     </div>
   );

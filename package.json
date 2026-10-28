@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "fake-drive": "node scripts/fake-drive.mjs"
   },
   "dependencies": {
     "@codemirror/lang-markdown": "^6.5.2",
