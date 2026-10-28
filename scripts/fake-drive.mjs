@@ -22,6 +22,9 @@ const MIME = { ".md": "text/markdown", ".jpg": "image/jpeg", ".jpeg": "image/jpe
 const args = process.argv.slice(2);
 const opt = (name) => args.flatMap((a, i) => (a === name ? [args[i + 1]] : []));
 const PORT = Number(opt("--port")[0] ?? 4010);
+// 속도 시험용: 요청마다 지연(ms)을 주고, 요청 기록을 /__log 로 보여 준다
+const LATENCY = Number(opt("--latency")[0] ?? 0);
+const requestLog = [];
 
 /** @type {Map<string, any>} */
 const files = new Map();
@@ -187,6 +190,14 @@ function query(q, email) {
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
   const body = await readBody(req);
+  if (url.pathname === "/__log") {
+    const out = requestLog.splice(0);
+    return send(res, 200, out);
+  }
+  if (!url.pathname.startsWith("/__")) {
+    requestLog.push(`${req.method} ${url.pathname}${url.searchParams.get("q") ? " q=" + url.searchParams.get("q").slice(0, 40) : ""}${url.searchParams.get("alt") ? " alt=" + url.searchParams.get("alt") : ""}`);
+    if (LATENCY) await new Promise((r) => setTimeout(r, LATENCY));
+  }
   try {
     if (url.pathname === "/__revoke") {
       revoked.add(url.searchParams.get("email"));

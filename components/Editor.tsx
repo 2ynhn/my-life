@@ -248,6 +248,8 @@ export function Editor(props: Props) {
             setConflict(null);
             writeDraft(draftKey, null);
             setMessage({ kind: "ok", text: `저장됨 · ${fmtTime(Date.now())}` });
+            // 미리 받아 둔 이 글 화면(저장 전 내용)을 비운다
+            router.refresh();
           } else {
             setConflict(res.conflict ?? null);
             setMessage({ kind: "error", text: res.error });

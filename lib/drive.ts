@@ -509,6 +509,11 @@ export function cachedText(index: DriveIndex, file: FileEntry): string | null {
   return hit && hit.modifiedTime === file.modifiedTime ? hit.text : null;
 }
 
+/** 기억해 둔 내용(수정 시각이 같을 때)이 있으면 그것을, 없으면 내려받는다 — 템플릿·설정처럼 자주 읽는 파일용 */
+export async function readText(index: DriveIndex, file: FileEntry): Promise<string> {
+  return cachedText(index, file) ?? (await readNote(index, file)).text;
+}
+
 /** Drive 본문 검색 (단어 전체가 맞아야 찾음). 이 일기장 안의 md 파일 id만 돌려준다 */
 export async function driveFullText(index: DriveIndex, term: string): Promise<Set<string>> {
   const params = new URLSearchParams({
@@ -790,11 +795,11 @@ export async function loadTemplate(index: DriveIndex, folder: FolderEntry): Prom
   const pick = (name: string) =>
     templates.children.find((c): c is FileEntry => c.kind === "file" && c.name.toLowerCase() === name.toLowerCase());
   const own = top !== index.root ? pick(`${top.name}.md`) : undefined;
-  if (own) return (await readNote(index, own)).text;
+  if (own) return readText(index, own);
   // 폴더 전용 내장 템플릿이 있으면 default.md보다 우선
   if (builtin !== DEFAULT_TEMPLATE) return builtin;
   const fallback = pick("default.md");
-  return fallback ? (await readNote(index, fallback)).text : DEFAULT_TEMPLATE;
+  return fallback ? readText(index, fallback) : DEFAULT_TEMPLATE;
 }
 
 export type FolderKind = "spending" | "travel" | "health";
@@ -829,6 +834,7 @@ export async function readSettingsJson<T>(index: DriveIndex, name: string): Prom
   const file = folder?.children.find((c): c is FileEntry => c.kind === "file" && c.name === name);
   if (!file) return null;
   try {
+    // 설정은 바꾼 즉시 다른 서버 인스턴스에서도 맞아야 해서 늘 새로 받는다 (작은 파일)
     return JSON.parse((await readNote(index, file)).text) as T;
   } catch {
     return null;

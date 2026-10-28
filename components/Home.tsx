@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { CalendarDays, Clock, ExternalLink, History, Layers, Plus, Search, Sparkles } from "lucide-react";
+import { NewFolderButton } from "@/components/NewFolderButton";
 import { QuickNote } from "@/components/QuickNote";
 import { startFeature } from "@/app/(app)/note-actions";
 import { todayKST } from "@/components/CalendarView";
@@ -260,9 +261,12 @@ export async function Home({
         </section>
       )}
 
-      {(others.length > 0 || rootNotes.length > 0) && (
+      {(others.length > 0 || rootNotes.length > 0 || root.can.addChildren) && (
         <section className="home-section">
-          <h2>다른 폴더</h2>
+          <div className="section-head">
+            <h2>다른 폴더</h2>
+            {root.can.addChildren && <NewFolderButton rootId={root.lib.rootId} folderId={root.id} />}
+          </div>
           {others.length > 0 && (
             <ul className="folder-grid">
               {others.map(({ f, kind }) => (

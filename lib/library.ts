@@ -52,11 +52,20 @@ async function openCached(user: DriveUser, rootId: string, fresh?: boolean): Pro
   const key = `${user.email.toLowerCase()}\n${rootId}`;
   const hit = opened.get(key);
   if (!fresh && hit && Date.now() - hit.at < OPEN_TTL_MS) return hit.lib;
-  const lib = await openLibrary(user, rootId);
-  if (opened.size > 500) opened.clear();
-  opened.set(key, { lib, at: Date.now() });
-  return lib;
+  // 동시에 들어온 확인(레이아웃·페이지)은 한 번만 Drive에 묻는다
+  const running = !fresh && opening.get(key);
+  if (running) return running;
+  const promise = openLibrary(user, rootId)
+    .then((lib) => {
+      if (opened.size > 500) opened.clear();
+      opened.set(key, { lib, at: Date.now() });
+      return lib;
+    })
+    .finally(() => opening.delete(key));
+  opening.set(key, promise);
+  return promise;
 }
+const opening = new Map<string, Promise<Library | null>>();
 
 export type LoadedLibrary =
   | { kind: "ok"; index: DriveIndex }
@@ -69,6 +78,17 @@ export type LoadedLibrary =
  */
 export async function loadLibrary(user: DriveUser, rootId: string, options: { fresh?: boolean } = {}): Promise<LoadedLibrary> {
   try {
+    // 전에 연 적이 있으면 '아직 열 수 있나' 확인과 목록 확인을 동시에 (Drive 왕복 한 번 줄임)
+    const known = options.fresh ? undefined : opened.get(`${user.email.toLowerCase()}\n${rootId}`)?.lib;
+    if (known) {
+      const [lib, index] = await Promise.all([
+        openCached(user, rootId),
+        getIndex(user, known, options).catch((e: unknown) => ({ failed: e })),
+      ]);
+      if (!lib) return { kind: "missing" };
+      if ("failed" in index) throw index.failed;
+      return { kind: "ok", index };
+    }
     const lib = await openCached(user, rootId, options.fresh);
     if (!lib) return { kind: "missing" };
     return { kind: "ok", index: await getIndex(user, lib, options) };

@@ -8,6 +8,7 @@ import { CollectView } from "@/components/CollectView";
 import { DriveProblem } from "@/components/DriveProblem";
 import { Editor } from "@/components/Editor";
 import { FolderView } from "@/components/FolderView";
+import { NewFolderButton } from "@/components/NewFolderButton";
 import { NoteActions } from "@/components/NoteActions";
 import { NoteBody } from "@/components/NoteBody";
 import { SearchView } from "@/components/SearchView";
@@ -181,9 +182,12 @@ async function Folder({ folder, index, spend, range }: { folder: FolderEntry; in
           {folder.name}
         </h1>
         {folder.can.addChildren && (
-          <Link className="btn btn-save" href={`${hrefFor(folder)}?mode=new`}>
-            <Plus size={16} aria-hidden />새 글
-          </Link>
+          <div className="title-actions">
+            <NewFolderButton rootId={index.lib.rootId} folderId={folder.id} />
+            <Link className="btn btn-save" href={`${hrefFor(folder)}?mode=new`}>
+              <Plus size={16} aria-hidden />새 글
+            </Link>
+          </div>
         )}
       </div>
       {kind === "spending" && <SpendingView index={index} folder={folder} month={spend} />}

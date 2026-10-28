@@ -266,3 +266,29 @@ export async function quickNote(rootId: string, raw: string): Promise<ActionResu
     return failure(e);
   }
 }
+
+/** 새 폴더: parentId 폴더 안에 만들고 그 폴더 주소를 돌려준다 */
+export async function createFolderIn(rootId: string, parentId: string, rawName: string): Promise<ActionResult> {
+  const index = await libraryIndex(rootId);
+  if (typeof index === "string") return { ok: false, error: index };
+  const parent = folderById(index, parentId);
+  if (!parent) return { ok: false, error: "폴더를 찾을 수 없습니다." };
+  if (!parent.can.addChildren) return { ok: false, error: NO_PERMISSION };
+  const name = String(rawName ?? "").trim();
+  if (!name) return { ok: false, error: "폴더 이름을 입력하세요." };
+  if (name.length > 100) return { ok: false, error: "폴더 이름이 너무 깁니다." };
+  if (/[\/\\\x00-\x1f]/.test(name) || name.startsWith(".")) return { ok: false, error: "폴더 이름에 / \\ 나 맨 앞 . 은 쓸 수 없습니다." };
+  if (name.startsWith("_") || name.toLowerCase() === "attachments")
+    return { ok: false, error: "_로 시작하는 이름과 attachments는 앱이 숨기는 폴더라 쓸 수 없어요." };
+  if (parent.children.some((c) => c.name.toLowerCase() === name.toLowerCase()))
+    return { ok: false, error: "같은 이름이 이미 있습니다." };
+
+  try {
+    const id = await createFolder(index, parent, name);
+    invalidateIndex(index);
+    revalidatePath("/", "layout");
+    return { ok: true, href: await freshHref(index, id, `${hrefFor(parent)}/${encodeURIComponent(name)}`) };
+  } catch (e) {
+    return failure(e);
+  }
+}

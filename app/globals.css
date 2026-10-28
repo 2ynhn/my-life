@@ -2341,3 +2341,28 @@ mark {
     animation: none;
   }
 }
+
+/* ───── 새 폴더 ───── */
+
+.title-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.5rem;
+}
+.title-error {
+  flex-basis: 100%;
+  margin: 0;
+  text-align: right;
+}
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.6rem;
+}
+.section-head h2 {
+  margin: 0;
+}
