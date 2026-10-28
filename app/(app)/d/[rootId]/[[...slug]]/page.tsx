@@ -261,7 +261,7 @@ async function EditNote({ entry, index }: { entry: FileEntry; index: DriveIndex 
       form={await formKindOf(index, entry.parent!)}
       initialText={note.text}
       closeHref={hrefFor(entry)}
-      doneHref={hrefFor(entry.parent!)}
+      doneHref={(await formKindOf(index, entry.parent!)) === "diary" ? index.lib.base : hrefFor(entry.parent!)}
       uploadFolderId={entry.parent!.id}
       links={linkTable(index, entry.parent!)}
     />
@@ -306,6 +306,7 @@ async function NewNote({
       sharedImage={shared && kind === "spending"}
       places={kind === "travel"}
       form={kind}
+      doneHref={kind === "diary" ? index.lib.base : undefined}
       rootId={index.lib.rootId}
       folderId={folder.id}
       folderName={subfolder ? `${folder.name} / ${subfolder}` : folder.name}

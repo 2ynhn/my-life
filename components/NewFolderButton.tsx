@@ -14,8 +14,10 @@ export function NewFolderButton({ rootId, folderId }: { rootId: string; folderId
   return (
     <>
       <button
-        className="btn"
+        className="btn new-folder"
         disabled={busy}
+        title="새 폴더"
+        aria-label="새 폴더"
         onClick={async () => {
           const name = prompt("새 폴더 이름");
           if (name === null || !name.trim()) return;
@@ -33,7 +35,7 @@ export function NewFolderButton({ rootId, folderId }: { rootId: string; folderId
         }}
       >
         <FolderPlus size={16} aria-hidden />
-        {busy ? "만드는 중…" : "새 폴더"}
+        <span className="btn-label">{busy ? "만드는 중…" : "새 폴더"}</span>
       </button>
       {error && (
         <p className="status small error title-error" role="alert">

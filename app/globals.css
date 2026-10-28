@@ -2366,3 +2366,159 @@ mark {
 .section-head h2 {
   margin: 0;
 }
+
+/* ───── 지출 요약 (다시) — 폭과 상관없이 같은 높이·글자 크기 ───── */
+
+.spending .spend-head {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  align-items: stretch;
+  margin-bottom: 1rem;
+}
+.spending .spend-head .stat {
+  gap: 0.15rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 10px;
+  background: var(--bg);
+}
+.spending .spend-head strong {
+  font-size: clamp(1.15rem, 4.5vw, 1.6rem);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.months-chart figcaption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.year-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.9rem;
+}
+.year-nav a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  text-decoration: none;
+  color: var(--muted);
+}
+.year-nav a:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.year-nav strong {
+  min-width: 4rem;
+  text-align: center;
+}
+.months {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 4px;
+  border-bottom: 1px solid var(--line);
+}
+.mcol {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-decoration: none;
+  color: var(--muted);
+  border-radius: 6px 6px 0 0;
+}
+.mcol:hover {
+  background: var(--accent-soft);
+}
+.mbar-area {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  width: 100%;
+  height: 150px;
+}
+.mbar {
+  display: block;
+  width: min(70%, 36px);
+  border-radius: 4px 4px 0 0;
+  background: var(--chart);
+  opacity: 0.5;
+}
+.mcol.selected .mbar,
+.mcol:hover .mbar {
+  opacity: 1;
+}
+.mval {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  margin-bottom: 2px;
+}
+.mlbl {
+  padding: 0.25rem 0 0.2rem;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+.mcol.selected .mlbl {
+  color: var(--text);
+  font-weight: 700;
+}
+@media (max-width: 768px) {
+  .mbar-area {
+    height: 120px;
+  }
+  .mlbl {
+    font-size: 0.68rem;
+    letter-spacing: -0.02em;
+  }
+  .months {
+    gap: 2px;
+  }
+  /* 분류 막대: 이름·금액 한 줄, 막대는 그 아래 전체 폭 */
+  .hbars li {
+    grid-template-columns: 1fr auto;
+    gap: 0.2rem 0.6rem;
+  }
+  .hbars .track {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    height: 8px;
+  }
+  .hbars .amt {
+    grid-column: 2;
+    grid-row: 1;
+    font-size: 0.85rem;
+  }
+  .hbars li {
+    margin-bottom: 0.35rem;
+  }
+  /* 제목 옆 버튼은 한 줄로 */
+  .title-row {
+    flex-wrap: wrap;
+  }
+  .title-actions {
+    flex-wrap: nowrap;
+  }
+  .title-row .page-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+@media (max-width: 768px) {
+  .title-actions .new-folder .btn-label {
+    display: none;
+  }
+  .title-row {
+    flex-wrap: nowrap;
+  }
+}

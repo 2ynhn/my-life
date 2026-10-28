@@ -26,7 +26,7 @@ type Props = {
   initialText: string;
   /** 취소·닫기 시 돌아갈 주소 */
   closeHref: string;
-  /** 저장(만들기)을 마치면 돌아갈 카테고리 폴더 (새 글은 만든 폴더) */
+  /** 저장(만들기)을 마치면 돌아갈 곳: 일기는 첫 화면, 나머지는 그 폴더 (새 글은 없으면 만든 폴더) */
   doneHref?: string;
   /** 이 글이 있는 일기장 (Drive 폴더 id) */
   rootId: string;
@@ -263,7 +263,7 @@ export function Editor(props: Props) {
             writeDraft(draftKey, null);
             setSavedText(current);
             // 만든 글이 들어간 폴더(카테고리)로 돌아간다
-            router.push(res.href.replace(/\/[^/]+$/, ""));
+            router.push(props.doneHref ?? res.href.replace(/\/[^/]+$/, ""));
           } else {
             setMessage({ kind: "error", text: res.error });
           }

@@ -69,36 +69,16 @@ export async function SpendingView({ index, folder, month }: { index: DriveIndex
   const cats = [...byCat.entries()].sort((a, b) => b[1] - a[1]);
   const catMax = Math.max(1, ...cats.map(([, v]) => Math.abs(v)));
 
-  // 막대: 바닥에 붙고 위쪽 모서리만 4px 둥글게, 막대 사이 2px 이상 띄움
-  const W = 600;
-  const H = 160;
-  const colW = W / 12;
-  const barW = colW - 10;
-  const bar = (x: number, h: number) => {
-    const r = Math.min(4, h / 2, barW / 2);
-    const y = H - h;
-    return `M${x},${H} V${y + r} Q${x},${y} ${x + r},${y} H${x + barW - r} Q${x + barW},${y} ${x + barW},${y + r} V${H} Z`;
-  };
-
   return (
     <section className="spending">
       <div className="spend-head">
         <div className="stat">
-          <span className="muted small">{Number(ym.slice(5))}월 지출</span>
+          <span className="muted small">{Number(ym.slice(5))}월 지출 · {monthSpends.length}건</span>
           <strong>{won(monthTotal)}</strong>
-          <span className="muted small">{monthSpends.length}건</span>
         </div>
         <div className="stat">
           <span className="muted small">{year}년 합계</span>
           <strong>{won(yearTotal)}</strong>
-        </div>
-        <div className="spend-nav">
-          <Link className="btn" href={href(`${Number(year) - 1}-12`)} aria-label="이전 해">
-            ‹ {Number(year) - 1}
-          </Link>
-          <Link className="btn" href={href(`${Number(year) + 1}-01`)} aria-label="다음 해">
-            {Number(year) + 1} ›
-          </Link>
         </div>
       </div>
 
@@ -121,33 +101,34 @@ export async function SpendingView({ index, folder, month }: { index: DriveIndex
         </div>
       )}
 
-      <figure className="chart">
-        <figcaption className="small muted">{year}년 월별 지출 (막대를 누르면 그 달로)</figcaption>
-        <svg viewBox={`0 0 ${W} ${H + 22}`} role="img" aria-label={`${year}년 월별 지출`}>
-          <line x1="0" x2={W} y1={H} y2={H} className="axis" />
+      <figure className="chart months-chart">
+        <figcaption>
+          <span className="small muted" title="막대를 누르면 그 달로">월별 지출</span>
+          <span className="year-nav">
+            <Link href={href(`${Number(year) - 1}-12`)} aria-label="이전 해">
+              ‹
+            </Link>
+            <strong>{year}년</strong>
+            <Link href={href(`${Number(year) + 1}-01`)} aria-label="다음 해">
+              ›
+            </Link>
+          </span>
+        </figcaption>
+        <div className="months" role="img" aria-label={`${year}년 월별 지출`}>
           {months.map((m, i) => {
             const v = Math.max(0, values[i]);
-            const h = v ? Math.max(3, (v / max) * (H - 18)) : 0;
-            const x = i * colW + 5;
             const selected = m === ym;
             return (
-              <a key={m} href={href(m)} className={`col${selected ? " selected" : ""}`}>
-                <title>{`${Number(m.slice(5))}월 ${won(values[i])}`}</title>
-                {/* 막대보다 넓은 누르기 영역 */}
-                <rect x={i * colW} y={0} width={colW} height={H + 22} className="hit" />
-                {h > 0 && <path d={bar(x, h)} className="bar" />}
-                {selected && v > 0 && (
-                  <text x={x + barW / 2} y={H - h - 5} textAnchor="middle" className="val">
-                    {short(v)}
-                  </text>
-                )}
-                <text x={x + barW / 2} y={H + 16} textAnchor="middle" className={`lbl${selected ? " on" : ""}`}>
-                  {i + 1}월
-                </text>
-              </a>
+              <Link key={m} href={href(m)} className={`mcol${selected ? " selected" : ""}`} title={`${i + 1}월 ${won(values[i])}`}>
+                <span className="mbar-area">
+                  {selected && v > 0 && <span className="mval">{short(v)}</span>}
+                  {v > 0 && <span className="mbar" style={{ height: `${Math.max(3, (v / max) * 100)}%` }} />}
+                </span>
+                <span className="mlbl">{i + 1}월</span>
+              </Link>
             );
           })}
-        </svg>
+        </div>
       </figure>
 
       {cats.length > 0 && (
