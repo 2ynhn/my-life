@@ -11,7 +11,8 @@ import { useRouter } from "next/navigation";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { createNote, saveNote } from "@/app/(app)/note-actions";
 import { NoteBody } from "@/components/NoteBody";
-import { imageFiles, uploadImage } from "@/lib/image-upload";
+import { ReceiptCamera } from "@/components/ReceiptCamera";
+import { imageFiles, prepareImage, uploadImage } from "@/lib/image-upload";
 import { tableResolver, type LinkTable } from "@/lib/markdown";
 import { fillReceipt, receiptFileName, type Receipt } from "@/lib/receipt-shape";
 
@@ -89,6 +90,8 @@ export function Editor(props: Props) {
   const uploadRef = useRef<(files: File[]) => void>(() => {});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const receiptInputRef = useRef<HTMLInputElement>(null);
+  const [camera, setCamera] = useState(false);
+  const [attachReceipt, setAttachReceipt] = useState(false);
 
   const draftKey = props.mode === "edit" ? `my-life:draft:${props.fileId}` : `my-life:draft:new:${props.folderId}`;
 
@@ -268,33 +271,36 @@ export function Editor(props: Props) {
     }
   };
 
-  // 영수증: 사진을 올리고(attachments) → 서버가 Claude로 읽고 → 템플릿 앞머리를 채운다. 저장은 직접 확인 후
-  const fillFromReceipt = async (file: File) => {
+  // 영수증: 카메라로 찍거나 고른 이미지를 메모리에서 바로 서버로 보내 Claude로 읽고, 템플릿 앞머리를 채운다.
+  // 파일은 만들지 않는다. '이미지도 글에 첨부'를 켰을 때만 attachments에 올린다. 저장은 직접 확인 후
+  const readReceiptImage = async (image: Blob) => {
     if (uploading || props.mode !== "new") return;
     setMessage(null);
-    let image: { id: string; name: string; url: string } | null = null;
+    setCamera(false);
     try {
-      setUploading("영수증 올리는 중…");
-      image = await uploadImage(file, props.rootId, props.uploadFolderId);
-      setUploaded((prev) => ({ ...prev, [image!.name.toLowerCase()]: image!.url }));
       setUploading("영수증 읽는 중… (10~30초)");
       const res = await fetch("/api/receipt", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ root: props.rootId, fileId: image.id }),
+        headers: { "Content-Type": image.type || "image/jpeg" },
+        body: image,
       });
       const body = (await res.json().catch(() => ({}))) as { receipt?: Receipt; error?: string };
       if (!res.ok || !body.receipt) throw new Error(body.error ?? `영수증을 읽지 못했습니다 (${res.status})`);
+
+      let attached: string | undefined;
+      if (attachReceipt) {
+        setUploading("영수증 이미지 올리는 중…");
+        const file = new File([image], "receipt.jpg", { type: image.type || "image/jpeg" });
+        const up = await uploadImage(file, props.rootId, props.uploadFolderId);
+        setUploaded((prev) => ({ ...prev, [up.name.toLowerCase()]: up.url }));
+        attached = up.name;
+      }
       const current = viewRef.current?.state.doc.toString() ?? text;
-      replaceDoc(fillReceipt(current, body.receipt, image.name));
+      replaceDoc(fillReceipt(current, body.receipt, attached));
       const suggested = receiptFileName(body.receipt, props.defaultName.slice(0, 10));
       if (suggested) setName(suggested);
       setMessage({ kind: "info", text: "영수증 내용을 채웠어요. 확인하고 고친 뒤 '만들기'를 누르세요." });
     } catch (e) {
-      // 읽기에 실패해도 올린 사진은 글에 붙여 둔다
-      const view = viewRef.current;
-      if (image && view && !view.state.doc.toString().includes(`![[${image.name}]]`))
-        view.dispatch({ changes: { from: view.state.doc.length, insert: `\n![[${image.name}]]\n` } });
       setMessage({ kind: "error", text: e instanceof Error ? e.message : "영수증을 읽지 못했습니다." });
     } finally {
       setUploading(null);
@@ -353,27 +359,39 @@ export function Editor(props: Props) {
           }}
         />
         {props.mode === "new" && props.receipt && (
-          <>
+          <span className="receipt-tools">
+            <button className="btn" onClick={() => setCamera(true)} disabled={!!uploading} title="카메라로 영수증을 찍어 바로 읽습니다 (사진 파일을 만들지 않음)">
+              📷 카메라로 읽기
+            </button>
             <button
               className="btn"
               onClick={() => receiptInputRef.current?.click()}
               disabled={!!uploading}
-              title="영수증 사진이나 주문내역 캡처로 날짜·가게·금액을 채웁니다"
+              title="주문내역 캡처 같은 이미지를 골라 읽습니다"
             >
-              🧾 영수증으로 채우기
+              🖼 이미지로 읽기
             </button>
+            <label className="small muted attach-opt">
+              <input type="checkbox" checked={attachReceipt} onChange={(e) => setAttachReceipt(e.target.checked)} /> 이미지도 글에 첨부
+            </label>
             <input
               ref={receiptInputRef}
               type="file"
               accept="image/*"
               hidden
-              onChange={(e) => {
+              onChange={async (e) => {
                 const file = imageFiles(e.target.files)[0];
                 e.target.value = "";
-                if (file) void fillFromReceipt(file);
+                if (!file) return;
+                try {
+                  // 큰 사진은 줄여서 보낸다 (서버 한도 4MB)
+                  void readReceiptImage(await prepareImage(file));
+                } catch (err) {
+                  setMessage({ kind: "error", text: err instanceof Error ? err.message : "이미지를 열지 못했습니다." });
+                }
               }}
             />
-          </>
+          </span>
         )}
         <span className="spacer" />
         {uploading && <span className="status small muted">{uploading}</span>}
@@ -452,6 +470,16 @@ export function Editor(props: Props) {
           <NoteBody text={previewText} links={resolver} />
         </div>
       </div>
+      {camera && (
+        <ReceiptCamera
+          onCapture={(blob) => void readReceiptImage(blob)}
+          onClose={() => setCamera(false)}
+          onUnavailable={(text) => {
+            setCamera(false);
+            setMessage({ kind: "error", text });
+          }}
+        />
+      )}
       <p className="hint small muted">
         Ctrl+S 저장 · 입력 내용은 브라우저에 자동 임시저장 · 사진은 붙여넣기·끌어다 놓기도 됩니다
       </p>

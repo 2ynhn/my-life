@@ -17,9 +17,9 @@ const FRONT = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/;
 
 /**
  * 템플릿 앞머리(YAML)의 값만 바꾸고 주석·순서는 그대로 둔다.
- * 제목이 비어 있으면 가게 이름으로, 본문에 영수증 이미지를 붙인다.
+ * 제목이 비어 있으면 가게 이름으로. imageName을 주면 본문에 영수증 이미지를 붙인다.
  */
-export function fillReceipt(text: string, r: Receipt, imageName: string): string {
+export function fillReceipt(text: string, r: Receipt, imageName?: string): string {
   const m = FRONT.exec(text);
   const doc = parseDocument(m ? m[1] : "");
   if (r.date) doc.set("date", r.date);
@@ -31,7 +31,7 @@ export function fillReceipt(text: string, r: Receipt, imageName: string): string
 
   let body = m ? text.slice(m[0].length) : text;
   if (r.store) body = body.replace(/^#[ \t]*$/m, `# ${r.store}`);
-  if (!body.includes(`![[${imageName}]]`)) body = `${body.replace(/\s*$/, "")}\n\n![[${imageName}]]\n`;
+  if (imageName && !body.includes(`![[${imageName}]]`)) body = `${body.replace(/\s*$/, "")}\n\n![[${imageName}]]\n`;
   return `---\n${doc.toString()}---\n${body}`;
 }
 
