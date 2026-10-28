@@ -2291,3 +2291,53 @@ mark {
   align-items: center;
   gap: 0.15rem;
 }
+
+/* ───── 불러오는 중 ───── */
+
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 860px;
+}
+.sk {
+  display: block;
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--line) 0%, var(--c-folder-soft) 50%, var(--line) 100%);
+  background-size: 200% 100%;
+  animation: sk 1.2s ease-in-out infinite;
+}
+.sk-title {
+  width: 40%;
+  height: 2rem;
+  margin-bottom: 0.5rem;
+}
+.sk-line {
+  height: 1rem;
+}
+.sk-line.short {
+  width: 60%;
+}
+.sk-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin: 0.5rem 0;
+}
+.sk-card {
+  height: 7rem;
+  border-radius: 14px;
+}
+@keyframes sk {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sk {
+    animation: none;
+  }
+}
