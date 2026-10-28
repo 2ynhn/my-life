@@ -9,22 +9,20 @@
   --sidebar-w: 240px;
   /* 차트 막대: 배경 대비·밝기 검사를 통과한 값 (dataviz validate_palette) */
   --chart: #b5562f;
+  /* 쓰임새별 색: 아이콘(글자색) + 옅은 바탕 */
+  --c-diary: #b5562f;
+  --c-diary-soft: #f8e9e1;
+  --c-spending: #2c7a57;
+  --c-spending-soft: #e2f1e9;
+  --c-travel: #2d68ad;
+  --c-travel-soft: #e3edf9;
+  --c-health: #be3a59;
+  --c-health-soft: #fae4ea;
+  --c-folder: #7a736a;
+  --c-folder-soft: #efebe5;
+  --shadow: 0 1px 2px rgb(60 40 20 / 0.05), 0 2px 8px rgb(60 40 20 / 0.04);
   --font: "Pretendard", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", "Segoe UI", sans-serif;
   color-scheme: light;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #1b1a18;
-    --surface: #242220;
-    --text: #e9e4dc;
-    --muted: #9b948a;
-    --line: #36332f;
-    --accent: #e08a62;
-    --accent-soft: #3a2a22;
-    --chart: #d4794f;
-    color-scheme: dark;
-  }
 }
 
 * {
@@ -1418,4 +1416,300 @@ mark {
 }
 .picker-results button:hover {
   background: var(--accent-soft);
+}
+
+/* ───── 아이콘 ───── */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--accent);
+}
+.btn svg {
+  flex-shrink: 0;
+}
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (max-width: 768px) {
+  /* 머리줄은 아이콘만 */
+  .topbar .btn-label {
+    display: none;
+  }
+  .topbar .btn {
+    padding: 0.45rem 0.55rem;
+  }
+}
+.ficon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 10px;
+  color: var(--c-folder);
+  background: var(--c-folder-soft);
+}
+.ficon-sm {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+}
+.ficon-md {
+  width: 36px;
+  height: 36px;
+}
+.ficon-lg {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+}
+.ficon-diary {
+  color: var(--c-diary);
+  background: var(--c-diary-soft);
+}
+.ficon-spending {
+  color: var(--c-spending);
+  background: var(--c-spending-soft);
+}
+.ficon-travel {
+  color: var(--c-travel);
+  background: var(--c-travel-soft);
+}
+.ficon-health {
+  color: var(--c-health);
+  background: var(--c-health-soft);
+}
+.page-title {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.sidebar .side-icon {
+  vertical-align: -2px;
+  margin-right: 0.35rem;
+  color: var(--c-folder);
+}
+.sidebar .side-diary {
+  color: var(--c-diary);
+}
+.sidebar .side-spending {
+  color: var(--c-spending);
+}
+.sidebar .side-travel {
+  color: var(--c-travel);
+}
+.sidebar .side-health {
+  color: var(--c-health);
+}
+.sidebar .lock {
+  margin-left: 0.3rem;
+  color: var(--muted);
+}
+.sidebar .libs,
+.sidebar .side-cal {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.folder-grid .name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.trip-places svg {
+  vertical-align: -2px;
+}
+
+/* ───── 첫 화면 ───── */
+
+.home-head {
+  margin-bottom: 1rem;
+}
+.home-head p {
+  margin: 0;
+}
+.home-head .page-title {
+  margin: 0.1rem 0 0.25rem;
+}
+.home-search {
+  position: relative;
+  align-items: center;
+}
+.home-search .search-icon {
+  position: absolute;
+  left: 0.7rem;
+  color: var(--muted);
+  pointer-events: none;
+}
+.home-search input[name="q"] {
+  padding-left: 2.2rem;
+}
+.features {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 2rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 0.75rem;
+}
+.fcard {
+  --fc: var(--c-folder);
+  --fc-soft: var(--c-folder-soft);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  transition:
+    border-color 0.15s,
+    transform 0.15s;
+}
+.fcard:hover {
+  border-color: var(--fc);
+}
+.fcard-diary {
+  --fc: var(--c-diary);
+  --fc-soft: var(--c-diary-soft);
+}
+.fcard-spending {
+  --fc: var(--c-spending);
+  --fc-soft: var(--c-spending-soft);
+}
+.fcard-travel {
+  --fc: var(--c-travel);
+  --fc-soft: var(--c-travel-soft);
+}
+.fcard-health {
+  --fc: var(--c-health);
+  --fc-soft: var(--c-health-soft);
+}
+.fcard-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 1rem;
+  text-decoration: none;
+  color: inherit;
+}
+.fcard-head {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+.fcard-name {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+  min-width: 0;
+}
+.fcard-name strong {
+  font-size: 1.1rem;
+}
+.fcard-stat {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+.fcard-stat strong {
+  font-size: 1.6rem;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.fcard-sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fcard form {
+  margin: 0;
+}
+.fcard-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  width: 100%;
+  padding: 0.6rem 1rem;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: none;
+  color: var(--fc);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+.fcard-action:hover {
+  background: var(--fc-soft);
+}
+.fcard-start {
+  border-style: dashed;
+  box-shadow: none;
+  background: transparent;
+}
+.home-section {
+  margin: 0 0 2rem;
+}
+.home-section h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 1.05rem;
+  margin: 0 0 0.6rem;
+}
+.home-section h2 svg {
+  color: var(--muted);
+}
+@media (max-width: 768px) {
+  .features {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.6rem;
+  }
+  .fcard-main {
+    padding: 0.85rem;
+    gap: 0.5rem;
+  }
+  .ficon-lg {
+    width: 38px;
+    height: 38px;
+  }
+  .fcard-stat strong {
+    font-size: 1.35rem;
+  }
+  .fcard-action {
+    padding: 0.55rem 0.5rem;
+    font-size: 0.85rem;
+  }
+}
+.sidebar .libs {
+  display: flex;
+  width: fit-content;
+}
+.home-date {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.home-date a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
 }

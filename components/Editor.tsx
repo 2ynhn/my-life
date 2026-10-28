@@ -1,5 +1,6 @@
 "use client";
 
+import { Camera, ImagePlus, ImageUp, MapPinPlus } from "lucide-react";
 import { markdown } from "@codemirror/lang-markdown";
 import { yamlFrontmatter } from "@codemirror/lang-yaml";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
@@ -362,6 +363,7 @@ export function Editor(props: Props) {
           disabled={!!uploading}
           title="사진 넣기 (붙여넣기·끌어다 놓기도 됩니다)"
         >
+          <ImagePlus size={16} aria-hidden />
           사진
         </button>
         <input
@@ -378,13 +380,15 @@ export function Editor(props: Props) {
         />
         {props.places && (
           <button className="btn" onClick={() => setPicker(true)} disabled={!!uploading} title="들른 곳을 찾아 지도 좌표와 함께 넣습니다">
-            📍 장소 추가
+            <MapPinPlus size={16} aria-hidden />
+            장소 추가
           </button>
         )}
         {props.mode === "new" && props.receipt && (
           <span className="receipt-tools">
             <button className="btn" onClick={() => setCamera(true)} disabled={!!uploading} title="카메라로 영수증을 찍어 바로 읽습니다 (사진 파일을 만들지 않음)">
-              📷 카메라로 읽기
+              <Camera size={16} aria-hidden />
+              카메라로 읽기
             </button>
             <button
               className="btn"
@@ -392,7 +396,8 @@ export function Editor(props: Props) {
               disabled={!!uploading}
               title="주문내역 캡처 같은 이미지를 골라 읽습니다"
             >
-              🖼 이미지로 읽기
+              <ImageUp size={16} aria-hidden />
+              이미지로 읽기
             </button>
             <label className="small muted attach-opt">
               <input type="checkbox" checked={attachReceipt} onChange={(e) => setAttachReceipt(e.target.checked)} /> 이미지도 글에 첨부

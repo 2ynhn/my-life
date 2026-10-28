@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Plus } from "lucide-react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
@@ -9,7 +10,9 @@ import { FolderView } from "@/components/FolderView";
 import { NoteActions } from "@/components/NoteActions";
 import { NoteBody } from "@/components/NoteBody";
 import { SearchView } from "@/components/SearchView";
+import { FeatureIcon } from "@/components/FeatureIcon";
 import { HealthView } from "@/components/HealthView";
+import { Home, hiddenAncestor } from "@/components/Home";
 import { SpendingView } from "@/components/SpendingView";
 import { TravelMap } from "@/components/TravelMap";
 import { TravelView } from "@/components/TravelView";
@@ -31,6 +34,7 @@ import {
   type FileEntry,
   type FolderEntry,
 } from "@/lib/drive";
+import { featureByName } from "@/lib/features";
 import { libraryTitle } from "@/lib/labels";
 import { loadLibrary } from "@/lib/library";
 import { splitFrontmatter } from "@/lib/markdown";
@@ -115,6 +119,9 @@ export default async function EntryPage({ params, searchParams }: Props) {
     return <NewNote folder={entry} index={index} subfolder={sub} />;
   }
 
+  // 첫 화면은 경로 표시 없이 바로 카드
+  if (entry.kind === "folder" && !entry.parent) return <Folder folder={entry} index={index} />;
+
   return (
     <>
       <div className="entry-head">
@@ -145,96 +152,37 @@ function diaryHref(root: FolderEntry): string | null {
 }
 
 async function Folder({ folder, index, spend, range }: { folder: FolderEntry; index: DriveIndex; spend?: string; range?: string }) {
+  if (!folder.parent) {
+    const recent = [...index.byId.values()]
+      .filter((e): e is FileEntry => e.kind === "file" && e.isMarkdown && isListable(e.parent!) && !hiddenAncestor(e))
+      .sort((a, b) => b.modifiedTime.localeCompare(a.modifiedTime))
+      .slice(0, 8);
+    return <Home root={folder} index={index} diary={diaryHref(folder)} past={onThisDay(index)} recent={recent} />;
+  }
   const kind = await folderKind(index, folder);
-  const isRoot = !folder.parent;
-  const diary = isRoot ? diaryHref(folder) : null;
-  const past = isRoot ? onThisDay(index) : [];
-  const recent = isRoot
-    ? [...index.byId.values()]
-        .filter((e): e is FileEntry => e.kind === "file" && e.isMarkdown && isListable(e.parent!) && !hiddenAncestor(e))
-        .sort((a, b) => b.modifiedTime.localeCompare(a.modifiedTime))
-        .slice(0, 8)
-    : [];
+  let top = folder;
+  while (top.parent?.parent) top = top.parent;
+  const feature = kind ?? (featureByName(top.name) === "diary" ? "diary" : null);
 
   return (
     <>
       <div className="title-row">
-        <h1 className="page-title">{isRoot ? libraryTitle(folder.lib) : folder.name}</h1>
-        {diary ? (
-          <Link className="btn btn-save" href={diary}>
-            오늘 일기 쓰기
+        <h1 className="page-title">
+          {feature && <FeatureIcon kind={feature} />}
+          {folder.name}
+        </h1>
+        {folder.can.addChildren && (
+          <Link className="btn btn-save" href={`${hrefFor(folder)}?mode=new`}>
+            <Plus size={16} aria-hidden />새 글
           </Link>
-        ) : (
-          !isRoot &&
-          folder.can.addChildren && (
-            <Link className="btn btn-save" href={`${hrefFor(folder)}?mode=new`}>
-              새 글
-            </Link>
-          )
         )}
       </div>
-      {isRoot && !folder.lib.ownedByMe && (
-        <p className="muted small">
-          {folder.lib.ownerName}님이 Drive에서 공유한 일기장입니다.{" "}
-          {folder.can.edit ? "편집 권한이 있어 글을 쓰고 고칠 수 있어요." : "읽기만 할 수 있어요."}
-        </p>
-      )}
-      {isRoot && (
-        <div className="lib-tools">
-          <form className="search-form" action={folder.lib.base}>
-            <input type="hidden" name="view" value="search" />
-            <input name="q" placeholder="일기 검색" aria-label="검색어" />
-            <button className="btn" type="submit">
-              검색
-            </button>
-          </form>
-          <Link className="btn" href={`${folder.lib.base}?view=calendar`}>
-            📅 캘린더
-          </Link>
-        </div>
-      )}
-      {past.length > 0 && (
-        <section className="on-this-day">
-          <h2>지난 오늘</h2>
-          <ul className="note-list">
-            {past.map(({ years, note }) => (
-              <li key={note.id}>
-                <Link href={hrefFor(note)}>
-                  <span className="title">{note.slug}</span>
-                  <span className="muted small">{years}년 전</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
       {kind === "spending" && <SpendingView index={index} folder={folder} month={spend} />}
       {kind === "travel" && <TravelView index={index} folder={folder} />}
       {kind === "health" && <HealthView index={index} folder={folder} range={range} />}
       <FolderView folder={folder} />
-      {recent.length > 0 && (
-        <section className="recent">
-          <h2>최근 수정</h2>
-          <ul className="note-list">
-            {recent.map((n) => (
-              <li key={n.id}>
-                <Link href={hrefFor(n)}>
-                  <span className="title">{n.slug}</span>
-                  <span className="muted small">{n.slugPath.slice(0, -1).join(" / ")}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
     </>
   );
-}
-
-/** _templates 같은 숨김 폴더 안의 글은 최근 목록에서 뺀다 */
-function hiddenAncestor(e: Entry): boolean {
-  for (let f = e.parent; f?.parent; f = f.parent) if (!isListable(f)) return true;
-  return false;
 }
 
 function readProblem(e: unknown) {

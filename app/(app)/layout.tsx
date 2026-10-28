@@ -1,3 +1,4 @@
+import { BookHeart, LogOut, Settings } from "lucide-react";
 import Link from "next/link";
 import { RefreshButton } from "@/components/RefreshButton";
 import { requireUser } from "@/lib/session";
@@ -10,19 +11,22 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <div className="shell">
       <header className="topbar">
         <Link href="/" className="brand">
+          <BookHeart size={20} strokeWidth={1.75} aria-hidden />
           my-life
         </Link>
         <div className="spacer" />
         <RefreshButton />
-        <Link className="btn" href="/settings">
-          설정
+        <Link className="btn" href="/settings" title="설정">
+          <Settings size={16} aria-hidden />
+          <span className="btn-label">설정</span>
         </Link>
         <span className="user small" title={user.email}>
           {user.name ?? user.email}
         </span>
         <form action={logout}>
-          <button className="btn" type="submit">
-            로그아웃
+          <button className="btn" type="submit" title="로그아웃">
+            <LogOut size={16} aria-hidden />
+            <span className="btn-label">로그아웃</span>
           </button>
         </form>
       </header>

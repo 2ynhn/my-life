@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import {
   DriveError,
   checkNoteName,
@@ -18,6 +19,7 @@ import {
   type FileEntry,
   type FolderEntry,
 } from "@/lib/drive";
+import { FEATURES } from "@/lib/features";
 import { loadLibrary } from "@/lib/library";
 import { getUser } from "@/lib/session";
 
@@ -178,4 +180,26 @@ export async function trashNote(rootId: string, id: string): Promise<ActionResul
   } catch (e) {
     return failure(e);
   }
+}
+
+/** 첫 화면 '시작하기': 쓰임새 폴더(daily·purchase·travel·health)를 만들고 바로 새 글로 */
+export async function startFeature(rootId: string, key: string): Promise<void> {
+  const index = await libraryIndex(rootId);
+  if (typeof index === "string") redirect("/");
+  const feature = FEATURES.find((f) => f.key === key);
+  const root = index.root;
+  if (!feature || !root.can.addChildren) redirect(root.lib.base);
+  const year = new Intl.DateTimeFormat("en", { timeZone: "Asia/Seoul", year: "numeric" }).format(new Date());
+  const next = `${root.lib.base}/${encodeURIComponent(feature.folder)}?mode=new${feature.key === "diary" ? `&sub=${year}` : ""}`;
+  // 같은 이름 폴더가 이미 있으면(다른 기기에서 방금 만듦 등) 그대로 쓴다
+  if (root.children.some((c) => c.kind === "folder" && c.name === feature.folder)) redirect(next);
+  try {
+    await createFolder(index, root, feature.folder);
+  } catch (e) {
+    console.error("[note-actions] startFeature", e);
+    redirect(root.lib.base);
+  }
+  invalidateIndex(index);
+  revalidatePath("/", "layout");
+  redirect(next);
 }

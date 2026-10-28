@@ -1,5 +1,6 @@
 "use client";
 
+import { RefreshCw } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useTransition } from "react";
 import { refreshLibrary } from "@/app/(app)/actions";
@@ -17,7 +18,8 @@ export function RefreshButton() {
       disabled={pending}
       onClick={() => start(() => refreshLibrary(decodeURIComponent(rootId)))}
     >
-      {pending ? "불러오는 중…" : "새로고침"}
+      <RefreshCw size={16} className={pending ? "spin" : undefined} aria-hidden />
+      <span className="btn-label">{pending ? "불러오는 중…" : "새로고침"}</span>
     </button>
   );
 }

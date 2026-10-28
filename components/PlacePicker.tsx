@@ -1,5 +1,6 @@
 "use client";
 
+import { LocateFixed } from "lucide-react";
 import { useState } from "react";
 
 // 여행 글에 장소 넣기: 이름으로 찾기(OpenStreetMap 검색) 또는 지금 있는 곳(GPS)
@@ -88,7 +89,8 @@ export function PlacePicker({ onPick, onClose }: Props) {
           </button>
         </form>
         <button className="btn here" onClick={useHere} disabled={busy}>
-          📍 지금 있는 곳
+          <LocateFixed size={16} aria-hidden />
+          지금 있는 곳
         </button>
         {error && <p className="status small error">{error}</p>}
         {busy && <p className="small muted">찾는 중…</p>}

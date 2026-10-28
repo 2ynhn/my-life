@@ -1,9 +1,11 @@
 "use client";
 
+import { ArrowLeft, CalendarDays, Folder, HeartPulse, Lock, Menu, NotebookPen, Plane, Receipt, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import type { TreeNode } from "@/lib/drive";
+import { featureByName } from "@/lib/features";
 
 function isWithin(pathname: string, href: string) {
   const p = decodeURIComponent(pathname);
@@ -11,7 +13,7 @@ function isWithin(pathname: string, href: string) {
   return p === h || p.startsWith(h + "/");
 }
 
-function Branch({ nodes, pathname }: { nodes: TreeNode[]; pathname: string }) {
+function Branch({ nodes, pathname, top = false }: { nodes: TreeNode[]; pathname: string; top?: boolean }) {
   return (
     <ul>
       {nodes.map((node) => {
@@ -19,10 +21,11 @@ function Branch({ nodes, pathname }: { nodes: TreeNode[]; pathname: string }) {
         const current = decodeURIComponent(pathname) === decodeURIComponent(node.href);
         const link = (
           <Link href={node.href} className={current ? "current" : undefined} aria-current={current ? "page" : undefined}>
+            {top && <SideIcon name={node.name} />}
             {node.name}
             {node.restricted && (
               <span className="lock" title="접근 제한: 상위 폴더를 공유받은 사람도 볼 수 없음" aria-label="접근 제한">
-                🔒
+                <Lock size={12} aria-hidden />
               </span>
             )}
           </Link>
@@ -52,7 +55,8 @@ export function Sidebar({ tree, title, homeHref }: { tree: TreeNode[]; title: st
   return (
     <>
       <button className="menu-toggle btn" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
-        {open ? "닫기" : "폴더"}
+        {open ? <X size={18} aria-hidden /> : <Menu size={18} aria-hidden />}
+        {open ? "닫기" : "메뉴"}
       </button>
       <nav
         className={`sidebar${open ? " open" : ""}`}
@@ -61,7 +65,7 @@ export function Sidebar({ tree, title, homeHref }: { tree: TreeNode[]; title: st
         onClick={(e) => (e.target as HTMLElement).closest("a") && setOpen(false)}
       >
         <Link href="/libraries" className="libs small muted">
-          ← 일기장 목록
+          <ArrowLeft size={14} aria-hidden /> 일기장 목록
         </Link>
         <Link href={homeHref} className={`home${decodeURIComponent(pathname) === decodeURIComponent(homeHref) ? " current" : ""}`}>
           {title}
@@ -71,10 +75,20 @@ export function Sidebar({ tree, title, homeHref }: { tree: TreeNode[]; title: st
           <input name="q" placeholder="검색" aria-label="일기 검색" />
         </form>
         <Link href={`${homeHref}?view=calendar`} className="side-cal small">
-          📅 캘린더
+          <CalendarDays size={15} aria-hidden />
+          캘린더
         </Link>
-        <Branch nodes={tree} pathname={pathname} />
+        <Branch nodes={tree} pathname={pathname} top />
       </nav>
     </>
   );
+}
+
+const SIDE_ICONS = { diary: NotebookPen, spending: Receipt, travel: Plane, health: HeartPulse };
+
+/** 최상위 폴더 앞 아이콘 (이름으로만 판단 — 사이드바는 템플릿을 읽지 않는다) */
+function SideIcon({ name }: { name: string }) {
+  const key = featureByName(name);
+  const Icon = key ? SIDE_ICONS[key] : Folder;
+  return <Icon size={15} strokeWidth={1.75} className={`side-icon side-${key ?? "folder"}`} aria-hidden />;
 }

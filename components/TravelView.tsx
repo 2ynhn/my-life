@@ -1,3 +1,4 @@
+import { MapPin } from "lucide-react";
 import Link from "next/link";
 import { TravelMap, type MapPoint } from "@/components/TravelMap";
 import { hrefFor, type DriveIndex, type FileEntry, type FolderEntry } from "@/lib/drive";
@@ -35,7 +36,7 @@ export async function TravelView({ index, folder }: { index: DriveIndex; folder:
     return (
       <section className="trips empty">
         <p className="muted small">
-          아직 여행 기록이 없어요. <b>새 글</b>로 여행 하나를 시작하고, 편집기의 <b>📍 장소 추가</b>로 들른 곳을 넣으면 지도와
+          아직 여행 기록이 없어요. <b>새 글</b>로 여행 하나를 시작하고, 편집기의 <b>장소 추가</b>로 들른 곳을 넣으면 지도와
           타임라인이 생깁니다.
         </p>
       </section>
@@ -55,7 +56,7 @@ export async function TravelView({ index, folder }: { index: DriveIndex; folder:
       {points.length > 0 ? (
         <TravelMap points={points} />
       ) : (
-        <p className="muted small">좌표가 있는 장소가 아직 없어요. 편집기의 📍 장소 추가로 넣어 보세요.</p>
+        <p className="muted small">좌표가 있는 장소가 아직 없어요. 편집기의 장소 추가로 넣어 보세요.</p>
       )}
       {years.map((y) => (
         <div key={y} className="trip-year">
@@ -72,7 +73,9 @@ export async function TravelView({ index, folder }: { index: DriveIndex; folder:
                       {t.end !== t.start && ` – ${t.end.slice(0, 4) === t.start.slice(0, 4) ? dot(t.end.slice(5)) : dot(t.end)}`} ·{" "}
                       {days(t.start, t.end)}일{t.companions.length > 0 && ` · ${t.companions.join(", ")}`}
                     </span>
-                    {t.names.length > 0 && <span className="trip-places small">📍 {t.names.join(" → ")}</span>}
+                    {t.names.length > 0 && <span className="trip-places small">
+                        <MapPin size={14} aria-hidden /> {t.names.join(" → ")}
+                      </span>}
                   </Link>
                 </li>
               ))}
