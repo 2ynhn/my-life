@@ -43,23 +43,21 @@ export async function POST(req: Request) {
     if (bytes.length > MAX_BYTES) return json({ error: "사진이 너무 큽니다 (4MB 이하)." }, 413);
 
     const target = await attachmentFolderFor(index, folder);
-    // 기존 사진 이름 형식과 같게: 2026-10-27 21.58.33.jpg (한국 시간)
-    const stamp = new Intl.DateTimeFormat("sv-SE", {
-      timeZone: "Asia/Seoul",
-      dateStyle: "short",
-      timeStyle: "medium",
-    })
-      .format(new Date())
-      .replaceAll(":", ".");
-    const name = uniqueName(target, stamp, ext);
-    // 브라우저가 원본 EXIF에서 읽어 보낸 찍은 위치·시각 (있을 때만)
+    // 브라우저가 원본 EXIF에서 읽어 보낸 찍은 위치·시각 (있을 때만). 시각: "2025-05-04 13:22:11"
     const lat = Number(url.searchParams.get("lat"));
     const lng = Number(url.searchParams.get("lng"));
-    const taken = url.searchParams.get("taken") ?? "";
+    const raw = url.searchParams.get("taken") ?? "";
+    const taken = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/.test(raw) ? (raw.length === 16 ? `${raw}:00` : raw) : null;
     const photo = {
       ...(url.searchParams.has("lat") && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? { lat, lng } : {}),
-      ...(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(taken) ? { taken } : {}),
+      ...(taken ? { taken: taken.slice(0, 16) } : {}),
     };
+    // 파일 이름은 기존 사진 형식과 같게 '2025-05-04 13.22.11.jpg': 찍은 시각, 모르면 올린 시각(한국 시간)
+    const stamp = (
+      taken ??
+      new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Seoul", dateStyle: "short", timeStyle: "medium" }).format(new Date())
+    ).replaceAll(":", ".");
+    const name = uniqueName(target, stamp, ext);
     const id = await uploadFile(index, target, name, bytes, type, photo);
     await markWritten();
     return json({ id, name, url: `/api/file/${encodeURIComponent(index.lib.rootId)}/${encodeURIComponent(id)}` });

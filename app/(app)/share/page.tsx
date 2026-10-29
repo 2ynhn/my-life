@@ -18,7 +18,7 @@ export default async function SharePage({ searchParams }: { searchParams: Promis
   const mine = await myLibrary(user);
   const loaded = mine.kind === "ok" ? await loadLibrary(user, mine.lib.rootId) : null;
   let rootId: string | null = null;
-  const targets: ShareTargets = { purchase: null, diary: null, travelNew: null, trips: [] };
+  const targets: ShareTargets = { purchase: null, diary: false, travelNew: null, trips: [] };
 
   if (loaded?.kind === "ok") {
     const index = loaded.index;
@@ -29,17 +29,9 @@ export default async function SharePage({ searchParams }: { searchParams: Promis
     const spending = of("spending");
     if (spending?.can.addChildren) targets.purchase = `${hrefFor(spending)}?mode=new&shared=1`;
 
-    // 오늘 일기: 있으면 편집, 없으면 새로 (연도 폴더가 없으면 저장할 때 만든다)
-    const today = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Seoul" }).format(new Date());
+    // 일기: 사진 찍은 날의 일기로 (/share/diary가 그날 일기를 찾거나 새로 연다). 쓸 수 있을 때만
     const daily = of("diary");
-    if (daily) {
-      const year = daily.children.find((c): c is FolderEntry => c.kind === "folder" && c.name === today.slice(0, 4));
-      const note = year?.children.find((c): c is FileEntry => c.kind === "file" && c.isMarkdown && c.slug.startsWith(today));
-      if (note?.can.edit) targets.diary = { href: `${hrefFor(note)}?mode=edit&shared=photos`, exists: true };
-      else if (year?.can.addChildren) targets.diary = { href: `${hrefFor(year)}?mode=new&shared=photos`, exists: false };
-      else if (!year && daily.can.addChildren)
-        targets.diary = { href: `${hrefFor(daily)}?mode=new&sub=${today.slice(0, 4)}&shared=photos`, exists: false };
-    }
+    if (daily && (daily.can.addChildren || daily.can.edit)) targets.diary = true;
 
     // 여행: 새 여행, 또는 최근에 고친 여행 글 5개
     const travel = of("travel");

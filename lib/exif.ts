@@ -1,6 +1,7 @@
 // JPEG 사진의 EXIF에서 찍은 위치(GPS)와 찍은 시각만 읽는다 (브라우저·서버 공용, 외부 라이브러리 없음).
 // 사진을 줄이면 EXIF가 사라지므로, 올리기 전에 원본에서 읽어 둔다.
 
+/** taken: 찍은 곳 시각 "2025-05-04 13:22:11" */
 export type ExifPhoto = { lat?: number; lng?: number; taken?: string };
 
 export function readExif(buf: ArrayBuffer): ExifPhoto | null {
@@ -59,8 +60,8 @@ function parseTiff(v: DataView, start: number, length: number): ExifPhoto | null
   // 찍은 시각: Exif IFD의 DateTimeOriginal(0x9003) → 없으면 IFD0 DateTime(0x0132). "2025:05:04 13:22:11"
   const exifIfd = ifd0.get(0x8769);
   const raw = (exifIfd ? ascii(tags(u32(exifIfd.at)).get(0x9003)) : "") || ascii(ifd0.get(0x0132));
-  const m = /^(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2})/.exec(raw);
-  if (m && m[1] !== "0000") out.taken = `${m[1]}-${m[2]}-${m[3]} ${m[4]}:${m[5]}`;
+  const m = /^(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2})(?::(\d{2}))?/.exec(raw);
+  if (m && m[1] !== "0000") out.taken = `${m[1]}-${m[2]}-${m[3]} ${m[4]}:${m[5]}:${m[6] ?? "00"}`;
 
   // 위치: GPS IFD(0x8825)의 위도(2)·경도(4)와 N/S(1)·E/W(3)
   const gpsIfd = ifd0.get(0x8825);

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { quickNote } from "@/app/(app)/note-actions";
+import { readExif } from "@/lib/exif";
 import { clearShared, peekShared } from "@/lib/share-store";
 
 // 휴대폰 '공유하기'로 받은 것을 어디에 넣을지 고른다.
@@ -13,15 +14,23 @@ import { clearShared, peekShared } from "@/lib/share-store";
 
 export type ShareTargets = {
   purchase: string | null;
-  diary: { href: string; exists: boolean } | null;
+  /** 일기에 넣을 수 있는지 (넣을 일기는 사진 찍은 날로 /share/diary가 정한다) */
+  diary: boolean;
   travelNew: string | null;
   trips: { title: string; path: string; href: string }[];
 };
+
+const todayKST = () => new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Seoul" }).format(new Date());
+/** 2025-05-04 → 올해면 '5월 4일', 아니면 '2025년 5월 4일' */
+const dayLabel = (d: string) =>
+  `${d.slice(0, 4) === todayKST().slice(0, 4) ? "" : `${d.slice(0, 4)}년 `}${Number(d.slice(5, 7))}월 ${Number(d.slice(8, 10))}일`;
 
 export function ShareInbox({ rootId, targets, retry }: { rootId: string | null; targets: ShareTargets; retry: boolean }) {
   const router = useRouter();
   const [loaded, setLoaded] = useState(false);
   const [images, setImages] = useState<string[]>([]);
+  // 사진 찍은 날 (여러 장이면 가장 이른 날). 모르면 null → 오늘
+  const [photoDay, setPhotoDay] = useState<string | null>(null);
   const [text, setText] = useState("");
   const [pending, start] = useTransition();
   const [result, setResult] = useState<{ ok: true; href: string } | { ok: false; error: string } | null>(null);
@@ -31,6 +40,12 @@ export function ShareInbox({ rootId, targets, retry }: { rootId: string | null; 
     (async () => {
       const shared = await peekShared();
       setImages((urls = shared.images.map((b) => URL.createObjectURL(b))));
+      const days = await Promise.all(
+        shared.images.map(async (b) =>
+          b.type === "image/jpeg" ? readExif(await b.slice(0, 256 * 1024).arrayBuffer())?.taken?.slice(0, 10) : undefined,
+        ),
+      );
+      setPhotoDay(days.filter((d): d is string => !!d).sort()[0] ?? null);
       setText(shared.text);
       setLoaded(true);
     })();
@@ -87,13 +102,17 @@ export function ShareInbox({ rootId, targets, retry }: { rootId: string | null; 
             )}
             {targets.diary && (
               <li>
-                <Link href={targets.diary.href} className="share-target">
+                <Link href={`/share/diary${photoDay ? `?date=${photoDay}` : ""}`} className="share-target">
                   <span className="ficon ficon-md ficon-diary" aria-hidden>
                     <NotebookPen size={20} strokeWidth={1.75} />
                   </span>
                   <span>
-                    <strong>일기 · 오늘 일기에 사진 넣기</strong>
-                    <span className="muted small">{targets.diary.exists ? "오늘 일기 끝에 붙여요" : "오늘 일기를 새로 쓰며 넣어요"}</span>
+                    <strong>
+                      일기 · {photoDay && photoDay !== todayKST() ? `${dayLabel(photoDay)} 일기에 사진 넣기` : "오늘 일기에 사진 넣기"}
+                    </strong>
+                    <span className="muted small">
+                      {photoDay ? "사진 찍은 날의 일기예요. " : ""}그날 일기가 있으면 끝에 붙이고, 없으면 그 날짜로 새로 써요
+                    </span>
                   </span>
                 </Link>
               </li>
