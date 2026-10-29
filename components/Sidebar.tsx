@@ -1,10 +1,11 @@
 "use client";
 
-import { ArrowLeft, CalendarDays, Folder, HeartPulse, FolderTree, Layers, Lock, NotebookPen, Plane, Receipt, Sparkles, X } from "lucide-react";
+import { ArrowLeft, CalendarDays, Folder, HeartPulse, Layers, Lock, Menu, NotebookPen, Plane, Receipt, Settings, Sparkles, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { RefreshButton } from "@/components/RefreshButton";
 import type { TreeNode } from "@/lib/drive";
 import { featureByName } from "@/lib/features";
 
@@ -48,17 +49,18 @@ function Branch({ nodes, pathname, top = false }: { nodes: TreeNode[]; pathname:
   );
 }
 
+type Me = { name: string; email: string; image: string | null };
+
 /** 일기장 하나의 폴더 트리. title은 일기장 이름(공유받은 것이면 '누구의 my-life') */
-export function Sidebar({ tree, title, homeHref }: { tree: TreeNode[]; title: string; homeHref: string }) {
+export function Sidebar({ tree, title, homeHref, me }: { tree: TreeNode[]; title: string; homeHref: string; me: Me }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  // 모바일 '폴더' 버튼은 상단 내비게이션 오른쪽 자리에 넣는다
+  // 모바일 메뉴 버튼은 상단 내비게이션 오른쪽 자리에 넣는다
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   useEffect(() => setSlot(document.getElementById("nav-slot")), []);
   const toggle = (
-    <button className="menu-toggle btn" aria-expanded={open} onClick={() => setOpen((v) => !v)} title="폴더">
-      {open ? <X size={16} aria-hidden /> : <FolderTree size={16} aria-hidden />}
-      <span className="btn-label">{open ? "닫기" : "폴더"}</span>
+    <button className="menu-toggle" aria-expanded={open} aria-label={open ? "메뉴 닫기" : "메뉴 열기"} onClick={() => setOpen((v) => !v)}>
+      {open ? <X size={22} aria-hidden /> : <Menu size={22} aria-hidden />}
     </button>
   );
 
@@ -96,6 +98,22 @@ export function Sidebar({ tree, title, homeHref }: { tree: TreeNode[]; title: st
           </Link>
         </div>
         <Branch nodes={tree} pathname={pathname} top />
+        <div className="side-foot">
+          <Link href="/settings" className="side-me" title={me.email}>
+            {me.image ? (
+              // 구글 프로필 사진은 리퍼러가 붙으면 가끔 막혀서 no-referrer
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={me.image} alt="" width={28} height={28} referrerPolicy="no-referrer" />
+            ) : (
+              <span className="side-initial" aria-hidden>
+                {me.name.slice(0, 1).toUpperCase()}
+              </span>
+            )}
+            <span className="side-me-name">{me.name}</span>
+            <Settings size={16} className="side-me-icon" aria-label="설정" />
+          </Link>
+          <RefreshButton />
+        </div>
       </nav>
     </>
   );

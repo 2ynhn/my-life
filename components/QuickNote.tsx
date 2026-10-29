@@ -32,7 +32,7 @@ export function QuickNote({ rootId }: { rootId: string }) {
     >
       <label className="quick-label" htmlFor="quick-note-input">
         <PenLine size={15} aria-hidden />
-        지금 한 줄 남기기 · 오늘 일기에 시간과 함께 붙어요
+        지금 한 줄 · 오늘 일기에 시간과 함께 붙어요
       </label>
       <input
         id="quick-note-input"

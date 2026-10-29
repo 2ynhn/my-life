@@ -2985,3 +2985,94 @@ mark {
 .avatar-link:hover span {
   box-shadow: 0 0 0 2px var(--accent);
 }
+
+/* 빠른 한 줄: 세로 배치는 grid로 (column + wrap 조합은 사파리에서 버튼이 옆 칸으로 밀려 나간다) */
+.quick-note {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+.quick-note input {
+  width: 100%;
+}
+.quick-note .btn {
+  justify-self: end;
+}
+
+/* 사이드바 아래: 설정(프로필)·새로고침 */
+.side-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 1.25rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--line);
+}
+.sidebar .side-me {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 44px;
+  padding: 0.35rem 0.5rem;
+}
+.side-me img,
+.side-initial {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 1px var(--line);
+}
+.side-initial {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.side-me-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.side-me-icon {
+  color: var(--muted);
+}
+.side-foot .btn {
+  align-self: flex-start;
+  margin-left: 0.25rem;
+  background: transparent;
+}
+.side-foot .btn-label {
+  display: inline;
+}
+/* 일기장 안에서는 머리줄 프로필 대신 사이드바 아래 것을 쓴다 */
+.shell:has(.sidebar) .topbar .avatar-link {
+  display: none;
+}
+
+/* 모바일 메뉴 버튼: 삼선 아이콘 */
+@media (max-width: 768px) {
+  .menu-toggle {
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 40px;
+    margin-right: -0.5rem;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .menu-toggle:hover {
+    background: var(--line);
+  }
+}
+/* 첫 화면처럼 머리줄이 비어도 높이 유지 (사이드바가 49px 아래에서 시작) */
+.topbar {
+  min-height: 49px;
+}

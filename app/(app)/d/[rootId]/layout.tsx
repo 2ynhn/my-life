@@ -22,7 +22,12 @@ export default async function LibraryLayout({
 
   return (
     <>
-      <Sidebar tree={folderTree(index.root)} title={libraryTitle(index.lib)} homeHref={index.lib.base} />
+      <Sidebar
+        tree={folderTree(index.root)}
+        title={libraryTitle(index.lib)}
+        homeHref={index.lib.base}
+        me={{ name: user.name ?? user.email, email: user.email, image: user.image }}
+      />
       <div className="with-sidebar">{children}</div>
       <Suspense fallback={null}>
         <TabBar base={index.lib.base} />

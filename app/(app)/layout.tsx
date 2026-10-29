@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { Suspense } from "react";
-import { RefreshButton } from "@/components/RefreshButton";
 import { TopNav } from "@/components/TopNav";
 import { requireUser } from "@/lib/session";
 
@@ -15,10 +14,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <TopNav />
         </Suspense>
         <div className="spacer" />
-        {/* 일기장 안에서 모바일 '폴더' 버튼이 여기로 들어온다 (Sidebar) */}
+        {/* 일기장 안에서 모바일 메뉴 버튼이 여기로 들어온다 (Sidebar) */}
         <span id="nav-slot" className="nav-slot" />
-        <RefreshButton />
-        {/* 구글 프로필 사진 = 설정·계정 */}
+        {/* 구글 프로필 사진 = 설정·계정. 일기장 안에서는 사이드바 아래에 있어서 숨긴다 */}
         <Link className="avatar-link" href="/settings" aria-label={`설정 (${who})`} title={`설정 · ${user.email}`}>
           {user.image ? (
             // 구글 프로필 사진은 리퍼러가 붙으면 가끔 막혀서 no-referrer
