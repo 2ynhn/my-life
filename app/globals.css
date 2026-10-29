@@ -18,6 +18,8 @@
   --c-travel-soft: #e3edf9;
   --c-health: #be3a59;
   --c-health-soft: #fae4ea;
+  --c-food: #a8580a;
+  --c-food-soft: #fbefdc;
   --c-folder: #7a736a;
   --c-folder-soft: #efebe5;
   --shadow: 0 1px 2px rgb(60 40 20 / 0.05), 0 2px 8px rgb(60 40 20 / 0.04);
@@ -3334,4 +3336,135 @@ a.share-target:hover {
 /* 편집기 화면에서는 하단 탭을 처음부터 숨긴다 (TabBar가 쿼리를 읽기 전) */
 body:has(.editor) .tabbar {
   display: none;
+}
+
+/* ───── 음식 ───── */
+
+.ficon-food {
+  color: var(--c-food);
+  background: var(--c-food-soft);
+}
+.sidebar .side-food {
+  color: var(--c-food);
+}
+.fcard-food {
+  --fc: var(--c-food);
+  --fc-soft: var(--c-food-soft);
+}
+.food {
+  margin: 0 0 1.75rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.food.empty {
+  padding: 0.75rem 1rem;
+}
+.food .spend-head {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+.food .spend-head .stat {
+  display: flex;
+  flex-direction: column;
+  padding: 0.75rem 0.9rem;
+  border-radius: 10px;
+  background: var(--bg);
+}
+.food .spend-head strong {
+  font-size: clamp(1.15rem, 4.5vw, 1.6rem);
+}
+.food-favs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  margin: 0 0 0.75rem;
+}
+.food-favs .chip {
+  padding-right: 0.55rem;
+  background: var(--c-food-soft);
+  color: var(--c-food);
+}
+.meals {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 0.5rem;
+}
+.meals a {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  text-decoration: none;
+  color: inherit;
+}
+.meals a:hover {
+  border-color: var(--c-food);
+}
+.meals img,
+.meal-noimg {
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  object-fit: cover;
+}
+.meal-noimg {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--c-food);
+  background: var(--c-food-soft);
+}
+.meal-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.meal-text > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.meal-stars svg {
+  vertical-align: -1px;
+  color: var(--c-food);
+  fill: var(--c-food);
+}
+.stars {
+  display: flex;
+  gap: 0.15rem;
+}
+.stars button {
+  display: inline-flex;
+  padding: 0.25rem;
+  border: 0;
+  background: none;
+  color: var(--line);
+  cursor: pointer;
+}
+.stars button.on {
+  color: var(--c-food);
+}
+.stars button.on svg {
+  fill: var(--c-food);
+}
+.place-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  align-self: flex-start;
+  padding: 0.2rem 0.25rem 0.2rem 0.6rem;
+  border-radius: 999px;
+  background: var(--c-food-soft);
+  color: var(--c-food);
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { NotebookPen, Plane, Plus, Receipt, Trash2 } from "lucide-react";
+import { NotebookPen, Plane, Plus, Receipt, Trash2, UtensilsCrossed } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
@@ -16,6 +16,8 @@ export type ShareTargets = {
   purchase: string | null;
   /** 일기에 넣을 수 있는지 (넣을 일기는 사진 찍은 날로 /share/diary가 정한다) */
   diary: boolean;
+  /** 새 음식 기록 주소 */
+  food: string | null;
   travelNew: string | null;
   trips: { title: string; path: string; href: string }[];
 };
@@ -121,6 +123,19 @@ export function ShareInbox({ rootId, targets, retry }: { rootId: string | null; 
                 </Link>
               </li>
             )}
+            {targets.food && (
+              <li>
+                <Link href={photoDay ? `${targets.food}&date=${photoDay}` : targets.food} className="share-target">
+                  <span className="ficon ficon-md ficon-food" aria-hidden>
+                    <UtensilsCrossed size={20} strokeWidth={1.75} />
+                  </span>
+                  <span>
+                    <strong>음식 · 먹은 것 기록{photoDay && photoDay !== todayKST() ? ` (${dayLabel(photoDay)})` : ""}</strong>
+                    <span className="muted small">찍은 날짜와 찍은 곳(지도)이 자동으로 들어가요</span>
+                  </span>
+                </Link>
+              </li>
+            )}
             {(targets.travelNew || targets.trips.length > 0) && (
               <li className="share-travel">
                 <span className="share-target static">
@@ -163,7 +178,7 @@ export function ShareInbox({ rootId, targets, retry }: { rootId: string | null; 
               </li>
             )}
           </ul>
-          <p className="muted small">일기·여행에 넣은 사진은 줄인 사본이 그 글의 attachments 폴더에 저장돼요. 넣은 뒤 저장을 눌러야 글에 남아요.</p>
+          <p className="muted small">일기·음식·여행에 넣은 사진은 줄인 사본이 그 글의 attachments 폴더에 저장돼요. 넣은 뒤 저장을 눌러야 글에 남아요.</p>
         </section>
       )}
       {text && rootId && (

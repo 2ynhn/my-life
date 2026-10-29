@@ -9,8 +9,8 @@ import { findByKeywords } from "@/lib/search";
 // 물어보기: ① Claude가 질문을 검색어·기간·종류로 바꾸고 ② 일기장을 훑어 관련 글을 모은 뒤
 // ③ 그 글들만 근거로 답한다 (출처 번호 [1] [2] …). 글은 묻는 사람 토큰으로 읽고, 키도 그 사람 것.
 
-const KINDS = ["diary", "spending", "travel", "health"] as const;
-const KIND_LABEL: Record<FeatureKey, string> = { diary: "일기", spending: "구매", travel: "여행", health: "건강" };
+const KINDS = ["diary", "spending", "travel", "health", "food"] as const;
+const KIND_LABEL: Record<FeatureKey, string> = { diary: "일기", spending: "구매", travel: "여행", health: "건강", food: "음식" };
 
 const PLAN_SCHEMA = {
   type: "object",
@@ -27,7 +27,7 @@ const PLAN_SCHEMA = {
     kinds: {
       type: "array",
       items: { type: "string", enum: [...KINDS] },
-      description: "찾을 기록 종류. diary 일기 · spending 구매·지출 · travel 여행 · health 건강·검진. 모르겠으면 빈 배열(전부)",
+      description: "찾을 기록 종류. diary 일기 · spending 구매·지출 · travel 여행 · health 건강·검진 · food 먹은 음식·식당. 모르겠으면 빈 배열(전부)",
     },
   },
 } as const;

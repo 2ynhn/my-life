@@ -14,6 +14,7 @@ import { NoteBody } from "@/components/NoteBody";
 import { SearchView } from "@/components/SearchView";
 import { FeatureIcon } from "@/components/FeatureIcon";
 import type { FormKind } from "@/components/MetaForm";
+import { FoodView } from "@/components/FoodView";
 import { HealthView } from "@/components/HealthView";
 import { Home, hiddenAncestor } from "@/components/Home";
 import { SpendingView } from "@/components/SpendingView";
@@ -207,6 +208,7 @@ async function Folder({ folder, index, spend, range }: { folder: FolderEntry; in
       {kind === "spending" && <SpendingView index={index} folder={folder} month={spend} />}
       {kind === "travel" && <TravelView index={index} folder={folder} />}
       {kind === "health" && <HealthView index={index} folder={folder} range={range} />}
+      {kind === "food" && <FoodView index={index} folder={folder} />}
       <FolderView folder={folder} />
     </>
   );
@@ -281,7 +283,7 @@ async function EditNote({
       fileId={entry.id}
       fileName={entry.name}
       checksum={note.checksum}
-      places={(await formKindOf(index, entry.parent!)) === "travel"}
+      places={["travel", "food"].includes((await formKindOf(index, entry.parent!)) ?? "")}
       form={await formKindOf(index, entry.parent!)}
       manageCategories={index.root.can.addChildren}
       sharedPhotos={sharedPhotos}
@@ -343,7 +345,7 @@ async function NewNote({
       sharedImage={shared === "1" && kind === "spending"}
       sharedPhotos={shared === "photos"}
       insertPhoto={insertPhoto}
-      places={kind === "travel"}
+      places={kind === "travel" || kind === "food"}
       form={kind}
       manageCategories={kind === "spending" && index.root.can.addChildren}
       doneHref={kind === "diary" ? index.lib.base : undefined}

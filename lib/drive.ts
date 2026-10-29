@@ -834,11 +834,28 @@ tags: []
 메모:
 `;
 
+/** 음식 한 번 = 글 하나. 사진을 공유하거나 올리면 찍은 곳이 place에 들어간다 (지도에 표시) */
+export const FOOD_TEMPLATE = `---
+date: {{date}}
+restaurant: ""       # 식당 이름
+menu: []             # 먹은 메뉴
+price: 0             # 가격, 원 단위 숫자
+rating:              # 별점 1~5 (선택)
+place:               # 위치 (사진을 올리면 자동, '장소 추가'로도)
+people: []           # 함께 먹은 사람
+tags: []
+---
+
+# {{title}}
+
+`;
+
 /** Drive에 템플릿이 없을 때 최상위 폴더 이름별 내장 템플릿 */
 const BUILTIN_TEMPLATES: Record<string, string> = {
   purchase: PURCHASE_TEMPLATE,
   travel: TRAVEL_TEMPLATE,
   health: HEALTH_TEMPLATE,
+  food: FOOD_TEMPLATE,
 };
 
 const topFolderOf = (index: DriveIndex, folder: FolderEntry) => {
@@ -865,7 +882,7 @@ export async function loadTemplate(index: DriveIndex, folder: FolderEntry): Prom
   return fallback ? readText(index, fallback) : DEFAULT_TEMPLATE;
 }
 
-export type FolderKind = "spending" | "travel" | "health";
+export type FolderKind = "spending" | "travel" | "health" | "food";
 
 /**
  * 템플릿 모양으로 폴더 종류를 정한다 (폴더 이름이 아니라 템플릿 기준이라, 이름을 바꿔도 템플릿만 맞추면 된다)
@@ -878,6 +895,7 @@ export async function folderKind(index: DriveIndex, folder: FolderEntry): Promis
     if (/^amount:/m.test(t)) return "spending";
     if (/^places:/m.test(t)) return "travel";
     if (/^(weight|sleep|steps|bp_sys|glucose):/m.test(t)) return "health";
+    if (/^restaurant:/m.test(t)) return "food";
   } catch {}
   return null;
 }

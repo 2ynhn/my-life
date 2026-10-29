@@ -1,5 +1,5 @@
 // 브라우저 전용: 사진을 줄여서 /api/upload 로 보낸다
-import { readExif } from "@/lib/exif";
+import { readExif, type ExifPhoto } from "@/lib/exif";
 
 const MAX_BYTES = 4 * 1024 * 1024; // 서버 한도와 같게
 const MAX_SIDE = 2000;
@@ -45,7 +45,7 @@ export async function uploadImage(
   file: File,
   rootId: string,
   folderId: string,
-): Promise<{ id: string; name: string; url: string }> {
+): Promise<{ id: string; name: string; url: string; exif: ExifPhoto | null }> {
   // 줄이기 전에 원본 EXIF에서 찍은 위치·시각 (여행 지도·사진으로 일기 쓰기에 쓴다)
   const exif = file.type === "image/jpeg" ? readExif(await file.slice(0, 256 * 1024).arrayBuffer()) : null;
   const blob = await prepareImage(file);
@@ -63,7 +63,7 @@ export async function uploadImage(
   });
   const body = (await res.json().catch(() => ({}))) as { id?: string; name?: string; url?: string; error?: string };
   if (!res.ok || !body.id || !body.name || !body.url) throw new Error(body.error ?? `업로드 실패 (${res.status})`);
-  return { id: body.id, name: body.name, url: body.url };
+  return { id: body.id, name: body.name, url: body.url, exif };
 }
 
 export const imageFiles = (list: FileList | null | undefined): File[] =>

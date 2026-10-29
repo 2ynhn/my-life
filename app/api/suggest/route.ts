@@ -15,6 +15,8 @@ export async function GET(req: Request) {
   const [{ records }, categories] = await Promise.all([gatherRecords(loaded.index), readCategories(loaded.index)]);
   const text = (v: unknown) => (typeof v === "string" ? v.trim() : "");
   const spending = records.filter((r) => r.feature === "spending");
+  const food = records.filter((r) => r.feature === "food");
+  const strings = (v: unknown) => (Array.isArray(v) ? v.map((x) => String(x ?? "").trim()).filter(Boolean) : []);
   return Response.json(
     {
       tags: topCounts(records.flatMap(tagsOf)),
@@ -22,6 +24,8 @@ export async function GET(req: Request) {
       stores: topCounts(spending.map((r) => text(r.meta.store)).filter(Boolean), 50),
       payments: topCounts(spending.map((r) => text(r.meta.payment)).filter(Boolean), 15),
       categories,
+      restaurants: topCounts(food.map((r) => text(r.meta.restaurant)).filter(Boolean), 50),
+      menus: topCounts(food.flatMap((r) => strings(r.meta.menu)), 50),
     },
     { headers: { "Cache-Control": "private, no-store" } },
   );

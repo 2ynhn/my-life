@@ -81,7 +81,7 @@ function People({ records, who, base }: { records: Record_[]; who?: string; base
     <ul className="collect-cards">
       {people.map(([name, list]) => {
         const last = list.map((r) => r.date).sort().at(-1);
-        const kinds = (["diary", "travel", "spending", "health"] as const)
+        const kinds = (["diary", "travel", "food", "spending", "health"] as const)
           .map((k) => [k, list.filter((r) => r.feature === k).length] as const)
           .filter(([, n]) => n);
         return (
@@ -89,7 +89,7 @@ function People({ records, who, base }: { records: Record_[]; who?: string; base
             <Link href={`${base}&tab=people&who=${encodeURIComponent(name)}`}>
               <strong>{name}</strong>
               <span className="muted small">
-                {kinds.map(([k, n]) => `${k === "diary" ? "일기" : k === "travel" ? "여행" : k === "spending" ? "구매" : "건강"} ${n}`).join(" · ")}
+                {kinds.map(([k, n]) => `${{ diary: "일기", travel: "여행", food: "음식", spending: "구매", health: "건강" }[k]} ${n}`).join(" · ")}
               </span>
               {last && <span className="muted small">마지막 {dot(last)}</span>}
             </Link>

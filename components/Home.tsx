@@ -78,6 +78,13 @@ function card(feature: Feature, folder: FolderEntry, today: string, diary: strin
         sub: latest ? `마지막 ${hasDate(latest) ? md(latest.slug) : latest.slug}` : null,
         action: todays ? { href: hrefFor(todays), label: "오늘 기록 보기" } : newHref ? { href: newHref, label: feature.action } : null,
       };
+    case "food":
+      return {
+        ...base,
+        stat: { value: dated.filter((n) => n.slug.startsWith(today.slice(0, 7))).length, unit: "이번 달" },
+        sub: latest ? `최근 ${hasDate(latest) ? md(latest.slug) : latest.slug}` : null,
+        action: newHref ? { href: newHref, label: feature.action } : null,
+      };
   }
 }
 

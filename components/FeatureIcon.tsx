@@ -1,4 +1,4 @@
-import { Folder, FolderLock, HeartPulse, NotebookPen, Plane, Receipt, type LucideIcon } from "lucide-react";
+import { Folder, FolderLock, HeartPulse, NotebookPen, Plane, Receipt, UtensilsCrossed, type LucideIcon } from "lucide-react";
 import type { FeatureKey } from "@/lib/features";
 
 // 쓰임새마다 아이콘 + 색 타일. 일반 폴더는 폴더 아이콘
@@ -8,6 +8,7 @@ const ICONS: Record<FeatureKey, LucideIcon> = {
   spending: Receipt,
   travel: Plane,
   health: HeartPulse,
+  food: UtensilsCrossed,
 };
 
 export function FeatureIcon({

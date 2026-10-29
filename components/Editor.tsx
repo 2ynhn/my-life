@@ -15,7 +15,8 @@ import { MetaForm, type FormKind, type Suggestions } from "@/components/MetaForm
 import { NoteBody } from "@/components/NoteBody";
 import { PlacePicker } from "@/components/PlacePicker";
 import { ReceiptCamera } from "@/components/ReceiptCamera";
-import { addPlace } from "@/lib/frontmatter-edit";
+import { addPlace, readMeta, setFields } from "@/lib/frontmatter-edit";
+import { reverseName } from "@/lib/geo-name";
 import { imageFiles, prepareImage, uploadImage } from "@/lib/image-upload";
 import { tableResolver, type LinkTable } from "@/lib/markdown";
 import { takeSharedImages } from "@/lib/share-store";
@@ -297,10 +298,12 @@ export function Editor(props: Props) {
   uploadRef.current = async (files: File[]) => {
     if (uploading) return;
     setMessage(null);
+    const found: { lat?: number; lng?: number; taken?: string }[] = [];
     try {
       for (const [i, file] of files.entries()) {
         setUploading(files.length > 1 ? `사진 올리는 중… (${i + 1}/${files.length})` : "사진 올리는 중…");
-        const { name, url } = await uploadImage(file, props.rootId, props.uploadFolderId);
+        const { name, url, exif } = await uploadImage(file, props.rootId, props.uploadFolderId);
+        if (exif) found.push(exif);
         setUploaded((prev) => ({ ...prev, [name.toLowerCase()]: url }));
         const view = viewRef.current;
         if (view) {
@@ -315,11 +318,39 @@ export function Editor(props: Props) {
           if (tab === "write") view.focus();
         }
       }
+      if (props.form === "food") await fillFoodFromPhotos(found);
     } catch (e) {
       setMessage({ kind: "error", text: e instanceof Error ? e.message : "사진을 올리지 못했습니다." });
     } finally {
       setUploading(null);
     }
+  };
+
+  // 음식: 사진의 찍은 곳으로 장소(비어 있을 때), 찍은 날로 날짜(새 글이고 손대지 않았을 때)
+  const fillFoodFromPhotos = async (found: { lat?: number; lng?: number; taken?: string }[]) => {
+    const view = viewRef.current;
+    if (!view) return;
+    let doc = view.state.doc.toString();
+    const meta = readMeta(doc);
+    if (!meta) return;
+    const fields: Record<string, string | Record<string, unknown>> = {};
+    const geo = found.find((e) => e.lat !== undefined && e.lng !== undefined);
+    if (geo && !(meta.place && typeof meta.place === "object")) {
+      setUploading("사진 찍은 곳 찾는 중…");
+      const named = await reverseName(geo.lat!, geo.lng!);
+      fields.place = { name: named?.name ?? "사진 찍은 곳", lat: geo.lat!, lng: geo.lng! };
+      // 식당 이름이 비어 있고 그 자리가 식당·카페면 이름도
+      if (named?.isEatery && !String(meta.restaurant ?? "").trim()) fields.restaurant = named.name;
+    }
+    const day = found.find((e) => e.taken)?.taken?.slice(0, 10);
+    if (props.mode === "new" && day && String(meta.date ?? "") === props.defaultName.slice(0, 10) && day !== props.defaultName.slice(0, 10)) {
+      fields.date = day;
+      if (name === props.defaultName) setName(day);
+    }
+    if (!Object.keys(fields).length) return;
+    doc = setFields(view.state.doc.toString(), fields);
+    replaceDoc(doc, false);
+    setMessage({ kind: "info", text: fields.place ? `사진 찍은 곳(${(fields.place as { name: string }).name})을 장소에 넣었어요.` : "사진 찍은 날로 날짜를 바꿨어요." });
   };
 
   // 영수증: 카메라로 찍거나 고른 이미지를 메모리에서 바로 서버로 보내 Claude로 읽고, 템플릿 앞머리를 채운다.
@@ -364,7 +395,12 @@ export function Editor(props: Props) {
     const current = viewRef.current?.state.doc.toString() ?? text;
     try {
       const date = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Seoul" }).format(new Date());
-      replaceDoc(addPlace(current, { ...p, date }));
+      const round = (n: number) => Math.round(n * 1e5) / 1e5;
+      replaceDoc(
+        props.form === "food"
+          ? setFields(current, { place: { name: p.name, lat: round(p.lat), lng: round(p.lng) } })
+          : addPlace(current, { ...p, date }),
+      );
       setMessage({ kind: "info", text: `'${p.name}'을(를) 장소 목록에 넣었어요. 날짜가 다르면 고쳐 주세요.` });
     } catch {
       setMessage({ kind: "error", text: "앞머리(--- 사이)를 읽지 못해 장소를 넣지 못했습니다. 형식을 확인해 주세요." });

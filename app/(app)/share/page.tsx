@@ -18,7 +18,7 @@ export default async function SharePage({ searchParams }: { searchParams: Promis
   const mine = await myLibrary(user);
   const loaded = mine.kind === "ok" ? await loadLibrary(user, mine.lib.rootId) : null;
   let rootId: string | null = null;
-  const targets: ShareTargets = { purchase: null, diary: false, travelNew: null, trips: [] };
+  const targets: ShareTargets = { purchase: null, diary: false, food: null, travelNew: null, trips: [] };
 
   if (loaded?.kind === "ok") {
     const index = loaded.index;
@@ -32,6 +32,10 @@ export default async function SharePage({ searchParams }: { searchParams: Promis
     // 일기: 사진 찍은 날의 일기로 (/share/diary가 그날 일기를 찾거나 새로 연다). 쓸 수 있을 때만
     const daily = of("diary");
     if (daily && (daily.can.addChildren || daily.can.edit)) targets.diary = true;
+
+    // 음식: 새 음식 기록 (찍은 날·찍은 곳은 편집기가 사진에서 채운다)
+    const food = of("food");
+    if (food?.can.addChildren) targets.food = `${hrefFor(food)}?mode=new&shared=photos`;
 
     // 여행: 새 여행, 또는 최근에 고친 여행 글 5개
     const travel = of("travel");

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, CalendarDays, ExternalLink, Folder, HeartPulse, Layers, Lock, Menu, NotebookPen, Plane, Receipt, Settings, Sparkles, X } from "lucide-react";
+import { ArrowLeft, CalendarDays, ExternalLink, Folder, HeartPulse, Layers, Lock, Menu, NotebookPen, Plane, Receipt, Settings, Sparkles, X, UtensilsCrossed } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -115,7 +115,7 @@ export function Sidebar({ tree, homeHref, driveHref }: { tree: TreeNode[]; homeH
   );
 }
 
-const SIDE_ICONS = { diary: NotebookPen, spending: Receipt, travel: Plane, health: HeartPulse };
+const SIDE_ICONS = { diary: NotebookPen, spending: Receipt, travel: Plane, health: HeartPulse, food: UtensilsCrossed };
 
 /** 최상위 폴더 앞 아이콘 (이름으로만 판단 — 사이드바는 템플릿을 읽지 않는다) */
 function SideIcon({ name }: { name: string }) {

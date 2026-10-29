@@ -26,7 +26,7 @@ export function readMeta(text: string): Record<string, unknown> | null {
   }
 }
 
-export type FieldValue = string | number | null | string[] | Record<string, unknown>[];
+export type FieldValue = string | number | null | string[] | Record<string, unknown>[] | Record<string, unknown>;
 
 /**
  * 여러 칸을 한 번에 바꾼다. 글자·숫자는 기존 칸의 주석을 그대로 두고 값만 바꾼다.
@@ -38,6 +38,13 @@ export function setFields(text: string, fields: Record<string, FieldValue | unde
   for (const [key, value] of Object.entries(fields)) {
     if (value === undefined) {
       doc.delete(key);
+      continue;
+    }
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      // 장소 같은 묶음은 한 줄로: place: {name: 을지면옥, lat: 37.56, lng: 126.99}
+      const node = doc.createNode(value);
+      node.flow = true;
+      doc.set(key, node);
       continue;
     }
     if (!Array.isArray(value)) {

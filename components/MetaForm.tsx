@@ -1,6 +1,6 @@
 "use client";
 
-import { MapPinPlus, Plus, X } from "lucide-react";
+import { MapPin, MapPinPlus, Plus, Star, X } from "lucide-react";
 import { useState } from "react";
 import { numberish, readMeta, setFields, type FieldValue } from "@/lib/frontmatter-edit";
 import { METRIC_GROUPS, METRICS, HEALTH_TEXT_KEYS } from "@/lib/health-metrics";
@@ -8,8 +8,16 @@ import { CATEGORIES } from "@/lib/receipt-shape";
 
 // 카테고리별 입력 폼. 값은 편집기 글의 앞머리(YAML)에 바로 쓰고, 편집기에서 고친 것도 바로 여기 보인다.
 
-export type FormKind = "diary" | "spending" | "travel" | "health";
-export type Suggestions = { tags: string[]; people: string[]; stores: string[]; payments: string[]; categories?: string[] };
+export type FormKind = "diary" | "spending" | "travel" | "health" | "food";
+export type Suggestions = {
+  tags: string[];
+  people: string[];
+  stores: string[];
+  payments: string[];
+  categories?: string[];
+  restaurants?: string[];
+  menus?: string[];
+};
 
 type Props = {
   kind: FormKind;
@@ -280,6 +288,73 @@ export function MetaForm({ kind, text, onChange, suggestions, onAddPlace, onAddC
         {tags}
         <datalist id="dl-stores">{s.stores.map((v) => <option key={v} value={v} />)}</datalist>
         <datalist id="dl-payments">{s.payments.map((v) => <option key={v} value={v} />)}</datalist>
+      </div>
+    );
+  }
+
+  if (kind === "food") {
+    const place = meta.place && typeof meta.place === "object" ? (meta.place as { name?: unknown; lat?: unknown }) : null;
+    const rating = typeof meta.rating === "number" ? meta.rating : Number(meta.rating) || 0;
+    return (
+      <div className="meta-form">
+        <div className="form-grid">
+          <Text label="날짜" type="date" value={meta.date} onChange={(v) => set({ date: v })} />
+          <Text label="식당" value={meta.restaurant} onChange={(v) => set({ restaurant: v })} list="dl-restaurants" placeholder="예: 을지면옥" />
+          <Text label="가격 (원)" numeric value={meta.price} onChange={(v) => set({ price: numberish(v) ?? 0 })} hint={won(meta.price)} />
+        </div>
+        <Chips
+          label="메뉴"
+          values={list(meta.menu)}
+          onChange={(v) => set({ menu: v })}
+          suggestions={s.menus ?? []}
+          placeholder="예: 평양냉면, 수육 (엔터로 추가)"
+        />
+        <div className="form-field">
+          <span className="form-label">별점</span>
+          <div className="stars" role="radiogroup" aria-label="별점">
+            {[1, 2, 3, 4, 5].map((n) => (
+              <button
+                type="button"
+                key={n}
+                role="radio"
+                aria-checked={rating === n}
+                aria-label={`${n}점`}
+                className={n <= rating ? "on" : undefined}
+                onClick={() => set({ rating: rating === n ? null : n })}
+              >
+                <Star size={20} aria-hidden />
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="form-field">
+          <span className="form-label">장소</span>
+          {place?.name ? (
+            <span className="place-chip">
+              <MapPin size={14} aria-hidden /> {str(place.name)}
+              {place.lat === undefined && <span className="muted small"> (좌표 없음)</span>}
+              <button type="button" className="icon-btn" aria-label="장소 빼기" onClick={() => set({ place: null })}>
+                <X size={14} aria-hidden />
+              </button>
+            </span>
+          ) : (
+            <span className="form-hint">사진을 올리면 찍은 곳이 자동으로 들어가요</span>
+          )}
+          {onAddPlace && (
+            <button type="button" className="btn add-row" onClick={onAddPlace}>
+              <MapPinPlus size={14} aria-hidden /> {place?.name ? "장소 바꾸기" : "장소 추가"}
+            </button>
+          )}
+        </div>
+        <Chips
+          label="함께 먹은 사람"
+          values={list(meta.people)}
+          onChange={(v) => set({ people: v })}
+          suggestions={s.people}
+          placeholder="예: 엄마, 민수"
+        />
+        {tags}
+        <datalist id="dl-restaurants">{(s.restaurants ?? []).map((v) => <option key={v} value={v} />)}</datalist>
       </div>
     );
   }
