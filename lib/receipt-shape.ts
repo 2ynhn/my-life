@@ -46,6 +46,6 @@ export function fillReceipt(text: string, r: Receipt, imageName?: string): strin
   return `---\n${doc.toString()}---\n${body}`;
 }
 
-/** 새 글 파일 이름 제안: 2026-10-28 이마트 */
+/** 새 글 파일 이름 제안: 2026-10-28 우유 (첫 품목, 없으면 가게) */
 export const receiptFileName = (r: Receipt, fallbackDate: string) =>
-  `${r.date || fallbackDate} ${r.store}`.replace(/[\/\\\x00-\x1f]/g, " ").replace(/\s+/g, " ").trim();
+  `${r.date || fallbackDate} ${r.items.find((i) => i.name?.trim())?.name ?? r.store}`.replace(/[\/\\\x00-\x1f]/g, " ").replace(/\s+/g, " ").trim();

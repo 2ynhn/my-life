@@ -2,7 +2,7 @@ import { splitFrontmatter } from "@/lib/markdown";
 import type { FolderKind } from "@/lib/drive";
 
 // 글 목록 오른쪽에 보일 한 줄: 수정 날짜 대신 글 내용에서 뽑는다
-//  구매 → 첫 품목 (없으면 가게) · 여행 → 여행 이름 · 음식 → 식당 · 건강 → 검진/수치 · 그 밖 → # 제목
+//  구매 → 첫 품목 (파일 이름에 이미 있으면 가게) · 여행 → 여행 이름 · 음식 → 식당 · 건강 → 검진/수치 · 그 밖 → # 제목
 
 const text = (v: unknown) => (typeof v === "string" || typeof v === "number" ? String(v).trim() : "");
 
@@ -52,7 +52,7 @@ export function noteSummary(source: string, slug: string, kind: FolderKind | nul
   } catch {}
   const own =
     kind === "spending"
-      ? firstItem(meta) || text(meta.store)
+      ? (slug.includes(firstItem(meta).split(" 외 ")[0]) ? "" : firstItem(meta)) || text(meta.store)
       : kind === "travel"
         ? text(meta.title)
         : kind === "food"
