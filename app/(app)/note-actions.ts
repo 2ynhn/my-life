@@ -202,8 +202,7 @@ export async function startFeature(rootId: string, key: string): Promise<void> {
   const feature = FEATURES.find((f) => f.key === key);
   const root = index.root;
   if (!feature || !root.can.addChildren) redirect(root.lib.base);
-  const year = new Intl.DateTimeFormat("en", { timeZone: "Asia/Seoul", year: "numeric" }).format(new Date());
-  const next = `${root.lib.base}/${encodeURIComponent(feature.folder)}?mode=new${feature.key === "diary" ? `&sub=${year}` : ""}`;
+  const next = `${root.lib.base}/${encodeURIComponent(feature.folder)}?mode=new`;
   // 같은 이름 폴더가 이미 있으면(다른 기기에서 방금 만듦 등) 그대로 쓴다
   if (root.children.some((c) => c.kind === "folder" && c.name === feature.folder)) redirect(next);
   try {
@@ -228,12 +227,13 @@ const kstNow = () => {
     minute: "2-digit",
     hour12: false,
   }).format(new Date()); // 2026-10-28 14:32
-  return { date: parts.slice(0, 10), time: parts.slice(11, 16), year: parts.slice(0, 4) };
+  return { date: parts.slice(0, 10), time: parts.slice(11, 16) };
 };
 
 /**
  * 빠른 한 줄 기록: 오늘 일기 끝에 '- 14:32 내용'을 붙인다.
- * 일기 폴더·연도 폴더·오늘 일기가 없으면 만든다 (오늘 일기는 템플릿으로 시작).
+ * 일기 폴더·오늘 일기가 없으면 만든다 (오늘 일기는 템플릿으로 시작, daily 폴더에 바로).
+ * 예전처럼 연도 폴더 안에 오늘 일기가 있으면 거기에 붙인다.
  */
 export async function quickNote(rootId: string, raw: string): Promise<ActionResult> {
   const line = String(raw ?? "").replace(/\s+/g, " ").trim();
@@ -241,7 +241,7 @@ export async function quickNote(rootId: string, raw: string): Promise<ActionResu
   if (line.length > 2000) return { ok: false, error: "한 줄 기록은 2000자까지예요." };
   const index = await libraryIndex(rootId);
   if (typeof index === "string") return { ok: false, error: index };
-  const { date, time, year } = kstNow();
+  const { date, time } = kstNow();
   const entry = `- ${time} ${line}`;
 
   try {
@@ -252,13 +252,10 @@ export async function quickNote(rootId: string, raw: string): Promise<ActionResu
       const id = await createFolder(index, root, "daily");
       daily = { ...root, id, name: "daily", parent: root, children: [] };
     }
-    let target = daily.children.find((c): c is FolderEntry => c.kind === "folder" && c.name === year);
-    if (!target) {
-      if (!daily.can.addChildren) return { ok: false, error: NO_PERMISSION };
-      const id = await createFolder(index, daily, year);
-      target = { ...daily, id, name: year, parent: daily, children: [] };
-    }
-    const notes = target.children.filter((c): c is FileEntry => c.kind === "file" && c.isMarkdown);
+    const target = daily;
+    const notesIn = (f: FolderEntry): FileEntry[] =>
+      f.children.flatMap((c) => (c.kind === "file" ? (c.isMarkdown ? [c] : []) : notesIn(c)));
+    const notes = notesIn(daily);
     const today = notes.find((n) => n.name === `${date}.md`) ?? notes.find((n) => n.slug.startsWith(date));
 
     let id: string;

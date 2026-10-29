@@ -10,15 +10,13 @@ import { diariesBetween, diaryNotes, photosIn } from "@/lib/trip-photos";
 
 const dot = (d: string) => d.replace(/-/g, ".");
 
-/** 그날 일기 쓰기 주소: 그날 일기가 있으면 거기에 넣고, 없으면 그 날짜로 새 일기 (연도 폴더가 없으면 저장할 때 만든다) */
+/** 그날 일기 쓰기 주소: 그날 일기가 있으면 거기에 넣고, 없으면 그 날짜로 새 일기 (daily 폴더에 바로) */
 function diaryHrefFor(daily: FolderEntry | null, all: FileEntry[], date: string, photo: string): { href: string; exists: boolean } | null {
   if (!daily) return null;
   const q = `photo=${encodeURIComponent(photo)}`;
   const existing = all.find((n) => n.name.startsWith(date));
   if (existing) return existing.can.edit ? { href: `${hrefFor(existing)}?mode=edit&${q}`, exists: true } : null;
-  const year = daily.children.find((c): c is FolderEntry => c.kind === "folder" && c.name === date.slice(0, 4));
-  if (year) return year.can.addChildren ? { href: `${hrefFor(year)}?mode=new&date=${date}&${q}`, exists: false } : null;
-  return daily.can.addChildren ? { href: `${hrefFor(daily)}?mode=new&sub=${date.slice(0, 4)}&date=${date}&${q}`, exists: false } : null;
+  return daily.can.addChildren ? { href: `${hrefFor(daily)}?mode=new&date=${date}&${q}`, exists: false } : null;
 }
 
 export async function TripSection({ index, entry, text, meta }: { index: DriveIndex; entry: FileEntry; text: string; meta: Record<string, unknown> }) {

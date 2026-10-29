@@ -1,13 +1,15 @@
 import { MapPin } from "lucide-react";
 import Link from "next/link";
-import { TravelMap, type MapPoint } from "@/components/TravelMap";
+import { MapToggle } from "@/components/MapToggle";
+import { JUMP_MIN_ITEMS, YearJump, yearAnchor } from "@/components/YearJump";
+import type { MapPoint } from "@/components/TravelMap";
 import { fileUrl, hrefFor, type DriveIndex, type FileEntry, type FolderEntry } from "@/lib/drive";
 import { diariesBetween, diaryNotes, photosIn } from "@/lib/trip-photos";
 import { collectNotes, dateOf } from "@/lib/folder-meta";
 import { splitFrontmatter } from "@/lib/markdown";
 import { placeNames, placesOf, type Place } from "@/lib/places";
 
-// 여행 폴더 위에 보이는 요약: 모든 여행의 장소 지도 + 해마다 묶은 여행 타임라인
+// 여행 폴더 위에 보이는 요약: 모든 여행의 장소 지도(버튼으로 열기) + 해마다 묶은 여행 타임라인
 
 type Trip = {
   file: FileEntry;
@@ -82,12 +84,13 @@ export async function TravelView({ index, folder }: { index: DriveIndex; folder:
         여행 {trips.length}번 · 지도에 표시된 장소 {placePoints.length}곳{photoPoints.length > 0 && ` · 사진 ${photoPoints.length}장`}
       </p>
       {points.length > 0 ? (
-        <TravelMap points={points} />
+        <MapToggle points={points} label="지도 보기" />
       ) : (
         <p className="muted small">좌표가 있는 장소가 아직 없어요. 편집기의 장소 추가로 넣어 보세요.</p>
       )}
+      {trips.length >= JUMP_MIN_ITEMS && <YearJump years={years} prefix="ty" />}
       {years.map((y) => (
-        <div key={y} className="trip-year">
+        <div key={y} className="trip-year" id={yearAnchor("ty", y)}>
           <h2>{y}</h2>
           <ol className="timeline">
             {trips

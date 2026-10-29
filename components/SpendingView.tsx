@@ -8,7 +8,7 @@ import { CategoryManager } from "@/components/CategoryManager";
 import { readBudget } from "@/lib/budget";
 import { readCategories } from "@/lib/categories";
 
-// 지출 기록 폴더 위에 보이는 요약: 이달·올해 합계, 월별 막대, 분류별 막대, 이달 목록.
+// 지출 기록 폴더 위에 보이는 요약: 월별 막대, 분류별 막대, 이달 목록 (가계부가 아니라 이달·올해 합계 숫자는 크게 보이지 않는다).
 // 글 앞머리의 amount·category·store·date를 읽는다 (date가 없으면 파일 이름의 날짜).
 
 type Spend = { file: FileEntry; date: string; amount: number; category: string; store: string };
@@ -72,7 +72,6 @@ export async function SpendingView({ index, folder, month }: { index: DriveIndex
   const months = Array.from({ length: 12 }, (_, i) => `${year}-${pad(i + 1)}`);
   const values = months.map((m) => byMonth.get(m) ?? 0);
   const max = Math.max(1, ...values);
-  const yearTotal = values.reduce((a, b) => a + b, 0);
 
   const monthSpends = spends.filter((s) => s.date.startsWith(ym)).sort((a, b) => b.date.localeCompare(a.date));
   const monthTotal = monthSpends.reduce((a, s) => a + s.amount, 0);
@@ -83,17 +82,6 @@ export async function SpendingView({ index, folder, month }: { index: DriveIndex
 
   return (
     <section className="spending">
-      <div className="spend-head">
-        <div className="stat">
-          <span className="muted small">{Number(ym.slice(5))}월 지출 · {monthSpends.length}건</span>
-          <strong>{won(monthTotal)}</strong>
-        </div>
-        <div className="stat">
-          <span className="muted small">{year}년 합계</span>
-          <strong>{won(yearTotal)}</strong>
-        </div>
-      </div>
-
       {budget.monthly && (
         <div className="budget-meter">
           <div className="budget-text small">

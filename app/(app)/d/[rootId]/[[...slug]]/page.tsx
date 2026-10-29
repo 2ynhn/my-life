@@ -164,16 +164,10 @@ export default async function EntryPage({ params, searchParams }: Props) {
   );
 }
 
-/** 오늘 일기 쓰기 주소: daily/<올해> 폴더. 아직 없으면 저장할 때 만들도록 sub로 넘긴다 */
+/** 오늘 일기 쓰기 주소: daily 폴더에 바로 (연도 폴더는 쓰지 않는다) */
 function diaryHref(root: FolderEntry): string | null {
-  const sub = (f: FolderEntry, name: string) =>
-    f.children.find((c): c is FolderEntry => c.kind === "folder" && c.name.toLowerCase() === name);
-  const daily = sub(root, "daily");
-  if (!daily) return null;
-  const year = new Intl.DateTimeFormat("en", { timeZone: "Asia/Seoul", year: "numeric" }).format(new Date());
-  const yearFolder = sub(daily, year);
-  if (yearFolder) return yearFolder.can.addChildren ? `${hrefFor(yearFolder)}?mode=new` : null;
-  return daily.can.addChildren ? `${hrefFor(daily)}?mode=new&sub=${year}` : null;
+  const daily = root.children.find((c): c is FolderEntry => c.kind === "folder" && c.name.toLowerCase() === "daily");
+  return daily?.can.addChildren ? `${hrefFor(daily)}?mode=new` : null;
 }
 
 async function Folder({ folder, index, spend, range }: { folder: FolderEntry; index: DriveIndex; spend?: string; range?: string }) {

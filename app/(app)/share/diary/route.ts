@@ -4,7 +4,7 @@ import { loadLibrary, myLibrary } from "@/lib/library";
 import { getUser } from "@/lib/session";
 
 // 공유받은 사진으로 일기 쓰기: 사진 찍은 날(?date=)의 일기로 보낸다.
-// 그날 일기가 있으면 편집(사진을 끝에 붙임), 없으면 그 날짜로 새 일기 (연도 폴더가 없으면 저장할 때 만든다)
+// 그날 일기가 있으면 편집(사진을 끝에 붙임), 없으면 그 날짜로 새 일기 (daily 폴더에 바로)
 
 const notesIn = (folder: FolderEntry): FileEntry[] =>
   visibleChildren(folder).flatMap((c) => (c.kind === "file" ? (c.isMarkdown ? [c] : []) : notesIn(c)));
@@ -26,9 +26,6 @@ export async function GET(req: Request) {
 
   const note = notesIn(daily).find((n) => n.name.startsWith(date));
   if (note?.can.edit) return go(`${hrefFor(note)}?mode=edit&shared=photos`);
-  const year = daily.children.find((c): c is FolderEntry => c.kind === "folder" && c.name === date.slice(0, 4));
-  const q = `date=${date}&shared=photos`;
-  if (year?.can.addChildren) return go(`${hrefFor(year)}?mode=new&${q}`);
-  if (!year && daily.can.addChildren) return go(`${hrefFor(daily)}?mode=new&sub=${date.slice(0, 4)}&${q}`);
+  if (daily.can.addChildren) return go(`${hrefFor(daily)}?mode=new&date=${date}&shared=photos`);
   return go("/share");
 }
