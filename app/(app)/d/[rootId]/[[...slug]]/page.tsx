@@ -119,15 +119,16 @@ export default async function EntryPage({ params, searchParams }: Props) {
   if (!entry.parent && view === "collect") return <CollectView index={index} tab={tab} who={who} store={store} />;
 
   // 편집·새 글은 Drive가 허락한 경우에만 (게스트도 Drive에서 편집자로 공유받았으면 가능)
-  if (mode === "edit" && entry.kind === "file" && entry.can.edit) return <EditNote entry={entry} index={index} />;
+  if (mode === "edit" && entry.kind === "file" && entry.can.edit)
+    return <EditNote entry={entry} index={index} sharedPhotos={shared === "photos"} />;
   if (mode === "new" && entry.kind === "folder" && entry.can.addChildren) {
     // sub: 저장할 때 만들 하위 폴더 (오늘 일기 쓰기의 연도 폴더). 이미 있으면 그 폴더로 바로 보낸다
     if (sub !== undefined) {
       if (!/^\d{4}$/.test(sub)) notFound();
       const existing = entry.children.find((c) => c.kind === "folder" && c.name === sub);
-      if (existing) redirect(`${hrefFor(existing)}?mode=new`);
+      if (existing) redirect(`${hrefFor(existing)}?mode=new${shared ? `&shared=${encodeURIComponent(shared)}` : ""}`);
     }
-    return <NewNote folder={entry} index={index} subfolder={sub} shared={shared === "1"} />;
+    return <NewNote folder={entry} index={index} subfolder={sub} shared={shared} />;
   }
 
   // 첫 화면은 경로 표시 없이 바로 카드
@@ -242,7 +243,7 @@ async function Note({ entry, index }: { entry: FileEntry; index: DriveIndex }) {
   );
 }
 
-async function EditNote({ entry, index }: { entry: FileEntry; index: DriveIndex }) {
+async function EditNote({ entry, index, sharedPhotos = false }: { entry: FileEntry; index: DriveIndex; sharedPhotos?: boolean }) {
   let note: { text: string; checksum: string };
   try {
     note = await readNote(index, entry);
@@ -260,6 +261,7 @@ async function EditNote({ entry, index }: { entry: FileEntry; index: DriveIndex 
       places={(await formKindOf(index, entry.parent!)) === "travel"}
       form={await formKindOf(index, entry.parent!)}
       manageCategories={index.root.can.addChildren}
+      sharedPhotos={sharedPhotos}
       initialText={note.text}
       closeHref={hrefFor(entry)}
       doneHref={(await formKindOf(index, entry.parent!)) === "diary" ? index.lib.base : hrefFor(entry.parent!)}
@@ -285,12 +287,13 @@ async function NewNote({
   folder,
   index,
   subfolder,
-  shared = false,
+  shared,
 }: {
   folder: FolderEntry;
   index: DriveIndex;
   subfolder?: string;
-  shared?: boolean;
+  /** "1": 공유받은 이미지를 영수증으로 · "photos": 공유받은 사진을 글에 */
+  shared?: string;
 }) {
   let template: string;
   try {
@@ -304,7 +307,8 @@ async function NewNote({
     <Editor
       mode="new"
       receipt={kind === "spending"}
-      sharedImage={shared && kind === "spending"}
+      sharedImage={shared === "1" && kind === "spending"}
+      sharedPhotos={shared === "photos"}
       places={kind === "travel"}
       form={kind}
       manageCategories={kind === "spending" && index.root.can.addChildren}

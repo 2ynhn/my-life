@@ -3192,3 +3192,92 @@ mark {
     cursor: pointer;
   }
 }
+
+/* ───── 공유받은 내용: 넣을 곳 고르기 ───── */
+
+.share-thumbs {
+  display: flex;
+  justify-content: center;
+}
+.share-thumbs.many {
+  justify-content: flex-start;
+  gap: 0.4rem;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+}
+.share-thumbs.many img {
+  height: 120px;
+  width: auto;
+  max-height: none;
+  flex-shrink: 0;
+}
+.share-q {
+  font-size: 1.05rem;
+  margin: 0.25rem 0 0;
+}
+.share-targets {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.share-target {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  text-decoration: none;
+  color: inherit;
+}
+a.share-target:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.share-target > span:last-child {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.share-travel {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.share-travel .share-target.static {
+  border: 0;
+  padding-bottom: 0.35rem;
+}
+.share-trips {
+  list-style: none;
+  margin: 0;
+  padding: 0 0.8rem 0.7rem 3.6rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.share-trips a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+.share-trips a:hover {
+  border-color: var(--c-travel);
+  color: var(--c-travel);
+}
+.share-trips .new-trip {
+  border-style: dashed;
+  color: var(--c-travel);
+}
+@media (max-width: 768px) {
+  .share-trips {
+    padding-left: 0.8rem;
+  }
+}

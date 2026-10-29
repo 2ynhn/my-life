@@ -1,4 +1,4 @@
-// my-life 서비스 워커: 휴대폰 '공유하기'로 받은 이미지·글을 브라우저 안(Cache Storage)에만 잠깐 두고
+// my-life 서비스 워커: 휴대폰 '공유하기'로 받은 이미지(여러 장)·글을 브라우저 안(Cache Storage)에만 잠깐 두고
 // /share 화면으로 넘긴다. 서버나 Drive에 파일을 만들지 않는다. 다른 요청은 건드리지 않는다.
 
 const CACHE = "my-life-share";
@@ -14,9 +14,14 @@ self.addEventListener("fetch", (event) => {
       try {
         const form = await event.request.formData();
         const cache = await caches.open(CACHE);
-        await Promise.all([cache.delete("/__share/image"), cache.delete("/__share/text")]);
-        const image = form.getAll("image").find((f) => typeof f !== "string" && f.size > 0 && /^image\//.test(f.type));
-        if (image) await cache.put("/__share/image", new Response(image, { headers: { "Content-Type": image.type } }));
+        // 지난번 것은 지우고 이번 것만 (이미지는 여러 장, 10장까지)
+        await Promise.all((await cache.keys()).map((k) => cache.delete(k)));
+        const images = form
+          .getAll("image")
+          .filter((f) => typeof f !== "string" && f.size > 0 && /^image\//.test(f.type))
+          .slice(0, 10);
+        await Promise.all(images.map((img, i) => cache.put(`/__share/image/${i}`, new Response(img, { headers: { "Content-Type": img.type } }))));
+        await cache.put("/__share/count", new Response(String(images.length)));
         const text = ["title", "text", "url"]
           .map((k) => form.get(k))
           .filter((v) => typeof v === "string" && v.trim())

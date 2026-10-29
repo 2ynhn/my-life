@@ -13,12 +13,12 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } f
 import { createNote, saveNote } from "@/app/(app)/note-actions";
 import { MetaForm, type FormKind, type Suggestions } from "@/components/MetaForm";
 import { NoteBody } from "@/components/NoteBody";
-import { takeSharedImage } from "@/components/ShareInbox";
 import { PlacePicker } from "@/components/PlacePicker";
 import { ReceiptCamera } from "@/components/ReceiptCamera";
 import { addPlace } from "@/lib/frontmatter-edit";
 import { imageFiles, prepareImage, uploadImage } from "@/lib/image-upload";
 import { tableResolver, type LinkTable } from "@/lib/markdown";
+import { takeSharedImages } from "@/lib/share-store";
 import { fillReceipt, receiptFileName, type Receipt } from "@/lib/receipt-shape";
 import { addCategory as addCategoryAction } from "@/app/(app)/budget-actions";
 
@@ -39,6 +39,8 @@ type Props = {
   form?: FormKind | null;
   /** 구매 분류를 폼에서 바로 더할 수 있는지 (일기장 설정 권한) */
   manageCategories?: boolean;
+  /** 휴대폰 '공유하기'로 받은 사진들을 열자마자 글 끝에 넣는다 (일기·여행) */
+  sharedPhotos?: boolean;
 } & (
   | { mode: "edit"; fileId: string; fileName: string; checksum: string }
   | {
@@ -103,7 +105,7 @@ export function Editor(props: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const saveRef = useRef<() => void>(() => {});
-  const uploadRef = useRef<(files: File[]) => void>(() => {});
+  const uploadRef = useRef<(files: File[]) => Promise<void> | void>(() => {});
   // 붙여넣은 이미지: 구매 새 글이면 영수증으로 읽고, 아니면 사진으로 올린다
   const pasteRef = useRef<(files: File[]) => void>(() => {});
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -358,19 +360,29 @@ export function Editor(props: Props) {
     }
   };
 
-  // 공유받은 이미지: 브라우저 안에 잠깐 둔 것을 꺼내(꺼내면 지움) 바로 읽는다
+  // 공유받은 이미지: 브라우저 안에 잠깐 둔 것을 꺼내(꺼내면 지움)
+  // 구매는 첫 장을 영수증으로 읽고, 일기·여행은 사진으로 글 끝에 넣는다
   const sharedTaken = useRef(false);
   useEffect(() => {
-    if (props.mode !== "new" || !props.sharedImage || sharedTaken.current) return;
+    const receipt = props.mode === "new" && props.sharedImage;
+    if ((!receipt && !props.sharedPhotos) || sharedTaken.current) return;
     sharedTaken.current = true;
     void (async () => {
-      const blob = await takeSharedImage();
-      if (!blob) return setMessage({ kind: "info", text: "공유받은 이미지가 없어요. '이미지로 읽기'로 골라 주세요." });
-      try {
-        void readReceiptImage(await prepareImage(new File([blob], "shared", { type: blob.type || "image/png" })));
-      } catch (e) {
-        setMessage({ kind: "error", text: e instanceof Error ? e.message : "이미지를 열지 못했습니다." });
+      const blobs = await takeSharedImages();
+      if (!blobs.length)
+        return setMessage({ kind: "info", text: receipt ? "공유받은 이미지가 없어요. '이미지로 읽기'로 골라 주세요." : "공유받은 사진이 없어요. '사진' 버튼으로 넣어 주세요." });
+      if (receipt) {
+        try {
+          void readReceiptImage(await prepareImage(new File([blobs[0]], "shared", { type: blobs[0].type || "image/png" })));
+        } catch (e) {
+          setMessage({ kind: "error", text: e instanceof Error ? e.message : "이미지를 열지 못했습니다." });
+        }
+        return;
       }
+      const view = viewRef.current;
+      if (view) view.dispatch({ selection: { anchor: view.state.doc.length } });
+      await uploadRef.current(blobs.map((b, i) => new File([b], `shared-${i + 1}`, { type: b.type || "image/jpeg" })));
+      setMessage({ kind: "info", text: `사진 ${blobs.length}장을 글 끝에 넣었어요. 확인하고 저장하세요.` });
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

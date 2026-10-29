@@ -1,72 +1,45 @@
 "use client";
 
-import { NotebookPen, Receipt, Trash2 } from "lucide-react";
+import { NotebookPen, Plane, Plus, Receipt, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { quickNote } from "@/app/(app)/note-actions";
+import { clearShared, peekShared } from "@/lib/share-store";
 
-// 휴대폰 '공유하기'로 받은 것: 이미지는 영수증으로 읽고, 글·링크는 오늘 일기에 한 줄로.
+// 휴대폰 '공유하기'로 받은 것을 어디에 넣을지 고른다.
+// 이미지: 구매(영수증으로 읽기) · 일기(오늘 일기에 사진) · 여행(최근 여행이나 새 여행에 사진). 글·링크: 오늘 일기에 한 줄.
 // 받은 내용은 브라우저 안(Cache Storage)에만 있고, 다 쓰거나 버리면 지운다.
 
-export const SHARE_CACHE = "my-life-share";
+export type ShareTargets = {
+  purchase: string | null;
+  diary: { href: string; exists: boolean } | null;
+  travelNew: string | null;
+  trips: { title: string; path: string; href: string }[];
+};
 
-export async function takeSharedImage(): Promise<Blob | null> {
-  try {
-    const cache = await caches.open(SHARE_CACHE);
-    const res = await cache.match("/__share/image");
-    if (!res) return null;
-    const blob = await res.blob();
-    await cache.delete("/__share/image");
-    return blob;
-  } catch {
-    return null;
-  }
-}
-
-async function clearShared() {
-  try {
-    const cache = await caches.open(SHARE_CACHE);
-    await Promise.all([cache.delete("/__share/image"), cache.delete("/__share/text")]);
-  } catch {}
-}
-
-export function ShareInbox({
-  rootId,
-  purchaseHref,
-  retry,
-}: {
-  rootId: string | null;
-  purchaseHref: string | null;
-  retry: boolean;
-}) {
+export function ShareInbox({ rootId, targets, retry }: { rootId: string | null; targets: ShareTargets; retry: boolean }) {
   const router = useRouter();
   const [loaded, setLoaded] = useState(false);
-  const [image, setImage] = useState<string | null>(null);
+  const [images, setImages] = useState<string[]>([]);
   const [text, setText] = useState("");
   const [pending, start] = useTransition();
   const [result, setResult] = useState<{ ok: true; href: string } | { ok: false; error: string } | null>(null);
 
   useEffect(() => {
-    let url: string | null = null;
+    let urls: string[] = [];
     (async () => {
-      try {
-        const cache = await caches.open(SHARE_CACHE);
-        const img = await cache.match("/__share/image");
-        if (img) setImage((url = URL.createObjectURL(await img.blob())));
-        const t = await cache.match("/__share/text");
-        if (t) setText(await t.text());
-      } catch {}
+      const shared = await peekShared();
+      setImages((urls = shared.images.map((b) => URL.createObjectURL(b))));
+      setText(shared.text);
       setLoaded(true);
     })();
-    return () => {
-      if (url) URL.revokeObjectURL(url);
-    };
+    return () => urls.forEach((u) => URL.revokeObjectURL(u));
   }, []);
 
   if (!loaded) return <p className="muted">받은 내용을 여는 중…</p>;
 
-  if (!image && !text)
+  if (!images.length && !text)
     return (
       <div className="share-empty">
         {retry ? (
@@ -75,9 +48,8 @@ export function ShareInbox({
           <p className="muted">공유받은 내용이 없어요.</p>
         )}
         <p className="muted small">
-          휴대폰(안드로이드 크롬)에 my-life를 홈 화면에 설치하면, 갤러리·쇼핑 앱의 <b>공유하기</b> 목록에 my-life가 나옵니다. 주문내역
-          캡처를 공유하면 영수증으로 읽고, 글이나 링크를 공유하면 오늘 일기에 한 줄로 남길 수 있어요. (아이폰은 아직 이 기능을 지원하지
-          않아요)
+          휴대폰(안드로이드 크롬)에 my-life를 홈 화면에 설치하면, 갤러리·쇼핑 앱의 <b>공유하기</b> 목록에 my-life가 나옵니다. 사진은 구매(영수증
+          읽기)·일기·여행 중 넣을 곳을 고르고, 글이나 링크는 오늘 일기에 한 줄로 남길 수 있어요. (아이폰은 아직 이 기능을 지원하지 않아요)
         </p>
         <Link className="btn" href="/">
           첫 화면으로
@@ -85,23 +57,79 @@ export function ShareInbox({
       </div>
     );
 
+  const many = images.length > 1;
   return (
     <div className="share-inbox">
-      {image && (
+      {images.length > 0 && (
         <section className="share-card">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={image} alt="공유받은 이미지" />
-          <div className="share-actions">
-            {purchaseHref ? (
-              <button className="btn btn-save" onClick={() => router.push(`${purchaseHref}?mode=new&shared=1`)}>
-                <Receipt size={16} aria-hidden />
-                영수증으로 읽기
-              </button>
-            ) : (
-              <p className="muted small">구매 폴더가 없어요. 첫 화면의 구매 카드에서 &apos;시작하기&apos;를 먼저 눌러 주세요.</p>
-            )}
+          <div className={`share-thumbs${many ? " many" : ""}`}>
+            {images.map((src, i) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img key={i} src={src} alt={`공유받은 이미지 ${i + 1}`} />
+            ))}
           </div>
-          <p className="muted small">이미지는 파일로 저장하지 않고 읽기만 해요. 원본이 필요하면 편집기에서 &apos;이미지도 글에 첨부&apos;를 켜세요.</p>
+          <h2 className="share-q">{many ? `사진 ${images.length}장을 어디에 넣을까요?` : "어디에 넣을까요?"}</h2>
+          <ul className="share-targets">
+            {targets.purchase && (
+              <li>
+                <Link href={targets.purchase} className="share-target">
+                  <span className="ficon ficon-md ficon-spending" aria-hidden>
+                    <Receipt size={20} strokeWidth={1.75} />
+                  </span>
+                  <span>
+                    <strong>구매 · 영수증으로 읽기</strong>
+                    <span className="muted small">
+                      {many ? "첫 장을 읽어 금액·가게를 채워요" : "금액·가게를 채워요"} (사진 파일은 만들지 않음)
+                    </span>
+                  </span>
+                </Link>
+              </li>
+            )}
+            {targets.diary && (
+              <li>
+                <Link href={targets.diary.href} className="share-target">
+                  <span className="ficon ficon-md ficon-diary" aria-hidden>
+                    <NotebookPen size={20} strokeWidth={1.75} />
+                  </span>
+                  <span>
+                    <strong>일기 · 오늘 일기에 사진 넣기</strong>
+                    <span className="muted small">{targets.diary.exists ? "오늘 일기 끝에 붙여요" : "오늘 일기를 새로 쓰며 넣어요"}</span>
+                  </span>
+                </Link>
+              </li>
+            )}
+            {(targets.travelNew || targets.trips.length > 0) && (
+              <li className="share-travel">
+                <span className="share-target static">
+                  <span className="ficon ficon-md ficon-travel" aria-hidden>
+                    <Plane size={20} strokeWidth={1.75} />
+                  </span>
+                  <span>
+                    <strong>여행 · 여행 글에 사진 넣기</strong>
+                    <span className="muted small">넣을 여행을 고르세요</span>
+                  </span>
+                </span>
+                <ul className="share-trips">
+                  {targets.trips.map((t) => (
+                    <li key={t.href}>
+                      <Link href={t.href}>
+                        {t.title}
+                        {t.path && <span className="muted small"> · {t.path}</span>}
+                      </Link>
+                    </li>
+                  ))}
+                  {targets.travelNew && (
+                    <li>
+                      <Link href={targets.travelNew} className="new-trip">
+                        <Plus size={14} aria-hidden /> 새 여행
+                      </Link>
+                    </li>
+                  )}
+                </ul>
+              </li>
+            )}
+          </ul>
+          <p className="muted small">일기·여행에 넣은 사진은 줄인 사본이 그 글의 attachments 폴더에 저장돼요. 넣은 뒤 저장을 눌러야 글에 남아요.</p>
         </section>
       )}
       {text && rootId && (
@@ -115,11 +143,7 @@ export function ShareInbox({
                 start(async () => {
                   const res = await quickNote(rootId, text).catch(() => ({ ok: false as const, error: "서버에 연결하지 못했습니다." }));
                   setResult(res);
-                  if (res.ok) {
-                    try {
-                      await (await caches.open(SHARE_CACHE)).delete("/__share/text");
-                    } catch {}
-                  }
+                  if (res.ok) await clearShared("text");
                 })
               }
             >
