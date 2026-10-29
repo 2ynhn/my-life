@@ -5,7 +5,8 @@ import { useEffect, useRef } from "react";
 
 // 여행 지도: OpenStreetMap 타일 + 동그라미 표시(이미지 파일 없이). 브라우저에서만 불러온다.
 
-export type MapPoint = { lat: number; lng: number; name: string; sub?: string; href?: string };
+/** image가 있으면 사진 점(파란색, 누르면 사진 미리보기). 경로 선은 장소 점만 잇는다 */
+export type MapPoint = { lat: number; lng: number; name: string; sub?: string; href?: string; image?: string };
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
@@ -19,19 +20,28 @@ export function TravelMap({ points, route = false }: { points: MapPoint[]; route
     (async () => {
       const L = (await import("leaflet")).default;
       if (cancelled || !ref.current) return;
-      const color = getComputedStyle(ref.current).getPropertyValue("--chart").trim() || "#b5562f";
+      const style = getComputedStyle(ref.current);
+      const color = style.getPropertyValue("--chart").trim() || "#b5562f";
+      const photoColor = style.getPropertyValue("--c-travel").trim() || "#2d68ad";
       map = L.map(ref.current, { scrollWheelZoom: false, attributionControl: true });
       L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
       }).addTo(map);
       const latlngs = points.map((p) => L.latLng(p.lat, p.lng));
-      if (route && latlngs.length > 1) L.polyline(latlngs, { color, weight: 2, opacity: 0.8, dashArray: "4 6" }).addTo(map);
+      const placeLine = points.filter((p) => !p.image).map((p) => L.latLng(p.lat, p.lng));
+      if (route && placeLine.length > 1) L.polyline(placeLine, { color, weight: 2, opacity: 0.8, dashArray: "4 6" }).addTo(map);
       points.forEach((p, i) => {
-        const label = `<b>${esc(p.name)}</b>${p.sub ? `<br><span>${esc(p.sub)}</span>` : ""}${
-          p.href ? `<br><a href="${esc(p.href)}">글 보기</a>` : ""
-        }`;
-        L.circleMarker(latlngs[i], { radius: 7, color: "#fff", weight: 2, fillColor: color, fillOpacity: 1 })
+        const label = `${p.image ? `<img class="map-photo" src="${esc(p.image)}" alt="" loading="lazy">` : ""}<b>${esc(p.name)}</b>${
+          p.sub ? `<br><span>${esc(p.sub)}</span>` : ""
+        }${p.href ? `<br><a href="${esc(p.href)}">글 보기</a>` : ""}`;
+        L.circleMarker(latlngs[i], {
+          radius: p.image ? 6 : 7,
+          color: "#fff",
+          weight: 2,
+          fillColor: p.image ? photoColor : color,
+          fillOpacity: 1,
+        })
           .addTo(map!)
           .bindPopup(label)
           .bindTooltip(esc(p.name));

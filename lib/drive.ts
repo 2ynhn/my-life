@@ -18,7 +18,7 @@ const CHECK_MS = 30 * 1000;
 const MAX_AGE_MS = 15 * 60 * 1000;
 
 const CAP_FIELDS = "capabilities(canEdit,canAddChildren,canListChildren,canRename,canTrash)";
-const ITEM_FIELDS = `id,name,mimeType,modifiedTime,size,inheritedPermissionsDisabled,${CAP_FIELDS}`;
+const ITEM_FIELDS = `id,name,mimeType,modifiedTime,size,inheritedPermissionsDisabled,appProperties,${CAP_FIELDS}`;
 
 type RawCaps = {
   canEdit?: boolean;
@@ -34,6 +34,8 @@ type RawItem = {
   modifiedTime: string;
   size?: string;
   inheritedPermissionsDisabled?: boolean;
+  /** 이 앱이 사진에 붙여 둔 정보: 찍은 위치·시각 (올릴 때 원본 EXIF에서 읽음) */
+  appProperties?: Record<string, string>;
   capabilities?: RawCaps;
 };
 
@@ -146,7 +148,29 @@ export type FolderEntry = BaseEntry & {
   /** 예전 앱 규칙의 .private 표시 파일이 남아 있는 폴더 (Drive 제한으로 옮기라고 안내) */
   legacyPrivate: boolean;
 };
-export type FileEntry = BaseEntry & { kind: "file"; mimeType: string; size: number; isMarkdown: boolean };
+/** 사진을 찍은 위치·시각 (taken: "2025-05-04 13:22", 찍은 곳 시각) */
+export type PhotoInfo = { lat?: number; lng?: number; taken?: string };
+export type FileEntry = BaseEntry & { kind: "file"; mimeType: string; size: number; isMarkdown: boolean; photo?: PhotoInfo };
+
+function photoOf(props?: Record<string, string>): PhotoInfo | undefined {
+  if (!props) return undefined;
+  const lat = Number(props.lat);
+  const lng = Number(props.lng);
+  const geo = props.lat && props.lng && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? { lat, lng } : {};
+  const taken = /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2})?$/.test(props.taken ?? "") ? props.taken : undefined;
+  return "lat" in geo || taken ? { ...geo, taken } : undefined;
+}
+
+/** 올리는 사진에 붙일 정보 (Drive appProperties: 값은 글자) */
+export function photoProps(p: PhotoInfo): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (p.lat !== undefined && p.lng !== undefined) {
+    out.lat = p.lat.toFixed(6);
+    out.lng = p.lng.toFixed(6);
+  }
+  if (p.taken) out.taken = p.taken;
+  return out;
+}
 export type Entry = FolderEntry | FileEntry;
 
 export type DriveIndex = {
@@ -273,6 +297,7 @@ async function buildIndex(user: DriveUser, lib: Library): Promise<DriveIndex> {
             mimeType: item.mimeType,
             size: Number(item.size ?? 0),
             isMarkdown: md,
+            photo: md ? undefined : photoOf(item.appProperties),
           };
         }
         folder.children.push(entry);
@@ -421,6 +446,20 @@ export function findAttachment(from: FolderEntry, name: string): FileEntry | nul
       }
     }
   }
+  // 위쪽에 없으면 일기장 전체에서 이름으로 (옵시디언처럼). 예: 여행 사진으로 쓴 일기
+  for (let root: FolderEntry = from; ; root = root.parent!) {
+    if (!root.parent) return searchAll(root, target);
+  }
+}
+
+function searchAll(folder: FolderEntry, target: string): FileEntry | null {
+  for (const c of folder.children) {
+    if (c.kind === "file" && c.name.toLowerCase() === target) return c;
+    if (c.kind === "folder") {
+      const found = searchAll(c, target);
+      if (found) return found;
+    }
+  }
   return null;
 }
 
@@ -462,6 +501,10 @@ export function linkTable(index: DriveIndex, folder: FolderEntry): LinkTable {
   for (let f: FolderEntry | null = folder; f; f = f.parent) {
     add(f);
     for (const c of f.children) if (c.kind === "folder" && c.name.toLowerCase() === "attachments") add(c);
+  }
+  // 그다음 일기장 전체 (findAttachment처럼): 여행 사진으로 쓴 일기의 미리보기 등
+  for (const e of index.byId.values()) {
+    if (e.kind === "file" && !e.isMarkdown) attachments[e.name.toLowerCase()] ??= fileUrl(e);
   }
   const notes: Record<string, string> = {};
   for (const e of index.byId.values()) {
@@ -548,9 +591,16 @@ export async function updateFile(index: DriveIndex, file: FileEntry, text: strin
   return ((await res.json()) as { md5Checksum: string }).md5Checksum;
 }
 
-async function createRaw(user: DriveUser, parentId: string, name: string, content: string | Uint8Array, mimeType: string) {
+async function createRaw(
+  user: DriveUser,
+  parentId: string,
+  name: string,
+  content: string | Uint8Array,
+  mimeType: string,
+  appProperties?: Record<string, string>,
+) {
   const boundary = `my-life-${crypto.randomUUID()}`;
-  const meta = JSON.stringify({ name, parents: [parentId], mimeType });
+  const meta = JSON.stringify({ name, parents: [parentId], mimeType, ...(appProperties && Object.keys(appProperties).length ? { appProperties } : {}) });
   const contentType = mimeType === "text/markdown" ? MD_MIME : mimeType;
   // 이미지 같은 바이너리도 그대로 넣을 수 있게 Blob으로 이어 붙인다
   const body = new Blob([
@@ -654,8 +704,15 @@ export function uniqueName(folder: FolderEntry, base: string, ext: string): stri
  * 업로드 후 캐시된 인덱스에 바로 끼워 넣는다. 사진 여러 장을 연달아 올릴 때마다
  * Drive 전체를 다시 훑지 않도록. (새로 만든 폴더라 인덱스에 없으면 그냥 무효화)
  */
-export async function uploadFile(index: DriveIndex, folder: FolderEntry, name: string, bytes: Uint8Array, mimeType: string) {
-  const id = await createRaw(index.user, folder.id, name, bytes, mimeType);
+export async function uploadFile(
+  index: DriveIndex,
+  folder: FolderEntry,
+  name: string,
+  bytes: Uint8Array,
+  mimeType: string,
+  photo?: PhotoInfo,
+) {
+  const id = await createRaw(index.user, folder.id, name, bytes, mimeType, photo ? photoProps(photo) : undefined);
   const cachedFolder = index.byId.get(folder.id);
   if (indexes.get(cacheKey(index.user, index.lib.rootId))?.index === index && cachedFolder?.kind === "folder") {
     const entry: FileEntry = {
@@ -671,6 +728,7 @@ export async function uploadFile(index: DriveIndex, folder: FolderEntry, name: s
       mimeType,
       size: bytes.length,
       isMarkdown: false,
+      photo,
     };
     cachedFolder.children.push(entry);
     index.byId.set(id, entry);

@@ -52,7 +52,15 @@ export async function POST(req: Request) {
       .format(new Date())
       .replaceAll(":", ".");
     const name = uniqueName(target, stamp, ext);
-    const id = await uploadFile(index, target, name, bytes, type);
+    // 브라우저가 원본 EXIF에서 읽어 보낸 찍은 위치·시각 (있을 때만)
+    const lat = Number(url.searchParams.get("lat"));
+    const lng = Number(url.searchParams.get("lng"));
+    const taken = url.searchParams.get("taken") ?? "";
+    const photo = {
+      ...(url.searchParams.has("lat") && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? { lat, lng } : {}),
+      ...(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(taken) ? { taken } : {}),
+    };
+    const id = await uploadFile(index, target, name, bytes, type, photo);
     await markWritten();
     return json({ id, name, url: `/api/file/${encodeURIComponent(index.lib.rootId)}/${encodeURIComponent(id)}` });
   } catch (e) {

@@ -41,6 +41,8 @@ type Props = {
   manageCategories?: boolean;
   /** 휴대폰 '공유하기'로 받은 사진들을 열자마자 글 끝에 넣는다 (일기·여행) */
   sharedPhotos?: boolean;
+  /** 이미 올려 둔 사진을 열자마자 글 끝에 넣는다 (여행 사진으로 일기 쓰기) */
+  insertPhoto?: string;
 } & (
   | { mode: "edit"; fileId: string; fileName: string; checksum: string }
   | {
@@ -104,6 +106,8 @@ export function Editor(props: Props) {
   const router = useRouter();
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
+  // 편집기가 다시 만들어져도(개발 모드의 두 번 마운트 등) 지금까지의 내용으로 시작하게
+  const latestText = useRef(props.initialText);
   const saveRef = useRef<() => void>(() => {});
   const uploadRef = useRef<(files: File[]) => Promise<void> | void>(() => {});
   // 붙여넣은 이미지: 구매 새 글이면 영수증으로 읽고, 아니면 사진으로 올린다
@@ -165,7 +169,7 @@ export function Editor(props: Props) {
   useEffect(() => {
     if (!hostRef.current) return;
     const view = new EditorView({
-      doc: props.initialText,
+      doc: latestText.current,
       parent: hostRef.current,
       extensions: [
         minimalSetup,
@@ -176,7 +180,10 @@ export function Editor(props: Props) {
         placeholder("여기에 쓰세요…"),
         editorTheme,
         EditorView.updateListener.of((u) => {
-          if (u.docChanged) setText(u.state.doc.toString());
+          if (u.docChanged) {
+            latestText.current = u.state.doc.toString();
+            setText(latestText.current);
+          }
         }),
         // 사진 붙여넣기·끌어다 놓기
         EditorView.domEventHandlers({
@@ -297,11 +304,15 @@ export function Editor(props: Props) {
         setUploaded((prev) => ({ ...prev, [name.toLowerCase()]: url }));
         const view = viewRef.current;
         if (view) {
+          // 커서가 맨 앞이나 앞머리(--- 사이)에 있으면(항목 탭에서 올린 경우 등) 글 끝에 넣는다 — 앞머리가 깨지지 않게
+          const doc = view.state.doc.toString();
+          const front = /^---\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/.exec(doc);
+          if (view.state.selection.main.from < (front ? front[0].length : 1)) view.dispatch({ selection: { anchor: doc.length } });
           const { from } = view.state.selection.main;
           const before = from > 0 ? view.state.sliceDoc(from - 1, from) : "\n";
           const insert = `${before === "\n" ? "" : "\n"}![[${name}]]\n`;
           view.dispatch(view.state.replaceSelection(insert));
-          view.focus();
+          if (tab === "write") view.focus();
         }
       }
     } catch (e) {
@@ -384,6 +395,21 @@ export function Editor(props: Props) {
       await uploadRef.current(blobs.map((b, i) => new File([b], `shared-${i + 1}`, { type: b.type || "image/jpeg" })));
       setMessage({ kind: "info", text: `사진 ${blobs.length}장을 글 끝에 넣었어요. 확인하고 저장하세요.` });
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 여행 사진으로 일기 쓰기: 그 사진 링크를 글 끝에 (이미 있으면 그대로)
+  const photoInserted = useRef(false);
+  useEffect(() => {
+    const name = props.insertPhoto;
+    const view = viewRef.current;
+    if (!name || !view || photoInserted.current) return;
+    photoInserted.current = true;
+    const doc = view.state.doc.toString();
+    if (doc.includes(`![[${name}]]`)) return;
+    const insert = `${doc.endsWith("\n") ? "" : "\n"}\n![[${name}]]\n`;
+    view.dispatch({ changes: { from: doc.length, insert }, selection: { anchor: doc.length + insert.length } });
+    setMessage({ kind: "info", text: "사진을 넣었어요. 그날 이야기를 쓰고 저장하세요." });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

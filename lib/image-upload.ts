@@ -1,4 +1,5 @@
 // 브라우저 전용: 사진을 줄여서 /api/upload 로 보낸다
+import { readExif } from "@/lib/exif";
 
 const MAX_BYTES = 4 * 1024 * 1024; // 서버 한도와 같게
 const MAX_SIDE = 2000;
@@ -11,7 +12,8 @@ function toBlob(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
 
 /**
  * 휴대폰 사진(수 MB)은 긴 변 2000px JPEG로 줄인다. 작은 PNG(스크린샷)와 GIF는 그대로.
- * 회전 정보(EXIF)는 그림에 반영하고 버린다 → 위치 정보 같은 메타데이터도 함께 빠진다.
+ * 회전 정보(EXIF)는 그림에 반영하고 버린다 → 사진 파일에는 위치 같은 메타데이터가 남지 않는다.
+ * (찍은 위치·시각은 uploadImage가 줄이기 전에 따로 읽어 Drive 파일 정보로 붙인다)
  */
 export async function prepareImage(file: File): Promise<Blob> {
   if (file.type === "image/gif") return file;
@@ -44,9 +46,17 @@ export async function uploadImage(
   rootId: string,
   folderId: string,
 ): Promise<{ id: string; name: string; url: string }> {
+  // 줄이기 전에 원본 EXIF에서 찍은 위치·시각 (여행 지도·사진으로 일기 쓰기에 쓴다)
+  const exif = file.type === "image/jpeg" ? readExif(await file.slice(0, 256 * 1024).arrayBuffer()) : null;
   const blob = await prepareImage(file);
   if (blob.size > MAX_BYTES) throw new Error("사진이 너무 큽니다 (4MB 이하).");
-  const res = await fetch(`/api/upload?root=${encodeURIComponent(rootId)}&folder=${encodeURIComponent(folderId)}`, {
+  const params = new URLSearchParams({ root: rootId, folder: folderId });
+  if (exif?.lat !== undefined && exif.lng !== undefined) {
+    params.set("lat", String(exif.lat));
+    params.set("lng", String(exif.lng));
+  }
+  if (exif?.taken) params.set("taken", exif.taken);
+  const res = await fetch(`/api/upload?${params}`, {
     method: "POST",
     headers: { "Content-Type": blob.type || file.type },
     body: blob,

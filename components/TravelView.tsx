@@ -1,14 +1,24 @@
 import { MapPin } from "lucide-react";
 import Link from "next/link";
 import { TravelMap, type MapPoint } from "@/components/TravelMap";
-import { hrefFor, type DriveIndex, type FileEntry, type FolderEntry } from "@/lib/drive";
+import { fileUrl, hrefFor, type DriveIndex, type FileEntry, type FolderEntry } from "@/lib/drive";
+import { diariesBetween, diaryNotes, photosIn } from "@/lib/trip-photos";
 import { collectNotes, dateOf } from "@/lib/folder-meta";
 import { splitFrontmatter } from "@/lib/markdown";
 import { placeNames, placesOf, type Place } from "@/lib/places";
 
 // 여행 폴더 위에 보이는 요약: 모든 여행의 장소 지도 + 해마다 묶은 여행 타임라인
 
-type Trip = { file: FileEntry; title: string; start: string; end: string; places: Place[]; names: string[]; companions: string[] };
+type Trip = {
+  file: FileEntry;
+  title: string;
+  start: string;
+  end: string;
+  places: Place[];
+  names: string[];
+  companions: string[];
+  photos: FileEntry[];
+};
 
 function parse(file: FileEntry, text: string): Trip | null {
   const meta = splitFrontmatter(text).meta;
@@ -24,6 +34,7 @@ function parse(file: FileEntry, text: string): Trip | null {
     places: placesOf(meta),
     names: placeNames(meta),
     companions,
+    photos: photosIn(file, text),
   };
 }
 
@@ -43,15 +54,32 @@ export async function TravelView({ index, folder }: { index: DriveIndex; folder:
     );
   }
   const trips = items.sort((a, b) => b.start.localeCompare(a.start));
-  const points: MapPoint[] = trips.flatMap((t) =>
+  const placePoints: MapPoint[] = trips.flatMap((t) =>
     t.places.map((p) => ({ lat: p.lat, lng: p.lng, name: p.name, sub: `${t.title} · ${dot(p.date || t.start)}`, href: hrefFor(t.file) })),
   );
+  // 사진 점: 여행 글의 사진 + 여행 기간에 쓴 일기의 사진 (위치가 있는 것만)
+  const { notes: diaries } = await diaryNotes(index);
+  const fromDiaries = await Promise.all(trips.map((t) => diariesBetween(index, diaries, t.start, t.end)));
+  const seen = new Set<string>();
+  const photoPoints: MapPoint[] = trips.flatMap((t, i) =>
+    [...t.photos.map((f) => ({ file: f, note: t.file })), ...fromDiaries[i].photos]
+      .filter((p) => p.file.photo?.lat !== undefined && !seen.has(p.file.id) && seen.add(p.file.id))
+      .map((p) => ({
+        lat: p.file.photo!.lat!,
+        lng: p.file.photo!.lng!,
+        name: t.title,
+        sub: p.file.photo?.taken ? dot(p.file.photo.taken) : p.note === t.file ? "여행 사진" : `일기 ${dot(p.note.name.slice(5, 10))}`,
+        href: hrefFor(p.note),
+        image: fileUrl(p.file),
+      })),
+  );
+  const points = [...placePoints, ...photoPoints];
   const years = [...new Set(trips.map((t) => t.start.slice(0, 4)))];
 
   return (
     <section className="trips">
       <p className="muted small">
-        여행 {trips.length}번 · 지도에 표시된 장소 {points.length}곳
+        여행 {trips.length}번 · 지도에 표시된 장소 {placePoints.length}곳{photoPoints.length > 0 && ` · 사진 ${photoPoints.length}장`}
       </p>
       {points.length > 0 ? (
         <TravelMap points={points} />

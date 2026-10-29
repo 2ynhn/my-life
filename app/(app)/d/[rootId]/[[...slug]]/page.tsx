@@ -17,7 +17,7 @@ import type { FormKind } from "@/components/MetaForm";
 import { HealthView } from "@/components/HealthView";
 import { Home, hiddenAncestor } from "@/components/Home";
 import { SpendingView } from "@/components/SpendingView";
-import { TravelMap } from "@/components/TravelMap";
+import { TripSection } from "@/components/TripSection";
 import { TravelView } from "@/components/TravelView";
 import {
   DriveError,
@@ -41,7 +41,6 @@ import { featureByName } from "@/lib/features";
 import { libraryTitle } from "@/lib/labels";
 import { loadLibrary } from "@/lib/library";
 import { splitFrontmatter } from "@/lib/markdown";
-import { placesOf } from "@/lib/places";
 import { requireUser } from "@/lib/session";
 
 type Props = {
@@ -60,6 +59,8 @@ type Props = {
     tab?: string;
     who?: string;
     store?: string;
+    date?: string;
+    photo?: string;
   }>;
 };
 
@@ -110,7 +111,11 @@ export default async function EntryPage({ params, searchParams }: Props) {
   // md가 아닌 파일(이미지 등)은 원본으로 보낸다
   if (entry.kind === "file" && !entry.isMarkdown) redirect(fileUrl(entry));
 
-  const { mode, sub, view, q, tag, month, day, spend, range, shared, tab, who, store } = await searchParams;
+  const sp = await searchParams;
+  const { mode, sub, view, q, tag, month, day, spend, range, shared, tab, who, store } = sp;
+  // '이 사진으로 일기 쓰기': 그 날짜로, 그 사진을 넣은 채로
+  const photo = typeof sp.photo === "string" && sp.photo.length <= 200 ? sp.photo : undefined;
+  const date = typeof sp.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) ? sp.date : undefined;
 
   // 일기장 단위 화면: 검색·캘린더 (주소: /d/<id>?view=…)
   if (!entry.parent && view === "search") return <SearchView index={index} q={String(q ?? "")} tag={String(tag ?? "")} />;
@@ -120,15 +125,19 @@ export default async function EntryPage({ params, searchParams }: Props) {
 
   // 편집·새 글은 Drive가 허락한 경우에만 (게스트도 Drive에서 편집자로 공유받았으면 가능)
   if (mode === "edit" && entry.kind === "file" && entry.can.edit)
-    return <EditNote entry={entry} index={index} sharedPhotos={shared === "photos"} />;
+    return <EditNote entry={entry} index={index} sharedPhotos={shared === "photos"} insertPhoto={photo} />;
   if (mode === "new" && entry.kind === "folder" && entry.can.addChildren) {
     // sub: 저장할 때 만들 하위 폴더 (오늘 일기 쓰기의 연도 폴더). 이미 있으면 그 폴더로 바로 보낸다
     if (sub !== undefined) {
       if (!/^\d{4}$/.test(sub)) notFound();
       const existing = entry.children.find((c) => c.kind === "folder" && c.name === sub);
-      if (existing) redirect(`${hrefFor(existing)}?mode=new${shared ? `&shared=${encodeURIComponent(shared)}` : ""}`);
+      if (existing) {
+        const keep = new URLSearchParams({ mode: "new" });
+        for (const [k, v] of [["shared", shared], ["date", date], ["photo", photo]] as const) if (v) keep.set(k, v);
+        redirect(`${hrefFor(existing)}?${keep}`);
+      }
     }
-    return <NewNote folder={entry} index={index} subfolder={sub} shared={shared} />;
+    return <NewNote folder={entry} index={index} subfolder={sub} shared={shared} date={date} insertPhoto={photo} />;
   }
 
   // 첫 화면은 경로 표시 없이 바로 카드
@@ -219,8 +228,8 @@ async function Note({ entry, index }: { entry: FileEntry; index: DriveIndex }) {
     return readProblem(e);
   }
   const { edit, rename, trash } = entry.can;
-  // 여행 글이면 들른 곳을 순서대로 지도에
-  const places = (await folderKind(index, entry.parent!)) === "travel" ? placesOf(splitFrontmatter(text).meta) : [];
+  // 여행 글이면 지도(들른 곳·사진)와 이 여행의 사진·일기
+  const isTrip = (await folderKind(index, entry.parent!)) === "travel";
   return (
     <>
       {(edit || rename || trash) && (
@@ -233,7 +242,7 @@ async function Note({ entry, index }: { entry: FileEntry; index: DriveIndex }) {
           canTrash={trash}
         />
       )}
-      {places.length > 0 && <TravelMap points={places.map((p) => ({ ...p, sub: p.date.replace(/-/g, ".") || undefined }))} route />}
+      {isTrip && <TripSection index={index} entry={entry} text={text} meta={splitFrontmatter(text).meta as Record<string, unknown>} />}
       <NoteBody
         text={text}
         links={linkResolver(index, entry.parent!)}
@@ -243,7 +252,17 @@ async function Note({ entry, index }: { entry: FileEntry; index: DriveIndex }) {
   );
 }
 
-async function EditNote({ entry, index, sharedPhotos = false }: { entry: FileEntry; index: DriveIndex; sharedPhotos?: boolean }) {
+async function EditNote({
+  entry,
+  index,
+  sharedPhotos = false,
+  insertPhoto,
+}: {
+  entry: FileEntry;
+  index: DriveIndex;
+  sharedPhotos?: boolean;
+  insertPhoto?: string;
+}) {
   let note: { text: string; checksum: string };
   try {
     note = await readNote(index, entry);
@@ -262,6 +281,7 @@ async function EditNote({ entry, index, sharedPhotos = false }: { entry: FileEnt
       form={await formKindOf(index, entry.parent!)}
       manageCategories={index.root.can.addChildren}
       sharedPhotos={sharedPhotos}
+      insertPhoto={insertPhoto}
       initialText={note.text}
       closeHref={hrefFor(entry)}
       doneHref={(await formKindOf(index, entry.parent!)) === "diary" ? index.lib.base : hrefFor(entry.parent!)}
@@ -288,12 +308,18 @@ async function NewNote({
   index,
   subfolder,
   shared,
+  date: forDate,
+  insertPhoto,
 }: {
   folder: FolderEntry;
   index: DriveIndex;
   subfolder?: string;
   /** "1": 공유받은 이미지를 영수증으로 · "photos": 공유받은 사진을 글에 */
   shared?: string;
+  /** 오늘 대신 이 날짜로 (사진으로 일기 쓰기) */
+  date?: string;
+  /** 이미 올린 사진을 글 끝에 넣기 */
+  insertPhoto?: string;
 }) {
   let template: string;
   try {
@@ -301,7 +327,7 @@ async function NewNote({
   } catch (e) {
     return readProblem(e);
   }
-  const date = today();
+  const date = forDate ?? today();
   const kind = await formKindOf(index, folder);
   return (
     <Editor
@@ -309,6 +335,7 @@ async function NewNote({
       receipt={kind === "spending"}
       sharedImage={shared === "1" && kind === "spending"}
       sharedPhotos={shared === "photos"}
+      insertPhoto={insertPhoto}
       places={kind === "travel"}
       form={kind}
       manageCategories={kind === "spending" && index.root.can.addChildren}

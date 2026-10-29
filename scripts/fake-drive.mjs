@@ -117,6 +117,7 @@ function meta(file, email) {
     ownedByMe: file.owner === email,
     owners: [{ emailAddress: file.owner, displayName: file.owner.split("@")[0] }],
     inheritedPermissionsDisabled: file.restricted,
+    appProperties: file.appProperties,
     capabilities: can(file, email),
   };
 }
@@ -282,6 +283,7 @@ const server = createServer(async (req, res) => {
       const pid = m2.parents[0];
       if (!can(files.get(pid), email).canAddChildren) return fail(res, 403, "insufficientFilePermissions");
       const f = add({ id: newId(), name: m2.name, mimeType: m2.mimeType, parents: [pid], owner: email, content });
+      if (m2.appProperties) f.appProperties = m2.appProperties;
       return send(res, 200, { id: f.id });
     }
     // 내용 바꾸기
