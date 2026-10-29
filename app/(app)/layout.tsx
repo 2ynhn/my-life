@@ -1,3 +1,4 @@
+import { Settings } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 import { TopNav } from "@/components/TopNav";
@@ -10,14 +11,19 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="shell">
       <header className="topbar">
+        {/* 일기장 안에서 모바일 메뉴(삼선) 버튼이 여기로 들어온다 (Sidebar) */}
+        <span id="nav-slot" className="nav-slot" />
         <Suspense fallback={null}>
           <TopNav />
         </Suspense>
         <div className="spacer" />
-        {/* 일기장 안에서 모바일 메뉴 버튼이 여기로 들어온다 (Sidebar) */}
-        <span id="nav-slot" className="nav-slot" />
-        {/* 구글 프로필 사진 = 설정·계정. 일기장 안에서는 사이드바 아래에 있어서 숨긴다 */}
-        <Link className="avatar-link" href="/settings" aria-label={`설정 (${who})`} title={`설정 · ${user.email}`}>
+        {/* 사이드 메뉴가 없는 화면(일기장 목록 등)에서만: 설정은 평소 사이드 메뉴 아래에 있다 */}
+        <Link className="btn topbar-settings" href="/settings" title="설정">
+          <Settings size={16} aria-hidden />
+          <span className="btn-label">설정</span>
+        </Link>
+        {/* 구글 프로필 사진: 누르면 첫 화면 */}
+        <Link className="avatar-link" href="/" aria-label={`홈 (${who})`} title={user.email}>
           {user.image ? (
             // 구글 프로필 사진은 리퍼러가 붙으면 가끔 막혀서 no-referrer
             // eslint-disable-next-line @next/next/no-img-element

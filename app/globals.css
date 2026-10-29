@@ -3076,3 +3076,119 @@ mark {
 .topbar {
   min-height: 49px;
 }
+
+/* ───── v2: 머리줄(왼쪽 메뉴·오른쪽 프로필), 첫 화면 날짜, 사이드 메뉴 아래 ───── */
+
+/* 프로필은 어디서나 보인다 (누르면 첫 화면) */
+.shell:has(.sidebar) .topbar .avatar-link {
+  display: inline-flex;
+}
+/* 설정은 사이드 메뉴 아래에 있으니 머리줄에서는 사이드 메뉴가 없는 화면에서만 */
+.shell:has(.sidebar) .topbar-settings {
+  display: none;
+}
+
+/* 첫 화면: 일기장 이름 대신 오늘 날짜 */
+.home-head {
+  margin-bottom: 0.9rem;
+}
+.home .home-date {
+  display: block;
+  margin: 0;
+  padding: 0 0.25rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* 사이드 메뉴 아래: 아이콘+글자 한 줄씩 */
+.sidebar .side-foot a,
+.side-refresh {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 40px;
+  padding: 0 0.6rem;
+  border-radius: 10px;
+  color: var(--text);
+  text-decoration: none;
+}
+.side-foot svg {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+.side-refresh {
+  width: 100%;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: inherit;
+  color: var(--muted);
+  text-align: left;
+  cursor: pointer;
+}
+.side-refresh:hover {
+  background: var(--line);
+}
+.side-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.25rem;
+}
+.side-close,
+.side-scrim {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  /* 메뉴 버튼은 왼쪽 끝 */
+  .menu-toggle {
+    /* 머리줄 높이(49px, 편집기 높이 계산에 쓰임) 안에 맞춘다 */
+    height: 36px;
+    margin: 0 0 0 -0.5rem;
+  }
+  /* 사이드 메뉴: 왼쪽에서 나오는 서랍 + 뒤를 어둡게 */
+  .sidebar {
+    top: 0;
+    right: auto;
+    width: min(312px, 86vw);
+    z-index: 50;
+    padding: 0.5rem 0.75rem calc(1.5rem + env(safe-area-inset-bottom));
+    background: #f5f1eb;
+    box-shadow: 8px 0 32px rgb(42 39 35 / 0.18);
+  }
+  .sidebar.open {
+    display: flex;
+    flex-direction: column;
+    padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
+  }
+  .sidebar.open > * {
+    flex-shrink: 0;
+  }
+  .sidebar.open .side-foot {
+    margin-top: auto;
+  }
+  .side-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .side-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 45;
+    border: 0;
+    padding: 0;
+    background: rgb(42 39 35 / 0.42);
+    cursor: pointer;
+  }
+}

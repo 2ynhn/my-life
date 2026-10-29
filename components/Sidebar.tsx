@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, CalendarDays, Folder, HeartPulse, Layers, Lock, Menu, NotebookPen, Plane, Receipt, Settings, Sparkles, X } from "lucide-react";
+import { ArrowLeft, CalendarDays, ExternalLink, Folder, HeartPulse, Layers, Lock, Menu, NotebookPen, Plane, Receipt, Settings, Sparkles, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -49,36 +49,37 @@ function Branch({ nodes, pathname, top = false }: { nodes: TreeNode[]; pathname:
   );
 }
 
-type Me = { name: string; email: string; image: string | null };
-
-/** 일기장 하나의 폴더 트리. title은 일기장 이름(공유받은 것이면 '누구의 my-life') */
-export function Sidebar({ tree, title, homeHref, me }: { tree: TreeNode[]; title: string; homeHref: string; me: Me }) {
+/** 일기장 하나의 메뉴: 검색·도구·폴더 트리, 아래에 Drive에서 열기·설정·다시 불러오기. 모바일에서는 왼쪽 서랍 */
+export function Sidebar({ tree, homeHref, driveHref }: { tree: TreeNode[]; homeHref: string; driveHref: string }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  // 모바일 메뉴 버튼은 상단 내비게이션 오른쪽 자리에 넣는다
+  // 모바일 메뉴 버튼은 머리줄 왼쪽 자리에 넣는다
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   useEffect(() => setSlot(document.getElementById("nav-slot")), []);
   const toggle = (
-    <button className="menu-toggle" aria-expanded={open} aria-label={open ? "메뉴 닫기" : "메뉴 열기"} onClick={() => setOpen((v) => !v)}>
-      {open ? <X size={22} aria-hidden /> : <Menu size={22} aria-hidden />}
+    <button className="menu-toggle" aria-expanded={open} aria-label="메뉴 열기" onClick={() => setOpen(true)}>
+      <Menu size={22} aria-hidden />
     </button>
   );
 
   return (
     <>
       {slot && createPortal(toggle, slot)}
+      {open && <button className="side-scrim" aria-label="메뉴 닫기" onClick={() => setOpen(false)} />}
       <nav
         className={`sidebar${open ? " open" : ""}`}
-        aria-label="폴더"
+        aria-label="메뉴"
         // 모바일: 링크를 누르면 메뉴를 닫는다
         onClick={(e) => (e.target as HTMLElement).closest("a") && setOpen(false)}
       >
-        <Link href="/libraries" className="libs small muted">
-          <ArrowLeft size={14} aria-hidden /> 일기장 목록
-        </Link>
-        <Link href={homeHref} className={`home${decodeURIComponent(pathname) === decodeURIComponent(homeHref) ? " current" : ""}`}>
-          {title}
-        </Link>
+        <div className="side-top">
+          <Link href="/libraries" className="libs small muted">
+            <ArrowLeft size={14} aria-hidden /> 일기장 목록
+          </Link>
+          <button className="side-close" aria-label="메뉴 닫기" onClick={() => setOpen(false)}>
+            <X size={22} aria-hidden />
+          </button>
+        </div>
         <form className="side-search" action={homeHref}>
           <input type="hidden" name="view" value="search" />
           <input name="q" placeholder="검색" aria-label="일기 검색" />
@@ -99,18 +100,13 @@ export function Sidebar({ tree, title, homeHref, me }: { tree: TreeNode[]; title
         </div>
         <Branch nodes={tree} pathname={pathname} top />
         <div className="side-foot">
-          <Link href="/settings" className="side-me" title={me.email}>
-            {me.image ? (
-              // 구글 프로필 사진은 리퍼러가 붙으면 가끔 막혀서 no-referrer
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={me.image} alt="" width={28} height={28} referrerPolicy="no-referrer" />
-            ) : (
-              <span className="side-initial" aria-hidden>
-                {me.name.slice(0, 1).toUpperCase()}
-              </span>
-            )}
-            <span className="side-me-name">{me.name}</span>
-            <Settings size={16} className="side-me-icon" aria-label="설정" />
+          <a href={driveHref} target="_blank" rel="noopener noreferrer">
+            <ExternalLink size={16} aria-hidden />
+            Drive에서 열기
+          </a>
+          <Link href="/settings">
+            <Settings size={16} aria-hidden />
+            설정
           </Link>
           <RefreshButton />
         </div>

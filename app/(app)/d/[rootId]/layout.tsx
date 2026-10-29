@@ -1,8 +1,7 @@
 import { Suspense } from "react";
 import { Sidebar } from "@/components/Sidebar";
 import { TabBar } from "@/components/TabBar";
-import { folderTree } from "@/lib/drive";
-import { libraryTitle } from "@/lib/labels";
+import { folderTree, webUrlFor } from "@/lib/drive";
 import { loadLibrary } from "@/lib/library";
 import { requireUser } from "@/lib/session";
 
@@ -24,9 +23,8 @@ export default async function LibraryLayout({
     <>
       <Sidebar
         tree={folderTree(index.root)}
-        title={libraryTitle(index.lib)}
         homeHref={index.lib.base}
-        me={{ name: user.name ?? user.email, email: user.email, image: user.image }}
+        driveHref={webUrlFor(index.root)}
       />
       <div className="with-sidebar">{children}</div>
       <Suspense fallback={null}>

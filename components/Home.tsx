@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarDays, ChevronRight, Clock, ExternalLink, History, Layers, PenLine, Plus, Search, Sparkles } from "lucide-react";
+import { CalendarDays, ChevronRight, Clock, History, Layers, PenLine, Plus, Search, Sparkles } from "lucide-react";
 import { NewFolderButton } from "@/components/NewFolderButton";
 import { QuickNote } from "@/components/QuickNote";
 import { startFeature } from "@/app/(app)/note-actions";
@@ -10,14 +10,12 @@ import {
   hrefFor,
   isListable,
   visibleChildren,
-  webUrlFor,
   type DriveIndex,
   type Entry,
   type FileEntry,
   type FolderEntry,
 } from "@/lib/drive";
 import { FEATURES, featureByName, type Feature, type FeatureKey } from "@/lib/features";
-import { libraryTitle } from "@/lib/labels";
 
 // 일기장 첫 화면: 폴더 구조 대신 쓰임새(일기·구매·여행·건강) 카드로.
 // 숫자는 Drive 목록(이름·수정 시각)만으로 센다 — 글을 열어 읽지 않아 빠르다.
@@ -197,13 +195,8 @@ export async function Home({
   return (
     <div className="home">
       <div className="home-head">
-        <p className="home-date muted small">
-          {dateLabel}
-          <a href={webUrlFor(root)} target="_blank" rel="noopener noreferrer">
-            Drive에서 열기 <ExternalLink size={12} aria-hidden />
-          </a>
-        </p>
-        <h1 className="page-title">{libraryTitle(root.lib)}</h1>
+        {/* 매일 여는 화면이라 일기장 이름 대신 오늘 날짜만 (Drive에서 열기는 사이드 메뉴) */}
+        <h1 className="home-date">{dateLabel}</h1>
         {!root.lib.ownedByMe && (
           <p className="muted small">
             {root.lib.ownerName}님이 Drive에서 공유한 일기장입니다.{" "}
