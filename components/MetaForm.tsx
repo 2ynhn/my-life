@@ -227,8 +227,15 @@ export function MetaForm({ kind, text, onChange, suggestions, onAddPlace, onAddC
     const items = Array.isArray(meta.items)
       ? (meta.items as Record<string, unknown>[]).map((it) => ({ name: str(it?.name), price: it?.price ?? null }))
       : [];
+    const sumOf = (list: { price: unknown }[]) => list.reduce((a, it) => a + (typeof it.price === "number" ? it.price : 0), 0);
+    const itemSum = sumOf(items);
+    const amount = typeof meta.amount === "number" ? meta.amount : 0;
+    // 품목 금액을 고치면 금액(총액)도 합계로. 단 총액을 따로 적어 둔 경우(할인·배송비 등, 합계와 다름)는 그대로 둔다
     const setItems = (next: { name: string; price: unknown }[]) =>
-      set({ items: next.map((it) => ({ name: it.name, price: typeof it.price === "number" ? it.price : 0 })) });
+      set({
+        items: next.map((it) => ({ name: it.name, price: typeof it.price === "number" ? it.price : 0 })),
+        ...(amount === 0 || amount === itemSum ? { amount: sumOf(next) } : {}),
+      });
     return (
       <div className="meta-form">
         <div className="form-grid">
@@ -239,7 +246,7 @@ export function MetaForm({ kind, text, onChange, suggestions, onAddPlace, onAddC
             numeric
             value={meta.amount}
             onChange={(v) => set({ amount: numberish(v) ?? 0 })}
-            hint={won(meta.amount)}
+            hint={itemSum > 0 && itemSum !== amount ? `${won(meta.amount)} · 품목 합계 ${won(itemSum)}` : won(meta.amount)}
           />
           <Text label="결제" value={meta.payment} onChange={(v) => set({ payment: v })} list="dl-payments" placeholder="신한카드, 현금 …" />
         </div>
