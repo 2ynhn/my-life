@@ -1,6 +1,6 @@
 "use client";
 
-import { Camera, ImagePlus, ImageUp, MapPinPlus } from "lucide-react";
+import { Camera, ClipboardPaste, ImagePlus, ImageUp, MapPinPlus } from "lucide-react";
 import { markdown } from "@codemirror/lang-markdown";
 import { yamlFrontmatter } from "@codemirror/lang-yaml";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
@@ -104,6 +104,8 @@ export function Editor(props: Props) {
   const viewRef = useRef<EditorView | null>(null);
   const saveRef = useRef<() => void>(() => {});
   const uploadRef = useRef<(files: File[]) => void>(() => {});
+  // 붙여넣은 이미지: 구매 새 글이면 영수증으로 읽고, 아니면 사진으로 올린다
+  const pasteRef = useRef<(files: File[]) => void>(() => {});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const receiptInputRef = useRef<HTMLInputElement>(null);
   const [camera, setCamera] = useState(false);
@@ -180,7 +182,7 @@ export function Editor(props: Props) {
             const files = imageFiles(e.clipboardData?.files);
             if (!files.length) return false;
             e.preventDefault();
-            uploadRef.current(files);
+            pasteRef.current(files);
             return true;
           },
           drop(e, view) {
@@ -385,6 +387,48 @@ export function Editor(props: Props) {
     }
   };
 
+  // 고른·붙여넣은 이미지(스크린샷 등)를 줄여서 영수증으로 읽는다 (서버 한도 4MB)
+  const receiptFromImage = async (image: Blob) => {
+    try {
+      const file = image instanceof File ? image : new File([image], "clipboard", { type: image.type || "image/png" });
+      void readReceiptImage(await prepareImage(file));
+    } catch (err) {
+      setMessage({ kind: "error", text: err instanceof Error ? err.message : "이미지를 열지 못했습니다." });
+    }
+  };
+  const receiptMode = props.mode === "new" && !!props.receipt;
+  pasteRef.current = (files) => (receiptMode ? void receiptFromImage(files[0]) : uploadRef.current(files));
+
+  // 편집기 밖(폼 칸 등)에 포커스가 있어도 Ctrl+V 스크린샷을 영수증으로
+  useEffect(() => {
+    if (!receiptMode) return;
+    const onPaste = (e: ClipboardEvent) => {
+      if (e.defaultPrevented) return; // 편집기가 이미 처리함
+      const files = imageFiles(e.clipboardData?.files);
+      if (!files.length) return;
+      e.preventDefault();
+      pasteRef.current(files);
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [receiptMode]);
+
+  // '클립보드에서 읽기' 버튼: 브라우저가 클립보드 읽기를 허락할 때
+  const readClipboard = async () => {
+    if (!navigator.clipboard?.read) {
+      return setMessage({ kind: "info", text: "이 브라우저는 버튼으로 클립보드를 읽지 못해요. Ctrl+V(⌘V)로 붙여넣어 주세요." });
+    }
+    try {
+      for (const item of await navigator.clipboard.read()) {
+        const type = item.types.find((t) => t.startsWith("image/"));
+        if (type) return void receiptFromImage(await item.getType(type));
+      }
+      setMessage({ kind: "info", text: "클립보드에 이미지가 없어요. 스크린샷을 복사한 뒤 다시 눌러 주세요." });
+    } catch {
+      setMessage({ kind: "info", text: "클립보드를 읽지 못했어요(권한). Ctrl+V(⌘V)로 붙여넣어 주세요." });
+    }
+  };
+
   const close = () => {
     if (dirty && !confirm("저장하지 않은 내용이 있습니다. 닫을까요?\n(브라우저 임시저장에는 남아 있어요)")) return;
     router.push(props.closeHref);
@@ -464,6 +508,15 @@ export function Editor(props: Props) {
               <ImageUp size={16} aria-hidden />
               이미지로 읽기
             </button>
+            <button
+              className="btn"
+              onClick={() => void readClipboard()}
+              disabled={!!uploading}
+              title="복사해 둔 스크린샷을 읽습니다 (Ctrl+V로 붙여넣어도 됩니다)"
+            >
+              <ClipboardPaste size={16} aria-hidden />
+              클립보드에서 읽기
+            </button>
             <label className="small muted attach-opt">
               <input type="checkbox" checked={attachReceipt} onChange={(e) => setAttachReceipt(e.target.checked)} /> 이미지도 글에 첨부
             </label>
@@ -472,16 +525,10 @@ export function Editor(props: Props) {
               type="file"
               accept="image/*"
               hidden
-              onChange={async (e) => {
+              onChange={(e) => {
                 const file = imageFiles(e.target.files)[0];
                 e.target.value = "";
-                if (!file) return;
-                try {
-                  // 큰 사진은 줄여서 보낸다 (서버 한도 4MB)
-                  void readReceiptImage(await prepareImage(file));
-                } catch (err) {
-                  setMessage({ kind: "error", text: err instanceof Error ? err.message : "이미지를 열지 못했습니다." });
-                }
+                if (file) void receiptFromImage(file);
               }}
             />
           </span>
@@ -595,7 +642,9 @@ export function Editor(props: Props) {
       )}
       {picker && <PlacePicker onPick={insertPlace} onClose={() => setPicker(false)} />}
       <p className="hint small muted">
-        Ctrl+S 저장 · 입력 내용은 브라우저에 자동 임시저장 · 사진은 붙여넣기·끌어다 놓기도 됩니다
+        {receiptMode
+          ? "Ctrl+S 저장 · 스크린샷은 복사한 뒤 Ctrl+V(⌘V)로 붙여넣으면 바로 영수증으로 읽어요 · 입력 내용은 브라우저에 자동 임시저장"
+          : "Ctrl+S 저장 · 입력 내용은 브라우저에 자동 임시저장 · 사진은 붙여넣기·끌어다 놓기도 됩니다"}
       </p>
     </div>
   );
