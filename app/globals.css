@@ -3331,3 +3331,7 @@ a.share-target:hover {
   border-radius: 6px;
   margin-bottom: 0.35rem;
 }
+/* 편집기 화면에서는 하단 탭을 처음부터 숨긴다 (TabBar가 쿼리를 읽기 전) */
+body:has(.editor) .tabbar {
+  display: none;
+}
