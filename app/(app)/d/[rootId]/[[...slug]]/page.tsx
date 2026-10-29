@@ -38,6 +38,7 @@ import {
   type FolderEntry,
 } from "@/lib/drive";
 import { featureByName } from "@/lib/features";
+import { setFields } from "@/lib/frontmatter-edit";
 import { libraryTitle } from "@/lib/labels";
 import { loadLibrary } from "@/lib/library";
 import { splitFrontmatter } from "@/lib/markdown";
@@ -60,6 +61,7 @@ type Props = {
     who?: string;
     store?: string;
     date?: string;
+    end?: string;
     photo?: string;
   }>;
 };
@@ -116,6 +118,8 @@ export default async function EntryPage({ params, searchParams }: Props) {
   // '이 사진으로 일기 쓰기': 그 날짜로, 그 사진을 넣은 채로
   const photo = typeof sp.photo === "string" && sp.photo.length <= 200 ? sp.photo : undefined;
   const date = typeof sp.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) ? sp.date : undefined;
+  // 공유한 사진으로 새 여행: 돌아온 날 (가장 늦은 사진 날)
+  const end = date && typeof sp.end === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sp.end) && sp.end > date ? sp.end : undefined;
 
   // 일기장 단위 화면: 검색·캘린더 (주소: /d/<id>?view=…)
   if (!entry.parent && view === "search") return <SearchView index={index} q={String(q ?? "")} tag={String(tag ?? "")} />;
@@ -133,11 +137,11 @@ export default async function EntryPage({ params, searchParams }: Props) {
       const existing = entry.children.find((c) => c.kind === "folder" && c.name === sub);
       if (existing) {
         const keep = new URLSearchParams({ mode: "new" });
-        for (const [k, v] of [["shared", shared], ["date", date], ["photo", photo]] as const) if (v) keep.set(k, v);
+        for (const [k, v] of [["shared", shared], ["date", date], ["end", end], ["photo", photo]] as const) if (v) keep.set(k, v);
         redirect(`${hrefFor(existing)}?${keep}`);
       }
     }
-    return <NewNote folder={entry} index={index} subfolder={sub} shared={shared} date={date} insertPhoto={photo} />;
+    return <NewNote folder={entry} index={index} subfolder={sub} shared={shared} date={date} end={end} insertPhoto={photo} />;
   }
 
   // 첫 화면은 경로 표시 없이 바로 카드
@@ -309,6 +313,7 @@ async function NewNote({
   subfolder,
   shared,
   date: forDate,
+  end,
   insertPhoto,
 }: {
   folder: FolderEntry;
@@ -316,8 +321,10 @@ async function NewNote({
   subfolder?: string;
   /** "1": 공유받은 이미지를 영수증으로 · "photos": 공유받은 사진을 글에 */
   shared?: string;
-  /** 오늘 대신 이 날짜로 (사진으로 일기 쓰기) */
+  /** 오늘 대신 이 날짜로 (사진으로 일기·여행 쓰기) */
   date?: string;
+  /** 여행의 돌아온 날 (공유한 사진들의 가장 늦은 날) */
+  end?: string;
   /** 이미 올린 사진을 글 끝에 넣기 */
   insertPhoto?: string;
 }) {
@@ -346,7 +353,7 @@ async function NewNote({
       subfolder={subfolder}
       // 새로 만들 폴더는 비어 있으니 이름이 겹칠 일이 없다
       defaultName={subfolder ? date : freeName(folder, date)}
-      initialText={template.replaceAll("{{date}}", date).replaceAll("{{title}}", "")}
+      initialText={withEnd(template.replaceAll("{{date}}", date).replaceAll("{{title}}", ""), end)}
       closeHref={hrefFor(folder)}
       // 연도 폴더가 아직 없으면 부모(daily) 기준 → daily/attachments 에 저장되고, 새 폴더에서도 그대로 찾아진다
       uploadFolderId={folder.id}
@@ -362,4 +369,14 @@ async function formKindOf(index: DriveIndex, folder: FolderEntry): Promise<FormK
   let top = folder;
   while (top.parent?.parent) top = top.parent;
   return top.parent && featureByName(top.name) === "diary" ? "diary" : null;
+}
+
+/** 여행 템플릿의 end(돌아온 날)만 바꾼다. 앞머리가 이상하거나 end 칸이 없으면 그대로 */
+function withEnd(text: string, end?: string): string {
+  if (!end || !/^end:/m.test(text)) return text;
+  try {
+    return setFields(text, { end });
+  } catch {
+    return text;
+  }
 }

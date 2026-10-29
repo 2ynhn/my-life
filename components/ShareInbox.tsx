@@ -31,6 +31,8 @@ export function ShareInbox({ rootId, targets, retry }: { rootId: string | null; 
   const [images, setImages] = useState<string[]>([]);
   // 사진 찍은 날 (여러 장이면 가장 이른 날). 모르면 null → 오늘
   const [photoDay, setPhotoDay] = useState<string | null>(null);
+  // 가장 늦은 찍은 날 (새 여행의 돌아온 날)
+  const [lastDay, setLastDay] = useState<string | null>(null);
   const [text, setText] = useState("");
   const [pending, start] = useTransition();
   const [result, setResult] = useState<{ ok: true; href: string } | { ok: false; error: string } | null>(null);
@@ -45,7 +47,9 @@ export function ShareInbox({ rootId, targets, retry }: { rootId: string | null; 
           b.type === "image/jpeg" ? readExif(await b.slice(0, 256 * 1024).arrayBuffer())?.taken?.slice(0, 10) : undefined,
         ),
       );
-      setPhotoDay(days.filter((d): d is string => !!d).sort()[0] ?? null);
+      const known = days.filter((d): d is string => !!d).sort();
+      setPhotoDay(known[0] ?? null);
+      setLastDay(known.at(-1) ?? null);
       setText(shared.text);
       setLoaded(true);
     })();
@@ -139,8 +143,19 @@ export function ShareInbox({ rootId, targets, retry }: { rootId: string | null; 
                   ))}
                   {targets.travelNew && (
                     <li>
-                      <Link href={targets.travelNew} className="new-trip">
+                      <Link
+                        href={photoDay ? `${targets.travelNew}&date=${photoDay}&end=${lastDay ?? photoDay}` : targets.travelNew}
+                        className="new-trip"
+                        title={photoDay ? `출발 ${photoDay} · 돌아온 날 ${lastDay ?? photoDay} (사진 찍은 날)` : undefined}
+                      >
                         <Plus size={14} aria-hidden /> 새 여행
+                        {photoDay && (
+                          <span className="muted small">
+                            {" "}
+                            · {dayLabel(photoDay)}
+                            {lastDay && lastDay !== photoDay && ` ~ ${dayLabel(lastDay)}`}
+                          </span>
+                        )}
                       </Link>
                     </li>
                   )}
