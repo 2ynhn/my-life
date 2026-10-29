@@ -209,7 +209,7 @@ async function Folder({ folder, index, spend, range }: { folder: FolderEntry; in
       {kind === "travel" && <TravelView index={index} folder={folder} />}
       {kind === "health" && <HealthView index={index} folder={folder} range={range} />}
       {kind === "food" && <FoodView index={index} folder={folder} />}
-      <FolderView folder={folder} />
+      <FolderView folder={folder} index={index} kind={kind} />
     </>
   );
 }

@@ -318,6 +318,20 @@ a {
 .note-list .muted {
   flex-shrink: 0;
 }
+.note-list .title {
+  flex-shrink: 0;
+  max-width: 65%;
+  overflow-wrap: anywhere;
+}
+/* 글 내용 한 줄: 길면 말줄임 */
+.note-list .summary {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+}
 
 .recent {
   margin-top: 2.5rem;
