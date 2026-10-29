@@ -20,6 +20,7 @@ import { reverseName } from "@/lib/geo-name";
 import { imageFiles, prepareImage, uploadImage } from "@/lib/image-upload";
 import { tableResolver, type LinkTable } from "@/lib/markdown";
 import { takeSharedImages } from "@/lib/share-store";
+import { autoNoteName } from "@/lib/note-name";
 import { fillReceipt, receiptFileName, type Receipt } from "@/lib/receipt-shape";
 import { addCategory as addCategoryAction } from "@/app/(app)/budget-actions";
 
@@ -125,6 +126,8 @@ export function Editor(props: Props) {
   const [savedText, setSavedText] = useState(props.initialText);
   const [checksum, setChecksum] = useState(props.mode === "edit" ? props.checksum : "");
   const [name, setName] = useState(props.mode === "new" ? props.defaultName : "");
+  // 이름을 직접 고치기 전까지는 날짜·가게·식당·여행 이름을 따라 자동으로
+  const [nameAuto, setNameAuto] = useState(props.mode === "new");
   const [busy, setBusy] = useState(false);
   // ok: 저장됨(다시 고치면 사라짐) · info: 안내(고쳐도 남음) · error
   const [message, setMessage] = useState<{ kind: "ok" | "info" | "error"; text: string } | null>(null);
@@ -273,7 +276,7 @@ export function Editor(props: Props) {
             setMessage({ kind: "error", text: res.error });
           }
         } else {
-          const res = await createNote(props.rootId, props.folderId, name, current, props.subfolder);
+          const res = await createNote(props.rootId, props.folderId, name, current, props.subfolder, nameAuto);
           if (res.ok) {
             writeDraft(draftKey, null);
             setSavedText(current);
@@ -290,9 +293,14 @@ export function Editor(props: Props) {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [busy, text, checksum, name, draftKey],
+    [busy, text, checksum, name, nameAuto, draftKey],
   );
   saveRef.current = () => void save();
+
+  const autoName = props.mode === "new" && nameAuto ? autoNoteName(text, props.form, props.defaultName) : null;
+  useEffect(() => {
+    if (autoName && autoName !== name) setName(autoName);
+  }, [autoName, name]);
 
   // 한 장씩 차례로 올리고, 올라갈 때마다 커서 자리에 ![[이름]] 을 넣는다
   uploadRef.current = async (files: File[]) => {
@@ -516,7 +524,10 @@ export function Editor(props: Props) {
             <span className="muted small">{props.folderName} /</span>
             <input
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                setNameAuto(false);
+              }}
               aria-label="파일 이름"
               placeholder="파일 이름"
               spellCheck={false}
@@ -635,7 +646,10 @@ export function Editor(props: Props) {
             className="btn"
             onClick={() => {
               replaceDoc(pendingDraft.text);
-              if (pendingDraft.name) setName(pendingDraft.name);
+              if (pendingDraft.name) {
+                setName(pendingDraft.name);
+                setNameAuto(false);
+              }
               setPendingDraft(null);
             }}
           >

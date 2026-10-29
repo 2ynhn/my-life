@@ -15,6 +15,7 @@ import {
   readNote,
   renameFile,
   trashFile,
+  uniqueName,
   updateFile,
   type DriveIndex,
   type FileEntry,
@@ -115,6 +116,8 @@ export async function createNote(
   rawName: string,
   text: string,
   subfolder?: string,
+  /** 이름을 앱이 자동으로 지었으면 겹칠 때 -2, -3 … 을 붙인다 (직접 지은 이름은 겹치면 알려 줌) */
+  autoName = false,
 ): Promise<ActionResult> {
   const index = await libraryIndex(rootId);
   if (typeof index === "string") return { ok: false, error: index };
@@ -133,7 +136,9 @@ export async function createNote(
     else needFolder = true;
   }
   // 이름 검사를 먼저 해서, 실패할 때 빈 폴더만 남는 일이 없게 한다 (새 폴더는 비어 있으니 겹칠 이름도 없다)
-  const checked = checkNoteName(String(rawName ?? ""), needFolder ? { ...folder, children: [] } : target);
+  const into = needFolder ? { ...folder, children: [] } : target;
+  const base = String(rawName ?? "").trim().replace(/\.md$/i, "").trim();
+  const checked = checkNoteName(autoName === true && base ? uniqueName(into, base, ".md") : base, into);
   if ("error" in checked) return { ok: false, error: checked.error };
 
   try {
