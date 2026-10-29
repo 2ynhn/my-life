@@ -64,8 +64,10 @@ function failure(e: unknown): { ok: false; error: string } {
 }
 
 /** 같은 id로 다시 찾아서 주소를 만든다 (이름이 바뀌면 주소도 바뀜) */
-async function freshHref(index: DriveIndex, id: string, fallback: string): Promise<string> {
-  const entry = (await getIndex(index.user, index.lib, { fresh: true })).byId.get(id);
+async function freshHref(index: DriveIndex, id: string, fallback: string, justCreated = false): Promise<string> {
+  // 방금 만든 파일은 보통 캐시 목록에 바로 들어가 있다 (lib/drive addToIndex). 없을 때만 Drive를 다시 읽는다
+  const entry =
+    (justCreated ? index.byId.get(id) : undefined) ?? (await getIndex(index.user, index.lib, { fresh: true })).byId.get(id);
   return entry ? hrefFor(entry) : fallback;
 }
 
@@ -99,8 +101,7 @@ export async function saveNote(
     }
     const checksum = await updateFile(index, file, text);
     // 페이지를 다시 그리지 않는다: 편집기가 새로 만들어지면 커서·되돌리기 기록이 사라진다.
-    // 보기 화면은 매번 Drive에서 내용을 읽으므로 목록(수정 시각)만 갱신하면 된다.
-    invalidateIndex(index);
+    // 목록 캐시는 updateFile이 이 글만 고쳐 둔다.
     await markWritten();
     if (leaving) revalidatePath("/", "layout");
     return { ok: true, checksum };
@@ -147,10 +148,9 @@ export async function createNote(
       target = { ...folder, id: newId, name: subfolder!, children: [] };
     }
     const id = await createFile(index, target, checked.name, text);
-    invalidateIndex(index);
     await markWritten();
     revalidatePath("/", "layout");
-    return { ok: true, href: await freshHref(index, id, hrefFor(folder)) };
+    return { ok: true, href: await freshHref(index, id, hrefFor(folder), true) };
   } catch (e) {
     return failure(e);
   }

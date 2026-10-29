@@ -10,7 +10,6 @@ import { EditorView, placeholder } from "@codemirror/view";
 import { minimalSetup } from "codemirror";
 import { useRouter } from "next/navigation";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { createNote, saveNote } from "@/app/(app)/note-actions";
 import { MetaForm, type FormKind, type Suggestions } from "@/components/MetaForm";
 import { NoteBody } from "@/components/NoteBody";
 import { PlacePicker } from "@/components/PlacePicker";
@@ -19,6 +18,7 @@ import { addPlace, readMeta, setFields } from "@/lib/frontmatter-edit";
 import { reverseName } from "@/lib/geo-name";
 import { imageFiles, prepareImage, uploadImage } from "@/lib/image-upload";
 import { tableResolver, type LinkTable } from "@/lib/markdown";
+import { enqueue, onResult, pendingSave, readDraft, writeDraft, type Draft } from "@/lib/save-queue";
 import { takeSharedImages } from "@/lib/share-store";
 import { autoNoteName } from "@/lib/note-name";
 import { fillReceipt, receiptFileName, type Receipt } from "@/lib/receipt-shape";
@@ -60,8 +60,6 @@ type Props = {
     }
 );
 
-type Draft = { text: string; name?: string; at: number };
-
 /** 글쓰기용 차분한 강조: 제목은 굵게만, 밑줄 없음 */
 const proseHighlight = HighlightStyle.define([
   { tag: t.heading1, fontWeight: "700", fontSize: "1.25em" },
@@ -85,22 +83,6 @@ const editorTheme = EditorView.theme({
   ".cm-cursor": { borderLeftColor: "var(--accent)" },
   ".cm-placeholder": { color: "var(--muted)" },
 });
-
-// 브라우저 저장소는 사생활 보호 모드 등에서 막힐 수 있으므로 항상 try/catch
-function readDraft(key: string): Draft | null {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as Draft) : null;
-  } catch {
-    return null;
-  }
-}
-function writeDraft(key: string, draft: Draft | null) {
-  try {
-    if (draft) localStorage.setItem(key, JSON.stringify(draft));
-    else localStorage.removeItem(key);
-  } catch {}
-}
 
 const fmtTime = (t: number) => new Date(t).toLocaleString("ko-KR", { dateStyle: "short", timeStyle: "short" });
 
@@ -128,7 +110,8 @@ export function Editor(props: Props) {
   const [name, setName] = useState(props.mode === "new" ? props.defaultName : "");
   // 이름을 직접 고치기 전까지는 날짜·가게·식당·여행 이름을 따라 자동으로
   const [nameAuto, setNameAuto] = useState(props.mode === "new");
-  const [busy, setBusy] = useState(false);
+  // 저장을 눌러 넘겼으면 임시저장을 더 하지 않는다 (화면이 바뀌기 전에 타이머가 돌아도)
+  const submitted = useRef(false);
   // ok: 저장됨(다시 고치면 사라짐) · info: 안내(고쳐도 남음) · error
   const [message, setMessage] = useState<{ kind: "ok" | "info" | "error"; text: string } | null>(null);
   const [conflict, setConflict] = useState<{ text: string; checksum: string } | null>(null);
@@ -219,6 +202,17 @@ export function Editor(props: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 앞서 저장한 내용이 아직 Drive로 가는 중이면 그 내용으로 시작한다
+  useEffect(() => {
+    if (props.mode !== "edit") return;
+    const job = pendingSave(props.fileId);
+    if (!job || job.text === latestText.current) return;
+    replaceDoc(job.text, false);
+    setSavedText(job.text);
+    setMessage({ kind: "info", text: "앞서 저장한 내용을 Drive에 올리는 중이에요." });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // 저장 안 된 임시본이 있으면 복원할지 묻는다
   useEffect(() => {
     const draft = readDraft(draftKey);
@@ -229,7 +223,9 @@ export function Editor(props: Props) {
   // 입력이 멈추면 1초 뒤 브라우저에 임시저장
   useEffect(() => {
     if (!dirty || pendingDraft) return;
-    const t = setTimeout(() => writeDraft(draftKey, { text, name: name || undefined, at: Date.now() }), 1000);
+    const t = setTimeout(() => {
+      if (!submitted.current) writeDraft(draftKey, { text, name: name || undefined, at: Date.now() });
+    }, 1000);
     return () => clearTimeout(t);
   }, [dirty, text, name, draftKey, pendingDraft]);
 
@@ -253,48 +249,73 @@ export function Editor(props: Props) {
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, [dirty]);
 
+  // 저장: 뒤에서 보내는 줄(lib/save-queue)에 넣고 기다리지 않는다. 끝나면 결과가 아래 onResult로 온다
   const save = useCallback(
-    async (force = false, leave = false) => {
-      if (busy) return;
-      setBusy(true);
+    (force = false, leave = false) => {
       setMessage(null);
       const current = viewRef.current?.state.doc.toString() ?? text;
-      try {
-        if (props.mode === "edit") {
-          const res = await saveNote(props.rootId, props.fileId, checksum, current, force, leave);
-          if (res.ok) {
-            setChecksum(res.checksum);
-            setSavedText(current);
-            setConflict(null);
-            writeDraft(draftKey, null);
-            if (leave && props.doneHref) return router.push(props.doneHref);
-            setMessage({ kind: "ok", text: `저장됨 · ${fmtTime(Date.now())}` });
-            // 미리 받아 둔 이 글 화면(저장 전 내용)을 비운다
-            router.refresh();
-          } else {
-            setConflict(res.conflict ?? null);
-            setMessage({ kind: "error", text: res.error });
-          }
-        } else {
-          const res = await createNote(props.rootId, props.folderId, name, current, props.subfolder, nameAuto);
-          if (res.ok) {
-            writeDraft(draftKey, null);
-            setSavedText(current);
-            // 만든 글이 들어간 폴더(카테고리)로 돌아간다
-            router.push(props.doneHref ?? res.href.replace(/\/[^/]+$/, ""));
-          } else {
-            setMessage({ kind: "error", text: res.error });
-          }
+      if (props.mode === "edit") {
+        enqueue({
+          op: "save",
+          rootId: props.rootId,
+          fileId: props.fileId,
+          checksum,
+          force,
+          text: current,
+          label: props.fileName,
+          draftKey,
+          reopenHref: `${props.closeHref}?mode=edit`,
+        });
+        setSavedText(current);
+        setConflict(null);
+        if (leave) {
+          submitted.current = true;
+          return router.push(props.doneHref ?? props.closeHref);
         }
-      } catch {
-        setMessage({ kind: "error", text: "서버에 연결하지 못했습니다. 내용은 브라우저에 임시저장되어 있어요." });
-      } finally {
-        setBusy(false);
+        setMessage({ kind: "info", text: "저장 중…" });
+        return;
       }
+      const base = name.trim().replace(/\.md$/i, "").trim();
+      if (!base) return setMessage({ kind: "error", text: "파일 이름을 입력하세요." });
+      if (/[\/\\\x00-\x1f]/.test(base) || base.startsWith("."))
+        return setMessage({ kind: "error", text: "파일 이름에 / \\ 나 맨 앞 . 은 쓸 수 없습니다." });
+      enqueue({
+        op: "create",
+        rootId: props.rootId,
+        folderId: props.folderId,
+        name: base,
+        subfolder: props.subfolder,
+        autoName: nameAuto,
+        text: current,
+        label: `${base}.md`,
+        draftKey,
+        reopenHref: `${props.closeHref}?mode=new${props.subfolder ? `&sub=${props.subfolder}` : ""}`,
+      });
+      submitted.current = true;
+      setSavedText(current);
+      // 일기는 첫 화면, 나머지는 그 폴더로 바로 (목록에는 '저장 중'으로 보이다가 끝나면 채워진다)
+      router.push(props.doneHref ?? props.closeHref);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [busy, text, checksum, name, nameAuto, draftKey],
+    [text, checksum, name, nameAuto, draftKey],
   );
+
+  // 이 글의 저장 결과: checksum을 이어 받고, 충돌이면 알려 준다
+  const fileId = props.mode === "edit" ? props.fileId : null;
+  useEffect(() => {
+    if (!fileId) return;
+    return onResult((job, result) => {
+      if (job.fileId !== fileId) return;
+      if (result.ok) {
+        if (result.checksum) setChecksum(result.checksum);
+        setMessage({ kind: "ok", text: `저장됨 · ${fmtTime(Date.now())}` });
+      } else {
+        setConflict(result.conflict ?? null);
+        setMessage({ kind: "error", text: result.error });
+      }
+    });
+  }, [fileId]);
+
   saveRef.current = () => void save();
 
   const autoName = props.mode === "new" && nameAuto ? autoNoteName(text, props.form, props.defaultName) : null;
@@ -626,16 +647,15 @@ export function Editor(props: Props) {
         ) : (
           dirty && <span className="status small muted">저장 안 됨</span>
         )}
-        <button className="btn" onClick={close} disabled={busy}>
+        <button className="btn" onClick={close}>
           닫기
         </button>
         <button
           className="btn btn-save"
           onClick={() => void (props.mode === "edit" && !dirty && props.doneHref ? router.push(props.doneHref) : save(false, true))}
-          disabled={busy}
           title={props.mode === "new" ? "만들고 목록으로" : "저장하고 목록으로 (Ctrl+S는 저장만)"}
         >
-          {busy ? "저장 중…" : props.mode === "new" ? "만들기" : "저장"}
+          {props.mode === "new" ? "만들기" : "저장"}
         </button>
       </div>
 
@@ -672,7 +692,7 @@ export function Editor(props: Props) {
           <span>
             Drive나 다른 기기에서 이 파일이 먼저 바뀌었습니다. 내 내용으로 덮어쓰거나, Drive 내용을 불러올 수 있어요.
           </span>
-          <button className="btn" onClick={() => void save(true)} disabled={busy}>
+          <button className="btn" onClick={() => void save(true)}>
             내 내용으로 덮어쓰기
           </button>
           <button
@@ -686,7 +706,6 @@ export function Editor(props: Props) {
               setConflict(null);
               setMessage({ kind: "ok", text: "Drive 내용을 불러왔습니다." });
             }}
-            disabled={busy}
           >
             Drive 내용 불러오기
           </button>

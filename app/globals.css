@@ -3482,3 +3482,65 @@ body:has(.editor) .tabbar {
   background: var(--c-food-soft);
   color: var(--c-food);
 }
+
+/* ───── 뒤에서 저장 중 알림 ───── */
+.save-status {
+  position: fixed;
+  left: 50%;
+  bottom: calc(1rem + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 40;
+  display: grid;
+  gap: 0.4rem;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+}
+.save-toast {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.08);
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.save-toast.ok {
+  color: #2f8a4c;
+}
+.save-toast.error {
+  border-radius: 14px;
+  color: #c0392b;
+  flex-wrap: wrap;
+}
+.save-toast .save-msg {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.save-toast .btn {
+  padding: 0.2rem 0.6rem;
+  font-size: 0.8rem;
+}
+@media (max-width: 768px) {
+  /* 하단 탭 위로 */
+  .shell:has(.tabbar):not(:has(.editor)) .save-status {
+    bottom: calc(72px + env(safe-area-inset-bottom));
+  }
+}
+.pending-notes {
+  border-top: 1px solid var(--line);
+}
+.pending-notes + .note-list {
+  border-top: 0;
+}
+.pending-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 0.65rem 0.25rem;
+  border-bottom: 1px solid var(--line);
+  opacity: 0.7;
+}

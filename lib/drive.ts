@@ -583,13 +583,22 @@ export async function fileChecksum(index: DriveIndex, file: FileEntry): Promise<
 
 export async function updateFile(index: DriveIndex, file: FileEntry, text: string): Promise<string> {
   texts.delete(textKey(index, file));
-  const res = await driveFetch(index.user, `${API.upload}/files/${encodeURIComponent(file.id)}?uploadType=media&fields=md5Checksum`, {
-    method: "PATCH",
-    headers: { "Content-Type": MD_MIME },
-    body: text,
-  });
-  return ((await res.json()) as { md5Checksum: string }).md5Checksum;
+  const res = await driveFetch(
+    index.user,
+    `${API.upload}/files/${encodeURIComponent(file.id)}?uploadType=media&fields=md5Checksum,modifiedTime,size`,
+    { method: "PATCH", headers: { "Content-Type": MD_MIME }, body: text },
+  );
+  const json = (await res.json()) as { md5Checksum: string; modifiedTime?: string; size?: string };
+  // 목록 캐시를 버리지 않고 이 글만 고쳐 둔다 (다음 화면이 Drive 전체를 다시 읽지 않게)
+  if (json.modifiedTime) {
+    file.modifiedTime = json.modifiedTime;
+    file.size = Number(json.size ?? file.size);
+    rememberText(index, file, text);
+  }
+  return json.md5Checksum;
 }
+
+type Created = { id: string; modifiedTime?: string; capabilities?: RawCaps };
 
 async function createRaw(
   user: DriveUser,
@@ -598,7 +607,7 @@ async function createRaw(
   content: string | Uint8Array,
   mimeType: string,
   appProperties?: Record<string, string>,
-) {
+): Promise<Created> {
   const boundary = `my-life-${crypto.randomUUID()}`;
   const meta = JSON.stringify({ name, parents: [parentId], mimeType, ...(appProperties && Object.keys(appProperties).length ? { appProperties } : {}) });
   const contentType = mimeType === "text/markdown" ? MD_MIME : mimeType;
@@ -609,12 +618,50 @@ async function createRaw(
     content as BlobPart,
     `\r\n--${boundary}--`,
   ]);
-  const res = await driveFetch(user, `${API.upload}/files?uploadType=multipart&fields=id`, {
+  const res = await driveFetch(user, `${API.upload}/files?uploadType=multipart&fields=id,modifiedTime,${CAP_FIELDS}`, {
     method: "POST",
     headers: { "Content-Type": `multipart/related; boundary=${boundary}` },
     body,
   });
-  return ((await res.json()) as { id: string }).id;
+  return (await res.json()) as Created;
+}
+
+/**
+ * 만든 파일을 캐시된 목록에 바로 끼워 넣는다 (사진을 연달아 올리거나 글을 만들 때마다 Drive 전체를 다시 훑지 않게).
+ * 캐시가 다르거나 폴더가 목록에 없으면(방금 만든 폴더 등) 그냥 무효화한다. 권한은 Drive가 돌려준 capabilities 그대로.
+ */
+function addToIndex(
+  index: DriveIndex,
+  folder: FolderEntry,
+  created: Created,
+  file: { name: string; mimeType: string; size: number; photo?: PhotoInfo },
+): FileEntry | null {
+  const cachedFolder = index.byId.get(folder.id);
+  if (indexes.get(cacheKey(index.user, index.lib.rootId))?.index !== index || cachedFolder?.kind !== "folder" || !created.capabilities) {
+    invalidateIndex(index);
+    return null;
+  }
+  const md = isMarkdownName(file.name);
+  const entry: FileEntry = {
+    kind: "file",
+    id: created.id,
+    name: file.name,
+    slug: md ? file.name.slice(0, -3) : file.name,
+    slugPath: [],
+    modifiedTime: created.modifiedTime ?? new Date().toISOString(),
+    parent: cachedFolder,
+    lib: index.lib,
+    can: caps(created.capabilities),
+    mimeType: file.mimeType,
+    size: file.size,
+    isMarkdown: md,
+    photo: file.photo,
+  };
+  cachedFolder.children.push(entry);
+  cachedFolder.children.sort(compareEntries);
+  assignSlugs(cachedFolder);
+  index.byId.set(entry.id, entry);
+  return entry;
 }
 
 async function patchMeta(user: DriveUser, id: string, body: Record<string, unknown>) {
@@ -625,8 +672,12 @@ async function patchMeta(user: DriveUser, id: string, body: Record<string, unkno
   });
 }
 
-export const createFile = (index: DriveIndex, folder: FolderEntry, name: string, text: string) =>
-  createRaw(index.user, folder.id, name, text, "text/markdown");
+export async function createFile(index: DriveIndex, folder: FolderEntry, name: string, text: string): Promise<string> {
+  const created = await createRaw(index.user, folder.id, name, text, "text/markdown");
+  const entry = addToIndex(index, folder, created, { name, mimeType: "text/markdown", size: new TextEncoder().encode(text).length });
+  if (entry) rememberText(index, entry, text);
+  return created.id;
+}
 
 export async function createFolder(index: DriveIndex, parent: FolderEntry, name: string): Promise<string> {
   const res = await driveFetch(index.user, `${API.drive}/files?fields=id`, {
@@ -712,30 +763,9 @@ export async function uploadFile(
   mimeType: string,
   photo?: PhotoInfo,
 ) {
-  const id = await createRaw(index.user, folder.id, name, bytes, mimeType, photo ? photoProps(photo) : undefined);
-  const cachedFolder = index.byId.get(folder.id);
-  if (indexes.get(cacheKey(index.user, index.lib.rootId))?.index === index && cachedFolder?.kind === "folder") {
-    const entry: FileEntry = {
-      kind: "file",
-      id,
-      name,
-      slug: name,
-      slugPath: [...cachedFolder.slugPath, name],
-      modifiedTime: new Date().toISOString(),
-      parent: cachedFolder,
-      lib: index.lib,
-      can: { ...cachedFolder.can, addChildren: false, listChildren: false },
-      mimeType,
-      size: bytes.length,
-      isMarkdown: false,
-      photo,
-    };
-    cachedFolder.children.push(entry);
-    index.byId.set(id, entry);
-  } else {
-    invalidateIndex(index);
-  }
-  return id;
+  const created = await createRaw(index.user, folder.id, name, bytes, mimeType, photo ? photoProps(photo) : undefined);
+  addToIndex(index, folder, created, { name, mimeType, size: bytes.length, photo });
+  return created.id;
 }
 
 // ───────────── 공유 (Drive 공유 = 초대) ─────────────

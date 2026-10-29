@@ -22,8 +22,8 @@ const MIME = { ".md": "text/markdown", ".jpg": "image/jpeg", ".jpeg": "image/jpe
 const args = process.argv.slice(2);
 const opt = (name) => args.flatMap((a, i) => (a === name ? [args[i + 1]] : []));
 const PORT = Number(opt("--port")[0] ?? 4010);
-// 속도 시험용: 요청마다 지연(ms)을 주고, 요청 기록을 /__log 로 보여 준다
-const LATENCY = Number(opt("--latency")[0] ?? 0);
+// 속도 시험용: 요청마다 지연(ms)을 주고(/__latency?ms= 로 바꿀 수 있음), 요청 기록을 /__log 로 보여 준다
+let LATENCY = Number(opt("--latency")[0] ?? 0);
 const requestLog = [];
 
 /** @type {Map<string, any>} */
@@ -195,6 +195,11 @@ const server = createServer(async (req, res) => {
     const out = requestLog.splice(0);
     return send(res, 200, out);
   }
+  // 시험 중에 지연 바꾸기: /__latency?ms=1500
+  if (url.pathname === "/__latency") {
+    LATENCY = Number(url.searchParams.get("ms") ?? 0);
+    return send(res, 200, { latency: LATENCY });
+  }
   if (!url.pathname.startsWith("/__")) {
     requestLog.push(`${req.method} ${url.pathname}${url.searchParams.get("q") ? " q=" + url.searchParams.get("q").slice(0, 40) : ""}${url.searchParams.get("alt") ? " alt=" + url.searchParams.get("alt") : ""}`);
     if (LATENCY) await new Promise((r) => setTimeout(r, LATENCY));
@@ -284,7 +289,7 @@ const server = createServer(async (req, res) => {
       if (!can(files.get(pid), email).canAddChildren) return fail(res, 403, "insufficientFilePermissions");
       const f = add({ id: newId(), name: m2.name, mimeType: m2.mimeType, parents: [pid], owner: email, content });
       if (m2.appProperties) f.appProperties = m2.appProperties;
-      return send(res, 200, { id: f.id });
+      return send(res, 200, meta(f, email));
     }
     // 내용 바꾸기
     if (req.method === "PATCH" && (m = /^\/upload\/drive\/v3\/files\/([^/]+)$/.exec(url.pathname))) {
@@ -294,7 +299,7 @@ const server = createServer(async (req, res) => {
       f.content = body;
       f.modifiedTime = now();
       touch(f.id);
-      return send(res, 200, { md5Checksum: md5(body) });
+      return send(res, 200, meta(f, email));
     }
     // 공유 목록·추가
     if ((m = /^\/drive\/v3\/files\/([^/]+)\/permissions$/.exec(url.pathname))) {

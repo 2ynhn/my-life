@@ -1,4 +1,5 @@
 import { FeatureIcon } from "@/components/FeatureIcon";
+import { PendingNotes } from "@/components/SaveStatus";
 import Link from "next/link";
 import { Suspense } from "react";
 import { hrefFor, visibleChildren, type DriveIndex, type FileEntry, type FolderEntry, type FolderKind } from "@/lib/drive";
@@ -13,7 +14,13 @@ export function FolderView({ folder, index, kind }: { folder: FolderEntry; index
   const folders = items.filter((c) => c.kind === "folder");
   const notes = items.filter((c) => c.kind === "file");
 
-  if (!items.length) return <p className="muted">비어 있는 폴더입니다.</p>;
+  if (!items.length)
+    return (
+      <>
+        <PendingNotes folderId={folder.id} />
+        <p className="muted">비어 있는 폴더입니다.</p>
+      </>
+    );
 
   return (
     <div className="listing">
@@ -31,6 +38,7 @@ export function FolderView({ folder, index, kind }: { folder: FolderEntry; index
           ))}
         </ul>
       )}
+      <PendingNotes folderId={folder.id} />
       {notes.length > 0 && (
         <Suspense fallback={<NoteList notes={notes} />}>
           <SummarizedList notes={notes} index={index} kind={kind} />

@@ -1,6 +1,7 @@
 import { Settings } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
+import { SaveStatus } from "@/components/SaveStatus";
 import { TopNav } from "@/components/TopNav";
 import { requireUser } from "@/lib/session";
 
@@ -34,6 +35,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </Link>
       </header>
       <main className="content">{children}</main>
+      <SaveStatus />
     </div>
   );
 }
