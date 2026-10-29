@@ -61,10 +61,12 @@ export function TopNav() {
   const { up, title } = place(pathname, params);
 
   if (!up) {
+    // 첫 화면은 제목 없이 (일기장 이름은 본문 제목에 있다)
+    if (!title) return null;
     return (
       <Link href="/" className="brand">
         <BookHeart size={20} strokeWidth={1.75} aria-hidden />
-        {title ?? "my-life"}
+        {title}
       </Link>
     );
   }

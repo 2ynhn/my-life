@@ -2952,3 +2952,36 @@ mark {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
+
+/* 머리줄 오른쪽 프로필 사진 (설정으로) */
+.avatar-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  /* 머리줄 버튼과 같은 높이 (사이드바가 49px 아래에서 시작) */
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  text-decoration: none;
+}
+.avatar-link img,
+.avatar-link span {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--line);
+}
+.avatar-link span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+.avatar-link:hover img,
+.avatar-link:hover span {
+  box-shadow: 0 0 0 2px var(--accent);
+}
