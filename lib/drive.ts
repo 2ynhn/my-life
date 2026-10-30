@@ -398,12 +398,19 @@ export async function getIndex(
       if (await slot.checking) return cached;
     }
   }
-  slot.building ??= buildIndex(user, lib)
-    .then((idx) => {
-      slot.index = idx;
-      return idx;
-    })
-    .finally(() => (slot.building = undefined));
+  // fresh: 진행 중인 읽기는 이 요청(방금 쓴 것) 전에 시작했을 수 있으니 기다리지 않고 새로 읽는다
+  if (options.fresh || !slot.building) {
+    const building: Promise<DriveIndex> = buildIndex(user, lib)
+      .then((idx) => {
+        // 뒤에 시작한 읽기가 있으면 그 결과가 맞다 (늦게 끝난 옛 읽기가 덮지 않게)
+        if (slot.building === building || !slot.index) slot.index = idx;
+        return idx;
+      })
+      .finally(() => {
+        if (slot.building === building) slot.building = undefined;
+      });
+    slot.building = building;
+  }
   indexes.delete(key); // 최근 쓴 것이 뒤로 가게 (오래된 것부터 지운다)
   indexes.set(key, slot);
   if (indexes.size > MAX_CACHED) indexes.delete(indexes.keys().next().value!);

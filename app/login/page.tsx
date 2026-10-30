@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { signIn } from "@/auth";
+import { ClearLocal } from "@/components/ClearLocal";
 import { getUser } from "@/lib/session";
 
 export const metadata: Metadata = { title: "로그인" };
@@ -26,6 +27,8 @@ export default async function LoginPage({
 
   return (
     <main className="login">
+      {/* 다시 로그인(같은 사람, 토큰 만료)일 때는 사본을 남겨 둔다 */}
+      {!reauth && <ClearLocal />}
       <div className="login-card">
         <h1>my-life</h1>
         <p className="muted">내 Google Drive에 쓰는 일기장</p>

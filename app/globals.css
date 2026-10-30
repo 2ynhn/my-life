@@ -3596,3 +3596,17 @@ body:has(.editor) .tabbar {
   /* 위에 붙은 헤더 + 연도 칩에 가리지 않게 */
   scroll-margin-top: 110px;
 }
+
+/* ───── 기기 데이터로 먼저 그린 화면 (서버 화면이 오면 바뀜) ───── */
+.sk-view {
+  height: 9rem;
+  margin-bottom: 1rem;
+  border-radius: 16px;
+}
+.note-actions.sk-actions {
+  min-height: 2.25rem;
+}
+/* 누르자마자 그린 다음 화면이 있으면 지금 화면은 숨긴다 */
+.with-sidebar:has(> .local-overlay) > :not(.local-overlay) {
+  display: none;
+}

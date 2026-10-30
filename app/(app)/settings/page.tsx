@@ -8,8 +8,7 @@ import { AI_MODELS, getAiSettings } from "@/lib/ai-settings";
 import { DriveError, listShares, sharingFolders, type Share } from "@/lib/drive";
 import { loadLibrary, myLibrary } from "@/lib/library";
 import { requireUser, type AppUser } from "@/lib/session";
-import { logout } from "../actions";
-import { LogOut } from "lucide-react";
+import { LogoutButton } from "@/components/LogoutButton";
 
 export const metadata: Metadata = { title: "설정" };
 
@@ -25,12 +24,7 @@ export default async function SettingsPage() {
             <strong>{user.name ?? user.email}</strong>
             <div className="muted small">{user.email}</div>
           </div>
-          <form action={logout}>
-            <button className="btn" type="submit">
-              <LogOut size={16} aria-hidden />
-              로그아웃
-            </button>
-          </form>
+          <LogoutButton />
         </div>
       </section>
     </>

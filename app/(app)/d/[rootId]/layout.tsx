@@ -1,4 +1,6 @@
 import { Suspense } from "react";
+import { LocalProvider } from "@/components/LocalData";
+import { LocalNav } from "@/components/LocalNav";
 import { Sidebar } from "@/components/Sidebar";
 import { TabBar } from "@/components/TabBar";
 import { folderTree, webUrlFor } from "@/lib/drive";
@@ -20,16 +22,21 @@ export default async function LibraryLayout({
   const { index } = loaded;
 
   return (
-    <>
+    <LocalProvider email={user.email.toLowerCase()} rootId={index.lib.rootId}>
       <Sidebar
         tree={folderTree(index.root)}
         homeHref={index.lib.base}
         driveHref={webUrlFor(index.root)}
       />
-      <div className="with-sidebar">{children}</div>
+      <div className="with-sidebar">
+        <Suspense fallback={null}>
+          <LocalNav />
+        </Suspense>
+        {children}
+      </div>
       <Suspense fallback={null}>
         <TabBar base={index.lib.base} />
       </Suspense>
-    </>
+    </LocalProvider>
   );
 }

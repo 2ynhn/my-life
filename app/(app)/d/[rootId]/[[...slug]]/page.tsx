@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Plus } from "lucide-react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { CalendarView, onThisDay } from "@/components/CalendarView";
+import { CalendarView } from "@/components/CalendarView";
 import { AskView } from "@/components/AskView";
 import { CollectView } from "@/components/CollectView";
 import { DriveProblem } from "@/components/DriveProblem";
@@ -16,7 +16,8 @@ import { FeatureIcon } from "@/components/FeatureIcon";
 import type { FormKind } from "@/components/MetaForm";
 import { FoodView } from "@/components/FoodView";
 import { HealthView } from "@/components/HealthView";
-import { Home, hiddenAncestor } from "@/components/Home";
+import { Home } from "@/components/Home";
+import { homeData } from "@/lib/home-data";
 import { SpendingView } from "@/components/SpendingView";
 import { TripSection } from "@/components/TripSection";
 import { TravelView } from "@/components/TravelView";
@@ -26,7 +27,6 @@ import {
   fileUrl,
   hrefFor,
   folderKind,
-  isListable,
   linkResolver,
   linkTable,
   loadTemplate,
@@ -164,20 +164,8 @@ export default async function EntryPage({ params, searchParams }: Props) {
   );
 }
 
-/** 오늘 일기 쓰기 주소: daily 폴더에 바로 (연도 폴더는 쓰지 않는다) */
-function diaryHref(root: FolderEntry): string | null {
-  const daily = root.children.find((c): c is FolderEntry => c.kind === "folder" && c.name.toLowerCase() === "daily");
-  return daily?.can.addChildren ? `${hrefFor(daily)}?mode=new` : null;
-}
-
 async function Folder({ folder, index, spend, range }: { folder: FolderEntry; index: DriveIndex; spend?: string; range?: string }) {
-  if (!folder.parent) {
-    const recent = [...index.byId.values()]
-      .filter((e): e is FileEntry => e.kind === "file" && e.isMarkdown && isListable(e.parent!) && !hiddenAncestor(e))
-      .sort((a, b) => b.modifiedTime.localeCompare(a.modifiedTime))
-      .slice(0, 8);
-    return <Home root={folder} index={index} diary={diaryHref(folder)} past={onThisDay(index)} recent={recent} />;
-  }
+  if (!folder.parent) return <Home data={await homeData(index)} />;
   const kind = await folderKind(index, folder);
   let top = folder;
   while (top.parent?.parent) top = top.parent;

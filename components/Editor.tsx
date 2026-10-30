@@ -18,6 +18,8 @@ import { addPlace, readMeta, setFields } from "@/lib/frontmatter-edit";
 import { reverseName } from "@/lib/geo-name";
 import { imageFiles, prepareImage, uploadImage } from "@/lib/image-upload";
 import { tableResolver, type LinkTable } from "@/lib/markdown";
+import { useLocalContext } from "@/components/LocalData";
+import { putLocalText } from "@/lib/local-store";
 import { enqueue, onResult, pendingSave, readDraft, writeDraft, type Draft } from "@/lib/save-queue";
 import { takeSharedImages } from "@/lib/share-store";
 import { autoNoteName } from "@/lib/note-name";
@@ -88,6 +90,7 @@ const fmtTime = (t: number) => new Date(t).toLocaleString("ko-KR", { dateStyle: 
 
 export function Editor(props: Props) {
   const router = useRouter();
+  const local = useLocalContext();
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   // 편집기가 다시 만들어져도(개발 모드의 두 번 마운트 등) 지금까지의 내용으로 시작하게
@@ -268,6 +271,8 @@ export function Editor(props: Props) {
         });
         setSavedText(current);
         setConflict(null);
+        // 기기 사본에도 바로 (다시 열면 서버를 기다리지 않고 새 내용)
+        if (local) putLocalText(local.email, local.rootId, props.fileId, current);
         if (leave) {
           submitted.current = true;
           return router.push(props.doneHref ?? props.closeHref);

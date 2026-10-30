@@ -89,6 +89,7 @@ export async function saveAiAction(rawKey: string, rawModel: string, remove = fa
   return withMyIndex(async ({ index }) => {
     if (remove) {
       await saveAiSettings(index, { apiKey: null, model });
+      await markWritten();
       return { ok: true };
     }
     if (apiKey) {
@@ -96,6 +97,8 @@ export async function saveAiAction(rawKey: string, rawModel: string, remove = fa
       if (problem) return { ok: false, error: problem };
     }
     await saveAiSettings(index, { apiKey: apiKey || undefined, model });
+    // 다른 서버 인스턴스(영수증 읽기 등)도 새 설정 파일을 보게
+    await markWritten();
     return { ok: true };
   });
 }

@@ -18,7 +18,8 @@ export function notesByDate(index: DriveIndex): Map<string, FileEntry[]> {
   return map;
 }
 
-export const todayKST = () => new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Seoul" }).format(new Date());
+export { todayKST } from "@/lib/today";
+import { todayKST } from "@/lib/today";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const shift = (ym: string, by: number) => {
@@ -131,14 +132,3 @@ export function CalendarView({ index, month, day }: { index: DriveIndex; month?:
   );
 }
 
-/** N년 전 오늘: 같은 월-일에 쓴 지난 글 */
-export function onThisDay(index: DriveIndex): { years: number; note: FileEntry }[] {
-  const today = todayKST();
-  const out: { years: number; note: FileEntry }[] = [];
-  for (const [date, list] of notesByDate(index)) {
-    if (date.slice(5) !== today.slice(5) || date >= today) continue;
-    const years = Number(today.slice(0, 4)) - Number(date.slice(0, 4));
-    for (const note of list) out.push({ years, note });
-  }
-  return out.sort((a, b) => a.years - b.years);
-}

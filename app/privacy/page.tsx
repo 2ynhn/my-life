@@ -24,7 +24,7 @@ export default function PrivacyPage() {
       <h2>연결 끊기</h2>
       <p>
         Google 계정 설정의 &lsquo;타사 앱 및 서비스&rsquo;에서 my-life의 접근 권한을 언제든 삭제할 수 있습니다. 로그아웃하면 브라우저의
-        로그인 쿠키도 지워집니다.
+        로그인 쿠키와, 화면을 빨리 보여 주려고 기기(브라우저 저장소)에 받아 둔 글 사본도 지워집니다.
       </p>
     </main>
   );
