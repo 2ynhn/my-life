@@ -158,7 +158,8 @@ export function syncLocal(email: string, rootId: string): Promise<void> {
 
     // 바뀐 글: 최근 것부터 조금씩
     const stale = tree.entries
-      .filter((e) => e.md && texts.get(e.id)?.m !== e.m)
+      // 바뀐 글 + 체크섬이 없는 옛 사본
+      .filter((e) => e.md && (texts.get(e.id)?.m !== e.m || !texts.get(e.id)?.c))
       .sort((a, b) => b.m.localeCompare(a.m))
       .map((e) => e.id);
     for (let i = 0; i < stale.length; i += BATCH) {
@@ -208,6 +209,16 @@ export async function fetchTexts(email: string, rootId: string, ids: string[]): 
   } finally {
     for (const id of want) asked.delete(id);
   }
+}
+
+/** 저장이 끝나 Drive가 돌려준 체크섬을 사본에 적는다 (다음에 사본으로 편집기를 열 때 충돌 확인용) */
+export function setLocalChecksum(email: string, rootId: string, id: string, checksum: string) {
+  const state = states.get(keyOf(email, rootId));
+  const t = state?.texts.get(id);
+  if (!state || !t) return;
+  const next: LocalText = { ...t, c: checksum };
+  state.texts.set(id, next);
+  void tx("readwrite", (s) => void s.put(next, `${textPrefix(email)}${id}`));
 }
 
 /** 방금 저장한 글은 서버를 기다리지 않고 기기에도 바로 반영 */

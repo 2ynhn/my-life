@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { LocalProvider } from "@/components/LocalData";
+import { LocalEditorHost } from "@/components/LocalEditorHost";
 import { LocalNav } from "@/components/LocalNav";
 import { Sidebar } from "@/components/Sidebar";
 import { TabBar } from "@/components/TabBar";
@@ -31,6 +32,7 @@ export default async function LibraryLayout({
       <div className="with-sidebar">
         <Suspense fallback={null}>
           <LocalNav />
+          <LocalEditorHost />
         </Suspense>
         {children}
       </div>

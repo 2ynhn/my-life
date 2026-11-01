@@ -3627,3 +3627,7 @@ body:has(.editor) .tabbar {
   outline: 2px solid var(--accent-soft);
   border-color: var(--accent);
 }
+/* 기기 사본으로 연 편집기가 있으면 그 아래 화면은 숨긴다 */
+.with-sidebar:has(> .local-editor) > :not(.local-editor) {
+  display: none;
+}

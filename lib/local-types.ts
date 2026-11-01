@@ -42,4 +42,5 @@ export type LocalTree = {
   entries: LocalEntry[];
 };
 
-export type LocalText = { id: string; m: string; t: string };
+/** 글 내용. c: md5 (Drive md5Checksum과 같음 — 기기 사본으로 연 편집기의 충돌 확인용) */
+export type LocalText = { id: string; m: string; t: string; c?: string };

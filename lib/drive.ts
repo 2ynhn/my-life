@@ -1,4 +1,5 @@
 import "server-only";
+import { BUILTIN_TEMPLATES, DEFAULT_TEMPLATE, TEMPLATE_FOLDER } from "@/lib/templates";
 import { createHash } from "node:crypto";
 import { API, DriveError, driveFetch, isNotFound, type DriveUser } from "@/lib/google";
 import type { LinkResolver, LinkTable } from "@/lib/markdown";
@@ -810,91 +811,7 @@ export async function removeShare(index: DriveIndex, permissionId: string) {
 
 // ───────────── 템플릿 ─────────────
 
-const TEMPLATE_FOLDER = "_templates";
-
-export const DEFAULT_TEMPLATE = `---
-date: {{date}}
-written: {{date}}
-title: ""
-tags: []
----
-
-# {{title}}
-
-`;
-
-/** 지출 기록: 영수증 한 장 = 글 하나. amount가 있으면 지출 요약·영수증 자동 입력이 켜진다 */
-export const PURCHASE_TEMPLATE = `---
-date: {{date}}
-store: ""            # 가게·쇼핑몰 이름
-amount: 0            # 총액, 원 단위 숫자만 (쉼표 없이). 환불은 음수
-category: 식비        # 식비 · 외식 · 생활용품 · 의류 · 의료 · 교육 · 교통 · 문화/여가 · 경조사 · 기타
-payment: ""          # 신한카드, 현금, 네이버페이 …
-items:               # 선택: 품목별로 적고 싶을 때만
-  - name: ""
-    price: 0
-tags: []
----
-
-# {{title}}
-
-메모:
-`;
-
-/** 여행 한 번 = 글 하나. places에 좌표가 있으면 지도에 나온다 (편집기의 '장소 추가'로 채우기) */
-export const TRAVEL_TEMPLATE = `---
-title: ""
-start: {{date}}      # 출발일
-end: {{date}}        # 돌아온 날
-places:              # 들른 곳 (지도에 표시). 편집기의 '장소 추가'로 넣으면 좌표까지 채워짐
-companions: []       # 함께 간 사람
-tags: []
----
-
-# {{title}}
-
-## 1일차
-
-`;
-
-/** 하루 = 글 하나. 숫자 항목은 자동으로 그래프가 된다 (항목을 새로 추가해도 됨) */
-export const HEALTH_TEMPLATE = `---
-date: {{date}}
-weight:              # 체중 kg
-bp_sys:              # 혈압 수축기 mmHg
-bp_dia:              # 혈압 이완기 mmHg
-glucose:             # 공복 혈당 mg/dL
-checkup: ""          # 건강검진이면 기관·종류 (예: 국가건강검진)
-tags: []
----
-
-메모:
-`;
-
-/** 음식 한 번 = 글 하나. 사진을 공유하거나 올리면 찍은 곳이 place에 들어간다 (지도에 표시) */
-export const FOOD_TEMPLATE = `---
-date: {{date}}
-restaurant: ""       # 식당 이름
-menu: []             # 먹은 메뉴
-price: 0             # 가격, 원 단위 숫자
-rating:              # 별점 1~5 (선택)
-place:               # 위치 (사진을 올리면 자동, '장소 추가'로도)
-people: []           # 함께 먹은 사람
-tags: []
----
-
-# {{title}}
-
-`;
-
-/** Drive에 템플릿이 없을 때 최상위 폴더 이름별 내장 템플릿 */
-const BUILTIN_TEMPLATES: Record<string, string> = {
-  purchase: PURCHASE_TEMPLATE,
-  travel: TRAVEL_TEMPLATE,
-  health: HEALTH_TEMPLATE,
-  food: FOOD_TEMPLATE,
-};
-
+// 템플릿 글은 브라우저(기기 사본으로 새 글 열기)와 같이 쓰도록 lib/templates.ts에 있다
 const topFolderOf = (index: DriveIndex, folder: FolderEntry) => {
   let top: FolderEntry = folder;
   while (top.parent && top.parent !== index.root) top = top.parent;
@@ -1019,3 +936,5 @@ export function sharingFolders(index: DriveIndex): FolderEntry[] {
   walk(index.root, 0);
   return out;
 }
+
+export { DEFAULT_TEMPLATE, PURCHASE_TEMPLATE, TRAVEL_TEMPLATE, HEALTH_TEMPLATE, FOOD_TEMPLATE } from "@/lib/templates";

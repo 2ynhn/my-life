@@ -17,6 +17,7 @@ import type { FormKind } from "@/components/MetaForm";
 import { FoodView } from "@/components/FoodView";
 import { HealthView } from "@/components/HealthView";
 import { Home } from "@/components/Home";
+import { withEnd } from "@/lib/templates";
 import { homeData } from "@/lib/home-data";
 import { SpendingView } from "@/components/SpendingView";
 import { TripSection } from "@/components/TripSection";
@@ -355,12 +356,3 @@ async function formKindOf(index: DriveIndex, folder: FolderEntry): Promise<FormK
   return top.parent && featureByName(top.name) === "diary" ? "diary" : null;
 }
 
-/** 여행 템플릿의 end(돌아온 날)만 바꾼다. 앞머리가 이상하거나 end 칸이 없으면 그대로 */
-function withEnd(text: string, end?: string): string {
-  if (!end || !/^end:/m.test(text)) return text;
-  try {
-    return setFields(text, { end });
-  } catch {
-    return text;
-  }
-}

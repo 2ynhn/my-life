@@ -120,7 +120,7 @@ function homeDataOf(local: LocalState, root: LocalEntry): HomeData {
 }
 
 /** 맨 위 폴더 (쓰임새를 정하는 폴더) */
-function topOf(local: LocalState, e: LocalEntry): LocalEntry {
+export function topOf(local: LocalState, e: LocalEntry): LocalEntry {
   let top = e;
   while (top.p) {
     const parent = local.byId.get(top.p);
@@ -185,7 +185,7 @@ function FolderPreview({ local, folder }: { local: LocalState; folder: LocalEntr
 }
 
 /** 글 안 링크(사진·다른 글): 가까운 폴더의 첨부가 먼저, 그다음 일기장 전체 (서버 linkTable과 같은 순서) */
-function linkTableFor(local: LocalState, note: LocalEntry): LinkTable {
+export function linkTableFor(local: LocalState, note: Pick<LocalEntry, "p">): LinkTable {
   const attachments: Record<string, string> = {};
   const add = (folderId: string) => {
     for (const c of local.children.get(folderId) ?? []) if (c.u) attachments[c.n.toLowerCase()] ??= c.u;

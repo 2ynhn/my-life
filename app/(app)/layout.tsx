@@ -35,7 +35,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </Link>
       </header>
       <main className="content">{children}</main>
-      <SaveStatus />
+      <Suspense fallback={null}>
+        <SaveStatus />
+      </Suspense>
     </div>
   );
 }

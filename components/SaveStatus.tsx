@@ -2,8 +2,8 @@
 
 import { Check, CloudUpload, TriangleAlert } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { dismiss, getJobs, kick, onResult, retry, subscribe, type Job } from "@/lib/save-queue";
 
 // 뒤에서 저장 중인 글 알림 (화면 아래). 끝나면 지금 화면을 새로 그려 목록 등에 반영한다.
@@ -14,10 +14,21 @@ export function useJobs(): Job[] {
   return useSyncExternalStore(subscribe, getJobs, () => none);
 }
 
+const editing = (search: string) => /(^|[?&])mode=/.test(search);
+
 export function SaveStatus() {
   const router = useRouter();
+  const search = useSearchParams().toString();
   const jobs = useJobs();
   const [done, setDone] = useState(false);
+  // 편집기를 보는 동안 끝난 저장: 편집기를 떠난 뒤에 화면을 새로 받는다
+  const refreshLater = useRef(false);
+  useEffect(() => {
+    if (refreshLater.current && !editing(search)) {
+      refreshLater.current = false;
+      router.refresh();
+    }
+  }, [search, router]);
 
   useEffect(() => {
     // 지난번에 못 보낸 것이 있으면 다시 보내고, 인터넷이 돌아오거나 앱으로 돌아오면 다시 시도
@@ -28,7 +39,9 @@ export function SaveStatus() {
     document.addEventListener("visibilitychange", onVisible);
     const off = onResult((_, result) => {
       if (!result.ok) return;
-      router.refresh();
+      // 편집기를 보고 있을 때는 화면을 새로 받지 않는다 (편집기 아래 숨은 화면이 편집기로 바뀌지 않게)
+      if (editing(location.search)) refreshLater.current = true;
+      else router.refresh();
       setDone(true);
     });
     return () => {

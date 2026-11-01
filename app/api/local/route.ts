@@ -1,4 +1,5 @@
 import { fileUrl, hrefFor, isListable, type Entry, type FileEntry } from "@/lib/drive";
+import { createHash } from "node:crypto";
 import { readTexts } from "@/lib/folder-meta";
 import { homeKinds } from "@/lib/home-data";
 import { loadLibrary } from "@/lib/library";
@@ -72,6 +73,10 @@ export async function POST(req: Request) {
     return e?.kind === "file" && e.isMarkdown ? [e as FileEntry] : [];
   });
   const texts = await readTexts(index, files, 8_000);
-  const out: LocalText[] = files.flatMap((f) => (texts.has(f.id) ? [{ id: f.id, m: f.modifiedTime, t: texts.get(f.id)! }] : []));
+  const md5 = (t: string) => createHash("md5").update(Buffer.from(t, "utf8")).digest("hex");
+  const out: LocalText[] = files.flatMap((f) => {
+    const t = texts.get(f.id);
+    return t === undefined ? [] : [{ id: f.id, m: f.modifiedTime, t, c: md5(t) }];
+  });
   return Response.json({ texts: out }, { headers });
 }

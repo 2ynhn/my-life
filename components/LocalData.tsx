@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useSyncExternalStore } from "react";
-import { getLocal, localVersion, subscribeLocal, syncLocal, type LocalState } from "@/lib/local-store";
+import { getLocal, localVersion, setLocalChecksum, subscribeLocal, syncLocal, type LocalState } from "@/lib/local-store";
 import { onResult } from "@/lib/save-queue";
 
 // 일기장 화면 안: 기기에 받아 둔 목록·글을 맞춰 두고(LocalProvider), 화면이 그 데이터를 쓴다(useLocal)
@@ -23,7 +23,11 @@ export function LocalProvider({ email, rootId, children }: Ctx & { children: Rea
     const onVisible = () => document.visibilityState === "visible" && sync();
     document.addEventListener("visibilitychange", onVisible);
     // 저장이 끝나면 바뀐 목록을 받아 온다
-    const off = onResult((_, result) => result.ok && setTimeout(() => sync(true), 500));
+    const off = onResult((job, result) => {
+      if (!result.ok) return;
+      if (job.fileId && result.checksum) setLocalChecksum(email, rootId, job.fileId, result.checksum);
+      setTimeout(() => sync(true), 500);
+    });
     return () => {
       document.removeEventListener("visibilitychange", onVisible);
       off();
