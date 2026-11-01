@@ -1,6 +1,6 @@
 "use client";
 
-import { Camera, ClipboardPaste, ImagePlus, ImageUp, MapPinPlus } from "lucide-react";
+import { Camera, Check, ClipboardPaste, Eye, ImagePlus, ImageUp, ListChecks, MapPinPlus, PenLine, ScanText, X } from "lucide-react";
 import { markdown } from "@codemirror/lang-markdown";
 import { yamlFrontmatter } from "@codemirror/lang-yaml";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
@@ -105,6 +105,8 @@ export function Editor(props: Props) {
   const [camera, setCamera] = useState(false);
   const [attachReceipt, setAttachReceipt] = useState(false);
   const [picker, setPicker] = useState(false);
+  // 영수증 도구 (모바일에서 접고 펴기). 새 구매 글은 펼친 채로 시작 — 영수증으로 채우는 일이 많다
+  const [receiptOpen, setReceiptOpen] = useState(true);
 
   const draftKey = props.mode === "edit" ? `my-life:draft:${props.fileId}` : `my-life:draft:new:${props.folderId}`;
 
@@ -554,7 +556,8 @@ export function Editor(props: Props) {
 
   return (
     <div className="editor">
-      <div className="editor-bar">
+      {/* 파일 이름: 모바일에서는 스크롤과 함께 올라가고, 위에는 아이콘 줄만 붙어 있다 */}
+      <div className="editor-name">
         {props.mode === "new" ? (
           <label className="name-field">
             <span className="muted small">{props.folderName} /</span>
@@ -573,27 +576,32 @@ export function Editor(props: Props) {
         ) : (
           <span className="file-name">{props.fileName}</span>
         )}
+      </div>
+      <div className="editor-bar">
         <div className={`tabs${tabbedForm ? " has-form" : ""}`} role="tablist">
           {tabbedForm && (
-            <button role="tab" aria-selected={tab === "form"} onClick={() => setTab("form")}>
-              항목
+            <button role="tab" aria-selected={tab === "form"} onClick={() => setTab("form")} title="항목 (입력 양식)">
+              <ListChecks size={17} aria-hidden />
+              <span className="tab-label">항목</span>
             </button>
           )}
-          <button role="tab" aria-selected={tab === "write"} onClick={() => setTab("write")}>
-            쓰기
+          <button role="tab" aria-selected={tab === "write"} onClick={() => setTab("write")} title="쓰기 (마크다운 그대로)">
+            <PenLine size={17} aria-hidden />
+            <span className="tab-label">쓰기</span>
           </button>
-          <button role="tab" className="tab-preview" aria-selected={tab === "preview"} onClick={() => setTab("preview")}>
-            미리보기
+          <button role="tab" className="tab-preview" aria-selected={tab === "preview"} onClick={() => setTab("preview")} title="미리보기">
+            <Eye size={17} aria-hidden />
+            <span className="tab-label">미리보기</span>
           </button>
         </div>
         <button
-          className="btn"
+          className="btn bar-btn"
           onClick={() => fileInputRef.current?.click()}
           disabled={!!uploading}
           title="사진 넣기 (붙여넣기·끌어다 놓기도 됩니다)"
         >
-          <ImagePlus size={16} aria-hidden />
-          사진
+          <ImagePlus size={17} aria-hidden />
+          <span className="btn-text">사진</span>
         </button>
         <input
           ref={fileInputRef}
@@ -609,70 +617,84 @@ export function Editor(props: Props) {
         />
         {/* 항목 탭에는 폼 안에 같은 버튼이 있다 */}
         {props.places && tab !== "form" && (
-          <button className="btn" onClick={() => setPicker(true)} disabled={!!uploading} title="들른 곳을 찾아 지도 좌표와 함께 넣습니다">
-            <MapPinPlus size={16} aria-hidden />
-            장소 추가
+          <button className="btn bar-btn" onClick={() => setPicker(true)} disabled={!!uploading} title="들른 곳을 찾아 지도 좌표와 함께 넣습니다">
+            <MapPinPlus size={17} aria-hidden />
+            <span className="btn-text">장소 추가</span>
           </button>
         )}
         {props.mode === "new" && props.receipt && (
-          <span className="receipt-tools">
-            <button className="btn" onClick={() => setCamera(true)} disabled={!!uploading} title="카메라로 영수증을 찍어 바로 읽습니다 (사진 파일을 만들지 않음)">
-              <Camera size={16} aria-hidden />
-              카메라로 읽기
-            </button>
-            <button
-              className="btn"
-              onClick={() => receiptInputRef.current?.click()}
-              disabled={!!uploading}
-              title="주문내역 캡처 같은 이미지를 골라 읽습니다"
-            >
-              <ImageUp size={16} aria-hidden />
-              이미지로 읽기
-            </button>
-            <button
-              className="btn"
-              onClick={() => void readClipboard()}
-              disabled={!!uploading}
-              title="복사해 둔 스크린샷을 읽습니다 (Ctrl+V로 붙여넣어도 됩니다)"
-            >
-              <ClipboardPaste size={16} aria-hidden />
-              클립보드에서 읽기
-            </button>
-            <label className="small muted attach-opt">
-              <input type="checkbox" checked={attachReceipt} onChange={(e) => setAttachReceipt(e.target.checked)} /> 이미지도 글에 첨부
-            </label>
-            <input
-              ref={receiptInputRef}
-              type="file"
-              accept="image/*"
-              hidden
-              onChange={(e) => {
-                const file = imageFiles(e.target.files)[0];
-                e.target.value = "";
-                if (file) void receiptFromImage(file);
-              }}
-            />
-          </span>
+          // 모바일: 영수증 도구 세 개를 이 버튼 하나로 접고 편다 (넓은 화면에서는 늘 펼침)
+          <button
+            className={`btn bar-btn receipt-toggle${receiptOpen ? " on" : ""}`}
+            onClick={() => setReceiptOpen(!receiptOpen)}
+            aria-expanded={receiptOpen}
+            title="영수증으로 채우기"
+          >
+            <ScanText size={17} aria-hidden />
+            <span className="btn-text">영수증</span>
+          </button>
         )}
         <span className="spacer" />
         {uploading && <span className="status small muted">{uploading}</span>}
-        {/* 저장 후 다시 고치기 시작하면 '저장됨' 대신 '저장 안 됨' */}
+        {/* 저장 후 다시 고치기 시작하면 '저장됨' 대신 '저장 안 됨' (모바일은 저장 버튼의 점으로) */}
         {message && (message.kind !== "ok" || !dirty) ? (
           <span className={`status small ${message.kind}`}>{message.text}</span>
         ) : (
-          dirty && <span className="status small muted">저장 안 됨</span>
+          dirty && <span className="status small muted unsaved">저장 안 됨</span>
         )}
-        <button className="btn" onClick={close}>
-          닫기
+        <button className="btn bar-btn" onClick={close} title="닫기">
+          <X size={17} aria-hidden />
+          <span className="btn-text">닫기</span>
         </button>
         <button
-          className="btn btn-save"
+          className={`btn btn-save${dirty ? " dirty" : ""}`}
           onClick={() => void (props.mode === "edit" && !dirty && props.doneHref ? router.push(props.doneHref) : save(false, true))}
           title={props.mode === "new" ? "만들고 목록으로" : "저장하고 목록으로 (Ctrl+S는 저장만)"}
         >
+          <Check size={17} aria-hidden />
           {props.mode === "new" ? "만들기" : "저장"}
         </button>
       </div>
+      {props.mode === "new" && props.receipt && (
+        <div className={`receipt-tools${receiptOpen ? " open" : ""}`}>
+          <button className="btn" onClick={() => setCamera(true)} disabled={!!uploading} title="카메라로 영수증을 찍어 바로 읽습니다 (사진 파일을 만들지 않음)">
+            <Camera size={16} aria-hidden />
+            카메라로 읽기
+          </button>
+          <button
+            className="btn"
+            onClick={() => receiptInputRef.current?.click()}
+            disabled={!!uploading}
+            title="주문내역 캡처 같은 이미지를 골라 읽습니다"
+          >
+            <ImageUp size={16} aria-hidden />
+            이미지로 읽기
+          </button>
+          <button
+            className="btn"
+            onClick={() => void readClipboard()}
+            disabled={!!uploading}
+            title="복사해 둔 스크린샷을 읽습니다 (Ctrl+V로 붙여넣어도 됩니다)"
+          >
+            <ClipboardPaste size={16} aria-hidden />
+            클립보드에서 읽기
+          </button>
+          <label className="small muted attach-opt">
+            <input type="checkbox" checked={attachReceipt} onChange={(e) => setAttachReceipt(e.target.checked)} /> 이미지도 글에 첨부
+          </label>
+          <input
+            ref={receiptInputRef}
+            type="file"
+            accept="image/*"
+            hidden
+            onChange={(e) => {
+              const file = imageFiles(e.target.files)[0];
+              e.target.value = "";
+              if (file) void receiptFromImage(file);
+            }}
+          />
+        </div>
+      )}
 
       {pendingDraft && (
         <div className="banner">

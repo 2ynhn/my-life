@@ -3631,3 +3631,212 @@ body:has(.editor) .tabbar {
 .with-sidebar:has(> .local-editor) > :not(.local-editor) {
   display: none;
 }
+
+/* ───── 편집기: 아이콘 줄 · 파일 이름 줄 · 촘촘한 입력 칸 ───── */
+.editor-name {
+  margin-bottom: 0.4rem;
+}
+.editor .tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+/* 저장 안 된 내용이 있으면 저장 버튼에 작은 점 */
+.btn-save.dirty {
+  position: relative;
+}
+.btn-save.dirty::after {
+  content: "";
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 9px;
+  height: 9px;
+  border: 2px solid var(--bg);
+  border-radius: 50%;
+  background: #e0a33a;
+}
+.receipt-toggle {
+  display: none;
+}
+.receipt-tools {
+  display: flex;
+  margin-bottom: 0.6rem;
+}
+.chips-icon {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.15rem 0 0.2rem;
+  color: var(--muted);
+}
+/* 추천 칩은 한 줄, 옆으로 밀어서 더 보기 */
+.chip-suggest {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 1px;
+}
+.chip-suggest::-webkit-scrollbar {
+  display: none;
+}
+.chip-suggest button {
+  flex: none;
+}
+
+@media (max-width: 768px) {
+  /* 편집 중에는 앱 머리줄을 숨기고(닫기 ✕가 대신) 아이콘 줄 하나만 위에 붙인다 */
+  body:has(.editor) .topbar {
+    display: none;
+  }
+  body:has(.editor) .content {
+    padding-top: 0;
+  }
+  .editor {
+    height: auto;
+    min-height: 0;
+  }
+  .editor-name {
+    padding-top: 0.5rem;
+  }
+  .editor-name .name-field {
+    display: flex;
+    width: 100%;
+  }
+  .editor-name .name-field input {
+    flex: 1;
+    width: auto;
+    max-width: none;
+    padding: 0.3rem 0.45rem;
+    font-size: 0.9rem;
+  }
+  .editor-bar {
+    position: sticky;
+    top: 0;
+    z-index: 15;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin: 0 -1rem 0.6rem;
+    padding: 0.4rem 1rem;
+    border-bottom: 1px solid var(--line);
+    background: var(--bg);
+  }
+  .editor-bar .bar-btn {
+    padding: 0.45rem 0.55rem;
+  }
+  .editor .tabs button {
+    padding: 0.45rem 0.65rem;
+  }
+  .editor-bar .btn-save {
+    padding: 0.45rem 0.75rem;
+  }
+  /* 글자는 화면 읽기 프로그램용으로만 (아이콘으로 보인다) */
+  .editor .tab-label,
+  .editor-bar .btn-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .editor-bar .status.unsaved {
+    display: none;
+  }
+  .editor-bar .status {
+    font-size: 0.75rem;
+  }
+  .receipt-toggle {
+    display: inline-flex;
+  }
+  .receipt-toggle.on {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .receipt-tools:not(.open) {
+    display: none;
+  }
+  .receipt-tools {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .receipt-tools::-webkit-scrollbar {
+    display: none;
+  }
+  .receipt-tools .btn {
+    padding: 0.35rem 0.6rem;
+    font-size: 0.8rem;
+  }
+  /* 분류 관리 안내 같은 긴 도움말은 넓은 화면에서만 */
+  .meta-form .seg + .form-hint,
+  .meta-form .form-field > .form-hint:last-child:not(:first-child) {
+    display: none;
+  }
+  /* 상자 안 상자 없이: 쓰는 칸이 화면 너비를 다 쓰고, 화면 전체가 스크롤 */
+  .editor-panes {
+    display: block;
+  }
+  .pane-form {
+    padding: 0;
+    border: 0;
+    background: none;
+    overflow: visible;
+  }
+  .pane-write,
+  .pane-preview {
+    overflow: visible;
+  }
+  .pane-write .cm-editor {
+    height: auto;
+    min-height: 65dvh;
+  }
+  .pane-preview {
+    padding: 0 0.75rem;
+  }
+  .meta-form {
+    gap: 0.6rem;
+  }
+  .form-grid {
+    gap: 0.5rem;
+  }
+  .form-field,
+  .chips-field {
+    gap: 0.2rem;
+  }
+  .form-label {
+    font-size: 0.72rem;
+  }
+  .meta-form input:not([type="checkbox"]) {
+    padding: 0.42rem 0.5rem;
+  }
+  /* 키워드·사람 칸은 이름 대신 앞의 아이콘으로 */
+  .chips-field.has-icon > .form-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .chips {
+    padding: 0.15rem 0.3rem;
+  }
+  .chips input:not([type="checkbox"]) {
+    padding: 0.27rem 0.3rem;
+  }
+  .body-field textarea {
+    min-height: 9rem;
+  }
+  /* 분류도 한 줄로, 옆으로 밀어 보기 */
+  .meta-form .seg {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .meta-form .seg::-webkit-scrollbar {
+    display: none;
+  }
+  .meta-form .seg > * {
+    flex: none;
+  }
+}

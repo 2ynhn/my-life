@@ -1,6 +1,6 @@
 "use client";
 
-import { MapPin, MapPinPlus, Plus, Star, X } from "lucide-react";
+import { Hash, MapPin, MapPinPlus, Plus, Star, Users, UtensilsCrossed, X, type LucideIcon } from "lucide-react";
 import { useState } from "react";
 import { numberish, readBody, readMeta, setBody, setFields, type FieldValue } from "@/lib/frontmatter-edit";
 import { METRIC_GROUPS, METRICS, HEALTH_TEXT_KEYS } from "@/lib/health-metrics";
@@ -34,7 +34,10 @@ const list = (v: unknown): string[] =>
   Array.isArray(v) ? v.map((x) => str(x).trim()).filter(Boolean) : typeof v === "string" && v.trim() ? v.split(/[,\s]+/).filter(Boolean) : [];
 const won = (n: unknown) => (typeof n === "number" ? `${n.toLocaleString("ko-KR")}원` : "");
 
-/** 태그·사람: 엔터·쉼표로 넣고 ✕로 뺀다. 자주 쓴 것은 눌러서 바로 */
+/**
+ * 태그·사람: 엔터·쉼표로 넣고 ✕로 뺀다. 자주 쓴 것은 아래 한 줄(옆으로 밀어 보기)에서 눌러 바로.
+ * 치는 동안에는 그 글자가 든 것만 추린다. 모바일에서는 칸 이름 대신 앞의 아이콘으로 한 줄을 아낀다
+ */
 export function Chips({
   values,
   onChange,
@@ -42,6 +45,7 @@ export function Chips({
   placeholder,
   label,
   hash = false,
+  icon: Icon,
 }: {
   values: string[];
   onChange: (next: string[]) => void;
@@ -49,6 +53,7 @@ export function Chips({
   placeholder: string;
   label: string;
   hash?: boolean;
+  icon?: LucideIcon;
 }) {
   const [input, setInput] = useState("");
   const add = (raw: string) => {
@@ -60,11 +65,16 @@ export function Chips({
     setInput("");
   };
   const q = input.trim().replace(/^#/, "").toLowerCase();
-  const quick = suggestions.filter((s) => !values.includes(s) && (!q || s.toLowerCase().includes(q))).slice(0, 8);
+  const quick = suggestions.filter((s) => !values.includes(s) && (!q || s.toLowerCase().includes(q))).slice(0, 20);
   return (
-    <div className="chips-field">
+    <div className={`chips-field${Icon ? " has-icon" : ""}`}>
       <span className="form-label">{label}</span>
       <div className="chips">
+        {Icon && (
+          <span className="chips-icon" aria-hidden>
+            <Icon size={16} />
+          </span>
+        )}
         {values.map((v) => (
           <span key={v} className="chip">
             {hash && "#"}
@@ -216,7 +226,7 @@ export function MetaForm({ kind, text, onChange, suggestions, onAddPlace, onAddC
   };
   const s = suggestions ?? { tags: [], people: [], stores: [], payments: [] };
   const tags = (
-    <Chips label="키워드" hash values={list(meta.tags)} onChange={(v) => set({ tags: v })} suggestions={s.tags} placeholder="예: 산책, 맛집 (엔터로 추가)" />
+    <Chips label="키워드" icon={Hash} hash values={list(meta.tags)} onChange={(v) => set({ tags: v })} suggestions={s.tags} placeholder="예: 산책, 맛집 (엔터로 추가)" />
   );
   const body = (placeholder: string) => <BodyField text={text} onChange={onChange} placeholder={placeholder} />;
 
@@ -237,6 +247,7 @@ export function MetaForm({ kind, text, onChange, suggestions, onAddPlace, onAddC
         {tags}
         <Chips
           label="함께한 사람"
+          icon={Users}
           values={list(meta.people)}
           onChange={(v) => set({ people: v })}
           suggestions={s.people}
@@ -337,6 +348,7 @@ export function MetaForm({ kind, text, onChange, suggestions, onAddPlace, onAddC
         </div>
         <Chips
           label="메뉴"
+          icon={UtensilsCrossed}
           values={list(meta.menu)}
           onChange={(v) => set({ menu: v })}
           suggestions={s.menus ?? []}
@@ -381,6 +393,7 @@ export function MetaForm({ kind, text, onChange, suggestions, onAddPlace, onAddC
         </div>
         <Chips
           label="함께 먹은 사람"
+          icon={Users}
           values={list(meta.people)}
           onChange={(v) => set({ people: v })}
           suggestions={s.people}
@@ -405,6 +418,7 @@ export function MetaForm({ kind, text, onChange, suggestions, onAddPlace, onAddC
         </div>
         <Chips
           label="함께 간 사람"
+          icon={Users}
           values={list(meta.companions)}
           onChange={(v) => set({ companions: v })}
           suggestions={s.people}
