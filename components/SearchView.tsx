@@ -1,6 +1,13 @@
 import Link from "next/link";
-import { hrefFor, type DriveIndex } from "@/lib/drive";
-import { searchTag, searchText } from "@/lib/search";
+import { SearchForm } from "@/components/SearchForm";
+import { metaTags, splitFrontmatter } from "@/lib/markdown";
+
+// 검색: 기기에 받아 둔 글에서 바로 찾는다 (제목·경로 → 내용, 글자 단위). 태그는 앞머리 tags로.
+// 아직 받지 않은 글은 제목만 보고, 받는 대로 결과가 늘어난다.
+
+/** path: 일기장 맨 위부터 부모까지의 이름. text: 받아 둔 내용 (없으면 아직) */
+export type SearchNote = { id: string; name: string; slug: string; href: string; path: string[]; text?: string };
+type Hit = { note: SearchNote; inTitle: boolean; snippet: string | null };
 
 /** 찾은 글자를 굵게 */
 function Highlight({ text, needle }: { text: string; needle: string }) {
@@ -16,22 +23,53 @@ function Highlight({ text, needle }: { text: string; needle: string }) {
   return <>{out}</>;
 }
 
-export async function SearchView({ index, q, tag }: { index: DriveIndex; q: string; tag: string }) {
-  const base = index.lib.base;
-  const isTag = !!tag && !q;
-  const result = isTag ? await searchTag(index, tag) : await searchText(index, q);
+function snippetOf(text: string, needle: string): string | null {
+  const body = splitFrontmatter(text).body;
+  const i = body.toLowerCase().indexOf(needle);
+  if (i < 0) return null;
+  const start = Math.max(0, i - 50);
+  const end = Math.min(body.length, i + needle.length + 70);
+  return (start > 0 ? "…" : "") + body.slice(start, end).replace(/\s+/g, " ").trim() + (end < body.length ? "…" : "");
+}
+
+/** 날짜 이름(최신 먼저) */
+const newestFirst = (a: SearchNote, b: SearchNote) => b.name.localeCompare(a.name, "ko");
+
+export function searchNotes(notes: SearchNote[], q: string, tag: string): Hit[] {
+  if (tag && !q) {
+    const want = tag.trim().toLowerCase();
+    if (!want) return [];
+    return notes
+      .filter((n) => n.text && metaTags(splitFrontmatter(n.text).meta).some((t) => t.toLowerCase() === want))
+      .sort(newestFirst)
+      .map((note) => ({ note, inTitle: false, snippet: null }));
+  }
   const needle = q.trim().toLowerCase();
-  const again = isTag ? `${base}?view=search&tag=${encodeURIComponent(tag)}` : `${base}?view=search&q=${encodeURIComponent(q)}`;
+  if (!needle) return [];
+  const hits: Hit[] = [];
+  for (const note of notes) {
+    const inTitle = [...note.path, note.slug].join("/").toLowerCase().includes(needle);
+    const snippet = note.text ? snippetOf(note.text, needle) : null;
+    if (inTitle || snippet !== null || note.text?.toLowerCase().includes(needle)) hits.push({ note, inTitle, snippet });
+  }
+  return hits.sort((a, b) => Number(b.inTitle) - Number(a.inTitle) || newestFirst(a.note, b.note));
+}
+
+export function SearchView({ base, notes, q, tag }: { base: string; notes: SearchNote[]; q: string; tag: string }) {
+  const isTag = !!tag && !q;
+  const hits = searchNotes(notes, q, tag);
+  const needle = q.trim().toLowerCase();
+  const read = notes.filter((n) => n.text !== undefined).length;
 
   return (
     <div className="search">
-      <form className="search-form" action={base}>
+      <SearchForm className="search-form" action={base}>
         <input type="hidden" name="view" value="search" />
         <input name="q" defaultValue={q} placeholder="일기 검색" aria-label="검색어" autoFocus={!q && !tag} />
         <button className="btn btn-save" type="submit">
           검색
         </button>
-      </form>
+      </SearchForm>
 
       {isTag ? (
         <h1 className="page-title">#{tag}</h1>
@@ -41,15 +79,8 @@ export async function SearchView({ index, q, tag }: { index: DriveIndex; q: stri
 
       {(q || tag) && (
         <p className="muted small">
-          {result.hits.length}개 찾음
-          {result.scanned < result.total && (
-            <>
-              {" · "}
-              전체 {result.total}개 글 중 {result.scanned}개를 살펴봤어요.{" "}
-              <Link href={again}>계속 찾기</Link>
-            </>
-          )}
-          {result.driveFailed && " · Drive 검색을 쓰지 못해 직접 훑은 결과만 보여 줍니다."}
+          {hits.length}개 찾음
+          {read < notes.length && ` · 전체 ${notes.length}개 글 중 ${read}개를 받아 찾았어요. 나머지는 받는 대로 더해져요.`}
           {q && (
             <>
               {" · "}
@@ -59,16 +90,16 @@ export async function SearchView({ index, q, tag }: { index: DriveIndex; q: stri
         </p>
       )}
 
-      {result.hits.length > 0 && (
+      {hits.length > 0 && (
         <ul className="note-list search-hits">
-          {result.hits.map(({ file, snippet }) => (
-            <li key={file.id}>
-              <Link href={hrefFor(file)}>
+          {hits.map(({ note, snippet }) => (
+            <li key={note.id}>
+              <Link href={note.href}>
                 <span className="hit-head">
                   <span className="title">
-                    <Highlight text={file.slug} needle={needle} />
+                    <Highlight text={note.slug} needle={needle} />
                   </span>
-                  <span className="muted small">{file.slugPath.slice(0, -1).join(" / ")}</span>
+                  <span className="muted small">{note.path.join(" / ")}</span>
                 </span>
                 {snippet && (
                   <span className="snippet small">

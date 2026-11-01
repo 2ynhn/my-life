@@ -2,19 +2,18 @@ import type { Metadata } from "next";
 import { Plus } from "lucide-react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { CalendarView } from "@/components/CalendarView";
 import { AskView } from "@/components/AskView";
-import { CollectView } from "@/components/CollectView";
 import { DriveProblem } from "@/components/DriveProblem";
 import { Editor } from "@/components/Editor";
 import { FolderView } from "@/components/FolderView";
 import { NewFolderButton } from "@/components/NewFolderButton";
 import { NoteActions } from "@/components/NoteActions";
 import { NoteBody } from "@/components/NoteBody";
-import { SearchView } from "@/components/SearchView";
 import { FeatureIcon } from "@/components/FeatureIcon";
 import type { FormKind } from "@/components/MetaForm";
 import { FeatureView } from "@/components/FeatureView";
+import { LocalRootView } from "@/components/LocalRootView";
+import { LOCAL_ROOT_VIEWS, type RootViewName } from "@/lib/root-views";
 import { Home } from "@/components/Home";
 import { withEnd } from "@/lib/templates";
 import { homeData } from "@/lib/home-data";
@@ -113,7 +112,7 @@ export default async function EntryPage({ params, searchParams }: Props) {
   if (entry.kind === "file" && !entry.isMarkdown) redirect(fileUrl(entry));
 
   const sp = await searchParams;
-  const { mode, sub, view, q, tag, month, day, spend, range, shared, tab, who, store } = sp;
+  const { mode, sub, view, q, spend, range, shared } = sp;
   // '이 사진으로 일기 쓰기': 그 날짜로, 그 사진을 넣은 채로
   const photo = typeof sp.photo === "string" && sp.photo.length <= 200 ? sp.photo : undefined;
   const date = typeof sp.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) ? sp.date : undefined;
@@ -121,10 +120,13 @@ export default async function EntryPage({ params, searchParams }: Props) {
   const end = date && typeof sp.end === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sp.end) && sp.end > date ? sp.end : undefined;
 
   // 일기장 단위 화면: 검색·캘린더 (주소: /d/<id>?view=…)
-  if (!entry.parent && view === "search") return <SearchView index={index} q={String(q ?? "")} tag={String(tag ?? "")} />;
-  if (!entry.parent && view === "calendar") return <CalendarView index={index} month={month} day={day} />;
+  // 검색·캘린더·모아보기는 기기 사본으로 그린다 (서버는 Drive를 읽지 않는다)
+  if (!entry.parent && typeof view === "string" && LOCAL_ROOT_VIEWS.has(view)) {
+    const params = new URLSearchParams();
+    for (const [k, v] of Object.entries(sp)) if (typeof v === "string") params.set(k, v);
+    return <LocalRootView view={view as RootViewName} search={params.toString()} />;
+  }
   if (!entry.parent && view === "ask") return <AskView base={index.lib.base} rootId={index.lib.rootId} q={String(q ?? "")} />;
-  if (!entry.parent && view === "collect") return <CollectView index={index} tab={tab} who={who} store={store} />;
 
   // 편집·새 글은 Drive가 허락한 경우에만 (게스트도 Drive에서 편집자로 공유받았으면 가능)
   if (mode === "edit" && entry.kind === "file" && entry.can.edit)

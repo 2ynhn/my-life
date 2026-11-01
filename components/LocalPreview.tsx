@@ -4,6 +4,8 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { FeatureIcon } from "@/components/FeatureIcon";
 import { FeatureView } from "@/components/FeatureView";
+import { LocalRootView } from "@/components/LocalRootView";
+import { LOCAL_ROOT_VIEWS, type RootViewName } from "@/lib/root-views";
 import { FolderList, NoteList, noteYears, type NoteItem } from "@/components/FolderList";
 import { Home, type HomeData, type HomeNode } from "@/components/Home";
 import { Plus } from "lucide-react";
@@ -46,9 +48,12 @@ const VIEW_PARAMS = new Set(["spend", "range"]);
 
 export function canPreview(local: LocalState | null, pathname: string, search: string): boolean {
   if (!local) return false;
-  const params = [...new URLSearchParams(search).keys()];
+  const sp = new URLSearchParams(search);
+  const params = [...sp.keys()];
   const entry = local.byHref.get(normHref(pathname));
   if (!entry) return false;
+  // 일기장 전체 화면: 검색·캘린더·모아보기
+  if (!entry.p && sp.has("view")) return LOCAL_ROOT_VIEWS.has(sp.get("view")!);
   if (params.length) return entry.k === "d" && !!entry.p && params.every((k) => VIEW_PARAMS.has(k));
   return entry.k === "d" || (!!entry.md && local.texts.has(entry.id));
 }
@@ -57,6 +62,13 @@ export function PreviewFor({ pathname, search }: { pathname: string; search: str
   const local = useLocal();
   if (!local || !canPreview(local, pathname, search)) return <PageSkeleton />;
   const entry = local.byHref.get(normHref(pathname))!;
+  const sp = new URLSearchParams(search);
+  if (!entry.p && sp.has("view"))
+    return (
+      <div className="local-preview" aria-busy="true">
+        <LocalRootView view={sp.get("view") as RootViewName} search={search} />
+      </div>
+    );
   if (!entry.p)
     return (
       <div className="local-preview" aria-busy="true">

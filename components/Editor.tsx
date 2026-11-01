@@ -18,8 +18,9 @@ import { addPlace, readMeta, setFields } from "@/lib/frontmatter-edit";
 import { reverseName } from "@/lib/geo-name";
 import { imageFiles, prepareImage, uploadImage } from "@/lib/image-upload";
 import { tableResolver, type LinkTable } from "@/lib/markdown";
-import { useLocalContext } from "@/components/LocalData";
-import { putLocalText } from "@/lib/local-store";
+import { useLocal, useLocalContext } from "@/components/LocalData";
+import { localSuggestions } from "@/components/LocalRootView";
+import { localVersion, putLocalText } from "@/lib/local-store";
 import { enqueue, onResult, pendingSave, readDraft, writeDraft, type Draft } from "@/lib/save-queue";
 import { takeSharedImages } from "@/lib/share-store";
 import { autoNoteName } from "@/lib/note-name";
@@ -144,8 +145,13 @@ export function Editor(props: Props) {
   }, []);
 
   // 폼의 자동 완성: 이 일기장에서 자주 쓴 키워드·사람·가게·결제 수단
+  // 기기 사본이 있으면 그것으로 바로 (서버가 글을 다 읽지 않게)
+  const localData = useLocal();
+  // 사본에 글이 들어올 때마다(묶음 단위) 다시 계산한다. 글자 칠 때마다는 아니다
+  const localVer = localData ? localVersion() : -1;
   useEffect(() => {
     if (!props.form) return;
+    if (localData) return setSuggestions(localSuggestions(localData));
     let cancelled = false;
     fetch(`/api/suggest?root=${encodeURIComponent(props.rootId)}`)
       .then((r) => (r.ok ? (r.json() as Promise<Suggestions>) : null))
@@ -154,7 +160,8 @@ export function Editor(props: Props) {
     return () => {
       cancelled = true;
     };
-  }, [props.form, props.rootId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.form, props.rootId, localVer]);
 
   // CodeMirror 생성 (한 번만)
   useEffect(() => {
@@ -490,6 +497,8 @@ export function Editor(props: Props) {
       const res = await addCategoryAction(props.rootId, name);
       if (!res.ok) return res.error;
       setSuggestions((s) => ({ ...(s ?? { tags: [], people: [], stores: [], payments: [] }), categories: res.categories }));
+      // 기기 사본의 분류 파일도 새로 받게
+      window.dispatchEvent(new Event("my-life:sync"));
       return null;
     } catch {
       return "서버에 연결하지 못했습니다.";

@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useLocal } from "@/components/LocalData";
 import { canPreview, PreviewFor } from "@/components/LocalPreview";
@@ -16,6 +16,11 @@ const keyOf = (pathname: string, search: string) => `${normHref(pathname)}?${new
 
 export function LocalNav() {
   const local = useLocal();
+  const router = useRouter();
+  const routerRef = useRef(router);
+  useEffect(() => {
+    routerRef.current = router;
+  }, [router]);
   const localRef = useRef(local);
   useEffect(() => {
     localRef.current = local;
@@ -40,6 +45,11 @@ export function LocalNav() {
       const url = new URL(a.href, location.href);
       if (url.origin !== location.origin) return;
       if (url.pathname === location.pathname && url.search === location.search) return; // 같은 화면(연도 점프 등)
+      // 본문의 태그·[[글]] 같은 일반 링크도 페이지 전체를 다시 받지 않고 앱 안에서 (next/link는 이미 처리함)
+      if (!e.defaultPrevented && url.pathname.startsWith("/d/")) {
+        e.preventDefault();
+        routerRef.current.push(url.pathname + url.search + url.hash);
+      }
       const target = url.search.slice(1);
       if (!canPreview(localRef.current, url.pathname, target)) return;
       setPending({ pathname: url.pathname, search: target, from: keyOf(location.pathname, location.search.slice(1)) });
@@ -53,11 +63,23 @@ export function LocalNav() {
       if (!canPreview(localRef.current, location.pathname, target)) return;
       setPending({ pathname: location.pathname, search: target, from: hereRef.current });
     };
+    // 링크가 아닌 이동(검색창 등)이 알려 오는 다음 주소
+    const onNavigate = (e: Event) => {
+      const href = (e as CustomEvent<string>).detail;
+      if (typeof href !== "string") return;
+      const url = new URL(href, location.href);
+      const target = url.search.slice(1);
+      if (keyOf(url.pathname, target) === hereRef.current || !canPreview(localRef.current, url.pathname, target)) return;
+      setPending({ pathname: url.pathname, search: target, from: hereRef.current });
+      window.scrollTo(0, 0);
+    };
     document.addEventListener("click", onClick);
     window.addEventListener("popstate", onPop);
+    window.addEventListener("my-life:navigate", onNavigate);
     return () => {
       document.removeEventListener("click", onClick);
       window.removeEventListener("popstate", onPop);
+      window.removeEventListener("my-life:navigate", onNavigate);
     };
   }, []);
 

@@ -1,12 +1,11 @@
 import Link from "next/link";
 import { CalendarClock, MapPin, Repeat, Store, Users } from "lucide-react";
-import { todayKST } from "@/components/CalendarView";
 import { FeatureIcon } from "@/components/FeatureIcon";
-import { gatherRecords, peopleOf, type Record_ } from "@/lib/collect";
-import { hrefFor, type DriveIndex } from "@/lib/drive";
 import { placeNames } from "@/lib/places";
+import { peopleOf, type Record_ } from "@/lib/records";
+import { todayKST } from "@/lib/today";
 
-// 모아보기: 흩어진 기록을 사람·가게·장소·반복 구매로 묶어 본다. 앞머리만 읽는다.
+// 모아보기: 흩어진 기록을 사람·가게·장소·반복 구매로 묶어 본다. 앞머리만 읽는다 (기록은 기기 사본에서 모아 넘겨받는다).
 
 type Tab = "people" | "places" | "repeat";
 const TABS: { key: Tab; label: string }[] = [
@@ -33,7 +32,7 @@ function RecordList({ records }: { records: Record_[] }) {
     <ul className="note-list collect-list">
       {records.sort(byDateDesc).map((r) => (
         <li key={r.file.id}>
-          <Link href={hrefFor(r.file)}>
+          <Link href={r.file.href}>
             <span className="title">
               <FeatureIcon kind={r.feature} size="sm" />
               {titleOf(r)}
@@ -186,7 +185,7 @@ function Places({ records, store, base, today }: { records: Record_[]; store?: s
           <ul className="collect-cards">
             {placeRows.map(([name, list]) => (
               <li key={name}>
-                <Link href={hrefFor(list.sort(byDateDesc)[0].file)}>
+                <Link href={list.sort(byDateDesc)[0].file.href}>
                   <strong>{name}</strong>
                   <span className="muted small">
                     {list.length > 1 ? `${list.length}번 · ` : ""}
@@ -228,7 +227,7 @@ export function findRepeats(records: Record_[], today: string): { items: RepeatI
     if (every < 3) continue;
     const last = dates.at(-1)!;
     const since = daysBetween(last, today);
-    items.push({ name, count: dates.length, every, last, since, next: addDays(last, every), due: since >= every * 0.85, href: hrefFor(list.at(-1)!.file) });
+    items.push({ name, count: dates.length, every, last, since, next: addDays(last, every), due: since >= every * 0.85, href: list.at(-1)!.file.href });
   }
   items.sort((a, b) => b.since / b.every - a.since / a.every);
 
@@ -250,7 +249,7 @@ export function findRepeats(records: Record_[], today: string): { items: RepeatI
     const last = recent.at(-1)!;
     const d = new Date(Date.parse(last.date));
     d.setUTCMonth(d.getUTCMonth() + 1);
-    subs.push({ store, amount: amountOf(last), count: list.length, next: d.toISOString().slice(0, 10), href: hrefFor(last.file) });
+    subs.push({ store, amount: amountOf(last), count: list.length, next: d.toISOString().slice(0, 10), href: last.file.href });
   }
   subs.sort((a, b) => a.next.localeCompare(b.next));
   return { items, subs };
@@ -313,21 +312,26 @@ function Repeats({ records, today }: { records: Record_[]; today: string }) {
   );
 }
 
-export async function CollectView({
-  index,
+export function CollectView({
+  libBase,
+  records,
+  read,
+  total,
   tab: rawTab,
   who,
   store,
 }: {
-  index: DriveIndex;
+  libBase: string;
+  records: Record_[];
+  read: number;
+  total: number;
   tab?: string;
   who?: string;
   store?: string;
 }) {
   const tab: Tab = TABS.some((t) => t.key === rawTab) ? (rawTab as Tab) : "people";
-  const base = `${index.lib.base}?view=collect`;
+  const base = `${libBase}?view=collect`;
   const today = todayKST();
-  const { records, read, total } = await gatherRecords(index);
   return (
     <div className="collect">
       <h1 className="page-title">모아보기</h1>
@@ -343,7 +347,7 @@ export async function CollectView({
       {tab === "repeat" && <Repeats records={records} today={today} />}
       {read < total && (
         <p className="muted small">
-          전체 {total}개 중 {read}개를 읽었어요. 새로고침하면 나머지도 들어갑니다.
+          전체 {total}개 중 {read}개를 받았어요. 나머지는 받는 대로 들어갑니다.
         </p>
       )}
     </div>

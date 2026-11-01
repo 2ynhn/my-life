@@ -7,31 +7,17 @@ import { useLocal, useLocalContext } from "@/components/LocalData";
 import { SpendingView } from "@/components/SpendingView";
 import { TravelView } from "@/components/TravelView";
 import type { FolderKind } from "@/lib/drive";
-import { fetchTexts, topOf, type LocalState } from "@/lib/local-store";
+import { fetchTexts, notesUnder, topOf, type LocalState } from "@/lib/local-store";
 import type { LocalEntry } from "@/lib/local-types";
 import { parseBudget, parseCategories, type VFile, type ViewSource } from "@/lib/view-source";
 
 // 구매·여행·건강·음식 폴더 위 요약을 기기 사본으로 그린다 (서버는 이 화면 때문에 Drive를 읽지 않는다).
 // 아직 받지 않은 글은 이 폴더 것부터 먼저 받아 오고, 받는 대로 다시 그린다.
 
-const vfile = (e: LocalEntry): VFile => ({ id: e.id, name: e.n, slug: e.s, href: e.h, url: e.u, photo: e.ph });
+export const vfile = (e: LocalEntry): VFile => ({ id: e.id, name: e.n, slug: e.s, href: e.h, url: e.u, photo: e.ph });
 
-/** 폴더 아래(하위 폴더 포함) 목록에 보이는 md 글 */
-function notesUnder(local: LocalState, folderId: string): LocalEntry[] {
-  const out: LocalEntry[] = [];
-  const walk = (id: string) => {
-    for (const c of local.children.get(id) ?? []) {
-      if (!c.v) continue;
-      if (c.k === "f") {
-        if (c.md) out.push(c);
-      } else walk(c.id);
-    }
-  };
-  walk(folderId);
-  return out;
-}
 
-function json<T>(local: LocalState, settings: LocalEntry | undefined, name: string): T | null {
+export function json<T>(local: LocalState, settings: LocalEntry | undefined, name: string): T | null {
   const file = settings && (local.children.get(settings.id) ?? []).find((c) => c.n === name);
   const text = file && local.texts.get(file.id)?.t;
   if (!text) return null;

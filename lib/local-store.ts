@@ -242,3 +242,27 @@ export function topOf(local: LocalState, e: LocalEntry): LocalEntry {
   }
   return top;
 }
+
+/** 폴더 아래(하위 폴더 포함) 목록에 보이는 md 글 */
+export function notesUnder(local: LocalState, folderId: string): LocalEntry[] {
+  const out: LocalEntry[] = [];
+  const walk = (id: string) => {
+    for (const c of local.children.get(id) ?? []) {
+      if (!c.v) continue;
+      if (c.k === "f") {
+        if (c.md) out.push(c);
+      } else walk(c.id);
+    }
+  };
+  walk(folderId);
+  return out;
+}
+
+/** 일기장 맨 위부터 부모까지의 이름 (목록 오른쪽 위치 표시) */
+export function pathOf(local: LocalState, e: LocalEntry): string[] {
+  const out: string[] = [];
+  for (let p = e.p ? local.byId.get(e.p) : undefined; p?.p; p = p.p ? local.byId.get(p.p) : undefined) out.unshift(p.s);
+  return out;
+}
+
+export const rootOf = (local: LocalState) => local.tree.entries.find((e) => !e.p)!;

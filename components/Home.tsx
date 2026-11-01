@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CalendarDays, ChevronRight, Clock, History, Layers, PenLine, Plus, Search, Sparkles } from "lucide-react";
 import { NewFolderButton } from "@/components/NewFolderButton";
 import { QuickNote } from "@/components/QuickNote";
+import { SearchForm } from "@/components/SearchForm";
 import { startFeature } from "@/app/(app)/note-actions";
 import { todayKST } from "@/lib/today";
 import { FeatureIcon } from "@/components/FeatureIcon";
@@ -259,7 +260,7 @@ export function Home({ data }: { data: HomeData }) {
 
           {diaryCard && <TodayBand c={diaryCard} />}
 
-          <form className="search-form home-search" action={data.base}>
+          <SearchForm className="search-form home-search" action={data.base}>
             <Search size={18} className="search-icon" aria-hidden />
             <input name="q" placeholder="검색하거나 물어보세요" aria-label="검색어 또는 질문" required />
             {/* 엔터는 첫 버튼(검색) */}
@@ -270,7 +271,7 @@ export function Home({ data }: { data: HomeData }) {
               <Sparkles size={16} aria-hidden />
               물어보기
             </button>
-          </form>
+          </SearchForm>
           <div className="lib-tools">
             <Link className="btn" href={`${data.base}?view=calendar`}>
               <CalendarDays size={16} aria-hidden />

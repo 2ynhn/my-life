@@ -1,15 +1,16 @@
 import Link from "next/link";
-import { hrefFor, type DriveIndex, type FileEntry } from "@/lib/drive";
-import { listableNotes } from "@/lib/search";
 
-// 파일 이름이 2013-12-30… 처럼 날짜로 시작하는 글을 달력에 놓는다
+// 파일 이름이 2013-12-30… 처럼 날짜로 시작하는 글을 달력에 놓는다 (글 목록은 기기 사본에서 넘겨받는다)
+
+/** 달력에 놓을 글: path는 일기장 맨 위부터 부모까지의 이름 */
+export type CalNote = { id: string; name: string; slug: string; href: string; path: string[] };
 
 const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})/;
 const WEEK = ["일", "월", "화", "수", "목", "금", "토"];
 
-export function notesByDate(index: DriveIndex): Map<string, FileEntry[]> {
-  const map = new Map<string, FileEntry[]>();
-  for (const n of listableNotes(index)) {
+export function notesByDate(notes: CalNote[]): Map<string, CalNote[]> {
+  const map = new Map<string, CalNote[]>();
+  for (const n of notes) {
     const m = DATE_RE.exec(n.name);
     if (!m) continue;
     const key = `${m[1]}-${m[2]}-${m[3]}`;
@@ -28,9 +29,8 @@ const shift = (ym: string, by: number) => {
   return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}`;
 };
 
-export function CalendarView({ index, month, day }: { index: DriveIndex; month?: string; day?: string }) {
-  const base = index.lib.base;
-  const byDate = notesByDate(index);
+export function CalendarView({ base, notes, month, day }: { base: string; notes: CalNote[]; month?: string; day?: string }) {
+  const byDate = notesByDate(notes);
   const months = new Map<string, number>();
   for (const [date, list] of byDate) months.set(date.slice(0, 7), (months.get(date.slice(0, 7)) ?? 0) + list.length);
 
@@ -86,7 +86,7 @@ export function CalendarView({ index, month, day }: { index: DriveIndex; month?:
             );
           // 하루에 글이 하나면 바로 그 글로, 여러 개면 아래에 목록
           return (
-            <Link key={key} className={cls} href={list.length === 1 ? hrefFor(list[0]) : href(ym, key)} title={list.map((n) => n.slug).join(", ")}>
+            <Link key={key} className={cls} href={list.length === 1 ? list[0].href : href(ym, key)} title={list.map((n) => n.slug).join(", ")}>
               <span className="num">{d}</span>
               <span className="dot">{list.length > 1 ? list.length : ""}</span>
             </Link>
@@ -98,9 +98,9 @@ export function CalendarView({ index, month, day }: { index: DriveIndex; month?:
         <ul className="note-list">
           {selected.map((n) => (
             <li key={n.id}>
-              <Link href={hrefFor(n)}>
+              <Link href={n.href}>
                 <span className="title">{n.slug}</span>
-                <span className="muted small">{n.slugPath.slice(0, -1).join(" / ")}</span>
+                <span className="muted small">{n.path.join(" / ")}</span>
               </Link>
             </li>
           ))}
