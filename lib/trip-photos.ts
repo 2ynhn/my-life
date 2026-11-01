@@ -1,24 +1,16 @@
 import "server-only";
 import { featureFolders } from "@/lib/collect";
 import { findAttachment, readText, visibleChildren, type DriveIndex, type FileEntry, type FolderEntry } from "@/lib/drive";
+import { photoDate, photoNames } from "@/lib/view-source";
+
+export { photoDate, photoNames };
 
 // 여행과 사진·일기 잇기: 여행 글에 넣은 사진 + 여행 기간(출발~돌아온 날)에 쓴 일기와 그 사진.
 // 사진의 위치·시각은 올릴 때 원본 EXIF에서 읽어 Drive 파일 정보로 붙여 둔 것 (FileEntry.photo)
 
 export type TripPhoto = { file: FileEntry; note: FileEntry; date: string; fromDiary: boolean };
 
-const IMAGE = /\.(jpe?g|png|webp|gif|heic)$/i;
 const DATE = /^\d{4}-\d{2}-\d{2}/;
-
-/** 글 본문의 사진 이름: ![[사진.jpg]] · ![[사진.jpg|300]] */
-export function photoNames(text: string): string[] {
-  const out: string[] = [];
-  for (const m of text.matchAll(/!\[\[([^\]|#]+)(?:[|#][^\]]*)?\]\]/g)) {
-    const name = m[1].trim();
-    if (IMAGE.test(name) && !out.includes(name)) out.push(name);
-  }
-  return out;
-}
 
 /** 글에 넣은 사진 파일들 (찾지 못한 이름은 뺀다) */
 export function photosIn(note: FileEntry, text: string): FileEntry[] {
@@ -26,9 +18,6 @@ export function photosIn(note: FileEntry, text: string): FileEntry[] {
     .map((n) => findAttachment(note.parent!, n))
     .filter((f): f is FileEntry => !!f);
 }
-
-/** 사진 날짜: 찍은 날 → 없으면 파일 이름(올린 날) → 없으면 기본값 */
-export const photoDate = (f: FileEntry, fallback: string) => f.photo?.taken?.slice(0, 10) ?? DATE.exec(f.name)?.[0] ?? fallback;
 
 function notesIn(folder: FolderEntry): FileEntry[] {
   return visibleChildren(folder).flatMap((c) => (c.kind === "file" ? (c.isMarkdown ? [c] : []) : notesIn(c)));

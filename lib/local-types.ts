@@ -1,3 +1,4 @@
+import type { PhotoInfo } from "@/lib/drive";
 import type { FeatureKey } from "@/lib/features";
 
 // 기기에 받아 두는 일기장 목록 (서버 /api/local → 브라우저 IndexedDB). 브라우저·서버 공용 타입
@@ -28,6 +29,10 @@ export type LocalEntry = {
   t?: 1;
   /** 접근 제한 폴더 */
   r?: 1;
+  /** 사진의 찍은 위치·시각 (올릴 때 EXIF에서 읽어 둔 것) */
+  ph?: PhotoInfo;
+  /** 기기에 받아 두는 설정 파일 (_settings의 budget.json·categories.json) */
+  j?: 1;
 };
 
 export type LocalTree = {

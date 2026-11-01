@@ -1,34 +1,32 @@
 import Link from "next/link";
 import { Star, UtensilsCrossed } from "lucide-react";
-import { todayKST } from "@/components/CalendarView";
 import { TravelMap, type MapPoint } from "@/components/TravelMap";
-import { fileUrl, hrefFor, type DriveIndex, type FileEntry, type FolderEntry } from "@/lib/drive";
-import { collectNotes, dateOf } from "@/lib/folder-meta";
 import { splitFrontmatter } from "@/lib/markdown";
-import { photosIn } from "@/lib/trip-photos";
+import { todayKST } from "@/lib/today";
+import { dateOf, type VFile, type ViewSource } from "@/lib/view-source";
 
 // 음식 폴더 위 요약: 이번 달 횟수·금액, 자주 간 곳, 먹은 곳 지도(장소나 사진 위치), 최근 기록(사진·메뉴·가격·별점)
 
 type Meal = {
-  file: FileEntry;
+  file: VFile;
   date: string;
   restaurant: string;
   menu: string[];
   price: number;
   rating: number;
   geo: { lat: number; lng: number; name: string } | null;
-  photo: FileEntry | null;
+  photo: VFile | null;
 };
 
 const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
 const dot = (d: string) => d.replace(/-/g, ".");
 const num = (v: unknown) => (typeof v === "number" ? v : Number(String(v ?? "").replace(/[,원\s]/g, "")) || 0);
 
-function parse(file: FileEntry, text: string): Meal | null {
+function parse(src: ViewSource, file: VFile, text: string): Meal | null {
   const meta = splitFrontmatter(text).meta as Record<string, unknown>;
   const date = dateOf(meta.date, file);
   if (!date) return null;
-  const photos = photosIn(file, text);
+  const photos = src.photosIn(file, text);
   const place = meta.place && typeof meta.place === "object" ? (meta.place as Record<string, unknown>) : null;
   const restaurant = String(meta.restaurant ?? "").trim();
   const lat = num(place?.lat);
@@ -53,8 +51,10 @@ function parse(file: FileEntry, text: string): Meal | null {
   };
 }
 
-export async function FoodView({ index, folder }: { index: DriveIndex; folder: FolderEntry }) {
-  const { items, read, total } = await collectNotes(index, folder, parse);
+export function FoodView({ src }: { src: ViewSource }) {
+  const items = src.notes.flatMap(({ file, text }) => parse(src, file, text) ?? []);
+  const read = src.notes.length;
+  const total = src.total;
   if (!items.length)
     return (
       <section className="food empty">
@@ -79,8 +79,8 @@ export async function FoodView({ index, folder }: { index: DriveIndex; folder: F
       lng: m.geo!.lng,
       name: m.restaurant || m.geo!.name || "먹은 곳",
       sub: `${dot(m.date)}${m.menu.length ? ` · ${m.menu.join(", ")}` : ""}`,
-      href: hrefFor(m.file),
-      image: m.photo ? fileUrl(m.photo) : undefined,
+      href: m.file.href,
+      image: m.photo?.url,
     }));
 
   return (
@@ -109,10 +109,10 @@ export async function FoodView({ index, folder }: { index: DriveIndex; folder: F
       <ul className="meals">
         {meals.slice(0, 30).map((m) => (
           <li key={m.file.id}>
-            <Link href={hrefFor(m.file)}>
+            <Link href={m.file.href}>
               {m.photo ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={fileUrl(m.photo)} alt="" loading="lazy" />
+                <img src={m.photo.url} alt="" loading="lazy" />
               ) : (
                 <span className="meal-noimg" aria-hidden>
                   <UtensilsCrossed size={22} strokeWidth={1.5} />
@@ -138,7 +138,7 @@ export async function FoodView({ index, folder }: { index: DriveIndex; folder: F
       </ul>
       {read < total && (
         <p className="muted small">
-          전체 {total}개 중 {read}개를 읽었어요. 새로고침하면 나머지도 나옵니다.
+          전체 {total}개 중 {read}개를 받았어요. 나머지는 받는 대로 나옵니다.
         </p>
       )}
     </section>

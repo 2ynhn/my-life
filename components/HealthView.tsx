@@ -1,18 +1,17 @@
 import Link from "next/link";
-import { hrefFor, type DriveIndex, type FileEntry, type FolderEntry } from "@/lib/drive";
-import { collectNotes, dateOf } from "@/lib/folder-meta";
 import { splitFrontmatter } from "@/lib/markdown";
-import { todayKST } from "@/components/CalendarView";
+import { todayKST } from "@/lib/today";
+import { dateOf, type VFile, type ViewSource } from "@/lib/view-source";
 import { HEALTH_TEXT_KEYS, METRIC_ORDER, METRICS } from "@/lib/health-metrics";
 
 // 건강 폴더 위에 보이는 요약: 앞머리의 숫자 항목마다 선 그래프 하나씩 (작은 여러 개 — 축 하나에 한 항목)
 
-type Day = { file: FileEntry; date: string; values: Record<string, number> };
+type Day = { file: VFile; date: string; values: Record<string, number> };
 
 const KNOWN = METRICS;
 const ORDER = METRIC_ORDER;
 
-function parse(file: FileEntry, text: string): Day | null {
+function parse(file: VFile, text: string): Day | null {
   const meta = splitFrontmatter(text).meta;
   const date = dateOf(meta.date, file);
   if (!date) return null;
@@ -85,8 +84,10 @@ function Chart({ metric, points, from, to }: { metric: string; points: { date: s
   );
 }
 
-export async function HealthView({ index, folder, range: rawRange }: { index: DriveIndex; folder: FolderEntry; range?: string }) {
-  const { items, read, total } = await collectNotes(index, folder, parse);
+export function HealthView({ src, range: rawRange }: { src: ViewSource; range?: string }) {
+  const items = src.notes.flatMap(({ file, text }) => parse(file, text) ?? []);
+  const read = src.notes.length;
+  const total = src.total;
   if (!items.length) {
     return (
       <section className="health empty">
@@ -109,7 +110,7 @@ export async function HealthView({ index, folder, range: rawRange }: { index: Dr
   const keys = [...new Set(inRange.flatMap((d) => Object.keys(d.values)))].sort(
     (a, b) => (ORDER.indexOf(a) + 1 || 99) - (ORDER.indexOf(b) + 1 || 99) || a.localeCompare(b),
   );
-  const href = (r: Range) => `${hrefFor(folder)}?range=${r}`;
+  const href = (r: Range) => `${src.folderHref}?range=${r}`;
   const recent = [...inRange].reverse().slice(0, 14);
 
   return (
@@ -131,7 +132,7 @@ export async function HealthView({ index, folder, range: rawRange }: { index: Dr
               metric={k}
               from={from}
               to={to}
-              points={inRange.filter((d) => k in d.values).map((d) => ({ date: d.date, v: d.values[k], href: hrefFor(d.file) }))}
+              points={inRange.filter((d) => k in d.values).map((d) => ({ date: d.date, v: d.values[k], href: d.file.href }))}
             />
           ))}
         </div>
@@ -155,7 +156,7 @@ export async function HealthView({ index, folder, range: rawRange }: { index: Dr
                 {recent.map((d) => (
                   <tr key={d.file.id}>
                     <td>
-                      <Link href={hrefFor(d.file)}>{d.date.slice(5).replace("-", ".")}</Link>
+                      <Link href={d.file.href}>{d.date.slice(5).replace("-", ".")}</Link>
                     </td>
                     {keys.map((k) => (
                       <td key={k} className="num">
@@ -171,7 +172,7 @@ export async function HealthView({ index, folder, range: rawRange }: { index: Dr
       )}
       {read < total && (
         <p className="muted small">
-          전체 {total}개 중 {read}개를 읽었어요. 새로고침하면 나머지도 나옵니다.
+          전체 {total}개 중 {read}개를 받았어요. 나머지는 받는 대로 나옵니다.
         </p>
       )}
     </section>

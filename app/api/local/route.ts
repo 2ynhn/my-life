@@ -9,6 +9,9 @@ import { getUser } from "@/lib/session";
 // 기기에 받아 둘 일기장 목록(GET)과 글 내용(POST). 로그인한 사람 토큰으로 본 것만 돌려준다 (Drive 권한 그대로).
 
 const MAX_IDS = 60;
+/** 기기에도 받아 두는 설정 파일 (ai.json처럼 비밀이 든 것은 빼고) */
+const SHARED_SETTINGS = new Set(["budget.json", "categories.json"]);
+const isSharedSetting = (e: Entry) => e.kind === "file" && e.parent?.name === "_settings" && !e.parent.parent?.parent && SHARED_SETTINGS.has(e.name);
 const headers = { "Cache-Control": "private, no-store" };
 
 async function open(req: Request, root: string) {
@@ -41,6 +44,8 @@ export async function GET(req: Request) {
     } else {
       if (e.isMarkdown) item.md = 1;
       else item.u = fileUrl(e);
+      if (e.photo) item.ph = e.photo;
+      if (isSharedSetting(e)) item.j = 1;
       entries.push(item);
     }
   };
@@ -70,7 +75,7 @@ export async function POST(req: Request) {
   const ids = Array.isArray(body.ids) ? body.ids.filter((x): x is string => typeof x === "string").slice(0, MAX_IDS) : [];
   const files = ids.flatMap((id) => {
     const e = index.byId.get(id);
-    return e?.kind === "file" && e.isMarkdown ? [e as FileEntry] : [];
+    return e?.kind === "file" && (e.isMarkdown || isSharedSetting(e)) ? [e as FileEntry] : [];
   });
   const texts = await readTexts(index, files, 8_000);
   const md5 = (t: string) => createHash("md5").update(Buffer.from(t, "utf8")).digest("hex");

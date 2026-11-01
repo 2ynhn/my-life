@@ -54,9 +54,4 @@ export async function readTexts(index: DriveIndex, files: FileEntry[], budgetMs:
   return texts;
 }
 
-/** 앞머리 날짜 값(YYYY-MM-DD 문자열·Date) → 없으면 파일 이름의 날짜 */
-export function dateOf(value: unknown, file: FileEntry): string {
-  const raw = value instanceof Date ? value.toISOString().slice(0, 10) : String(value ?? "");
-  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
-  return /^\d{4}-\d{2}-\d{2}/.exec(file.name)?.[0] ?? "";
-}
+export { dateOf } from "@/lib/view-source";

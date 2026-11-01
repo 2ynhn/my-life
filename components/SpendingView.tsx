@@ -1,17 +1,14 @@
 import Link from "next/link";
-import { hrefFor, type DriveIndex, type FileEntry, type FolderEntry } from "@/lib/drive";
-import { collectNotes, dateOf } from "@/lib/folder-meta";
-import { splitFrontmatter } from "@/lib/markdown";
-import { todayKST } from "@/components/CalendarView";
 import { BudgetForm } from "@/components/BudgetForm";
 import { CategoryManager } from "@/components/CategoryManager";
-import { readBudget } from "@/lib/budget";
-import { readCategories } from "@/lib/categories";
+import { splitFrontmatter } from "@/lib/markdown";
+import { todayKST } from "@/lib/today";
+import { dateOf, type VFile, type ViewSource } from "@/lib/view-source";
 
 // 지출 기록 폴더 위에 보이는 요약: 월별 막대, 분류별 막대, 이달 목록 (가계부가 아니라 이달·올해 합계 숫자는 크게 보이지 않는다).
 // 글 앞머리의 amount·category·store·date를 읽는다 (date가 없으면 파일 이름의 날짜).
 
-type Spend = { file: FileEntry; date: string; amount: number; category: string; store: string; items: string[] };
+type Spend = { file: VFile; date: string; amount: number; category: string; store: string; items: string[] };
 
 const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
 /** 막대 위 짧은 표기: 58,400 → 5.8만, 1,234,000 → 123만 */
@@ -20,7 +17,7 @@ const short = (n: number) => {
   return `${man < 10 ? man.toFixed(1).replace(/\.0$/, "") : Math.round(man).toLocaleString("ko-KR")}만`;
 };
 
-function parse(file: FileEntry, text: string): Spend | null {
+function parse(file: VFile, text: string): Spend | null {
   const meta = splitFrontmatter(text).meta;
   const amount = typeof meta.amount === "number" ? meta.amount : Number(String(meta.amount ?? "").replace(/[,원\s]/g, ""));
   if (!Number.isFinite(amount) || amount === 0) return null;
@@ -34,19 +31,14 @@ function parse(file: FileEntry, text: string): Spend | null {
   return { file, date, amount: Math.round(amount), category, store: String(meta.store ?? "").trim() || file.slug, items };
 }
 
-const collect = async (index: DriveIndex, folder: FolderEntry) => {
-  const { items, read, total } = await collectNotes(index, folder, parse);
-  return { spends: items, read, total };
-};
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
-export async function SpendingView({ index, folder, month }: { index: DriveIndex; folder: FolderEntry; month?: string }) {
-  const [{ spends, read, total }, budget, categories] = await Promise.all([
-    collect(index, folder),
-    readBudget(index),
-    readCategories(index),
-  ]);
+export function SpendingView({ src, month }: { src: ViewSource; month?: string }) {
+  const spends = src.notes.flatMap(({ file, text }) => parse(file, text) ?? []);
+  const { budget, categories } = src;
+  const read = src.notes.length;
+  const total = src.total;
   if (!spends.length) {
     return (
       <section className="spending empty">
@@ -54,10 +46,10 @@ export async function SpendingView({ index, folder, month }: { index: DriveIndex
           아직 금액이 적힌 지출 기록이 없어요. <b>새 글</b>에서 영수증 사진으로 채우거나, 앞머리의 <code>amount</code>에 금액을 적으면 여기에
           합계가 나옵니다.
         </p>
-        {index.root.can.addChildren && (
+        {src.canManage && (
           <details className="budget-edit">
             <summary className="small">분류 관리</summary>
-            <CategoryManager rootId={index.lib.rootId} initial={categories} />
+            <CategoryManager rootId={src.rootId} initial={categories} />
           </details>
         )}
       </section>
@@ -70,7 +62,7 @@ export async function SpendingView({ index, folder, month }: { index: DriveIndex
   const latest = [...byMonth.keys()].sort().at(-1)!;
   const ym = month && /^\d{4}-\d{2}$/.test(month) ? month : byMonth.has(thisMonth) ? thisMonth : latest;
   const year = ym.slice(0, 4);
-  const href = (to: string) => `${hrefFor(folder)}?spend=${to}`;
+  const href = (to: string) => `${src.folderHref}?spend=${to}`;
 
   const months = Array.from({ length: 12 }, (_, i) => `${year}-${pad(i + 1)}`);
   const values = months.map((m) => byMonth.get(m) ?? 0);
@@ -174,7 +166,7 @@ export async function SpendingView({ index, folder, month }: { index: DriveIndex
                 <td>{s.date.slice(5).replace("-", ".")}</td>
                 <td>
                   {/* 품목을 안 적었으면 가게 이름 */}
-                  <Link href={hrefFor(s.file)}>{s.items.length ? s.items.join(", ") : s.store}</Link>
+                  <Link href={s.file.href}>{s.items.length ? s.items.join(", ") : s.store}</Link>
                 </td>
                 <td className="num">{won(s.amount)}</td>
               </tr>
@@ -183,22 +175,22 @@ export async function SpendingView({ index, folder, month }: { index: DriveIndex
         </table>
       )}
 
-      {index.root.can.addChildren && (
+      {src.canManage && (
         <details className="budget-edit">
           <summary className="small">{budget.monthly || Object.keys(budget.categories).length ? "예산 고치기" : "예산 정하기"}</summary>
-          <BudgetForm rootId={index.lib.rootId} monthly={budget.monthly} categories={budget.categories} names={categories} />
+          <BudgetForm rootId={src.rootId} monthly={budget.monthly} categories={budget.categories} names={categories} />
         </details>
       )}
-      {index.root.can.addChildren && (
+      {src.canManage && (
         <details className="budget-edit">
           <summary className="small">분류 관리</summary>
-          <CategoryManager rootId={index.lib.rootId} initial={categories} />
+          <CategoryManager rootId={src.rootId} initial={categories} />
         </details>
       )}
 
       {read < total && (
         <p className="muted small">
-          전체 {total}개 중 {read}개를 읽었어요. 새로고침하면 나머지도 합계에 들어갑니다.
+          전체 {total}개 중 {read}개를 받았어요. 나머지는 받는 대로 합계에 들어갑니다.
         </p>
       )}
     </section>

@@ -82,6 +82,7 @@ export function CategoryManager({ rootId, initial }: { rootId: string; initial: 
             start(async () => {
               const res = await saveCategories(rootId, list).catch(() => ({ ok: false, error: "서버에 연결하지 못했습니다." }));
               setMsg(res.ok ? { ok: true, text: "저장했어요" } : { ok: false, text: res.error ?? "저장하지 못했습니다." });
+              if (res.ok) window.dispatchEvent(new Event("my-life:sync"));
             })
           }
         >

@@ -14,14 +14,11 @@ import { NoteBody } from "@/components/NoteBody";
 import { SearchView } from "@/components/SearchView";
 import { FeatureIcon } from "@/components/FeatureIcon";
 import type { FormKind } from "@/components/MetaForm";
-import { FoodView } from "@/components/FoodView";
-import { HealthView } from "@/components/HealthView";
+import { FeatureView } from "@/components/FeatureView";
 import { Home } from "@/components/Home";
 import { withEnd } from "@/lib/templates";
 import { homeData } from "@/lib/home-data";
-import { SpendingView } from "@/components/SpendingView";
 import { TripSection } from "@/components/TripSection";
-import { TravelView } from "@/components/TravelView";
 import {
   DriveError,
   ReauthError,
@@ -188,10 +185,8 @@ async function Folder({ folder, index, spend, range }: { folder: FolderEntry; in
           </div>
         )}
       </div>
-      {kind === "spending" && <SpendingView index={index} folder={folder} month={spend} />}
-      {kind === "travel" && <TravelView index={index} folder={folder} />}
-      {kind === "health" && <HealthView index={index} folder={folder} range={range} />}
-      {kind === "food" && <FoodView index={index} folder={folder} />}
+      {/* 요약은 기기 사본으로 그린다 (서버는 Drive를 읽지 않음) */}
+      {kind && <FeatureView kind={kind} folderId={folder.id} spend={spend} range={range} />}
       <FolderView folder={folder} kind={kind} />
     </>
   );

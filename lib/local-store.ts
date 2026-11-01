@@ -159,7 +159,7 @@ export function syncLocal(email: string, rootId: string): Promise<void> {
     // 바뀐 글: 최근 것부터 조금씩
     const stale = tree.entries
       // 바뀐 글 + 체크섬이 없는 옛 사본
-      .filter((e) => e.md && (texts.get(e.id)?.m !== e.m || !texts.get(e.id)?.c))
+      .filter((e) => (e.md || e.j) && (texts.get(e.id)?.m !== e.m || !texts.get(e.id)?.c))
       .sort((a, b) => b.m.localeCompare(a.m))
       .map((e) => e.id);
     for (let i = 0; i < stale.length; i += BATCH) {
@@ -230,4 +230,15 @@ export function putLocalText(email: string, rootId: string, id: string, text: st
   state.texts.set(id, t);
   notify();
   void tx("readwrite", (s) => void s.put(t, `${textPrefix(email)}${id}`));
+}
+
+/** 맨 위 폴더 (쓰임새를 정하는 폴더) */
+export function topOf(local: LocalState, e: LocalEntry): LocalEntry {
+  let top = e;
+  while (top.p) {
+    const parent = local.byId.get(top.p);
+    if (!parent?.p) break;
+    top = parent;
+  }
+  return top;
 }

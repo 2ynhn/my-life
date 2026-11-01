@@ -22,6 +22,9 @@ export function LocalProvider({ email, rootId, children }: Ctx & { children: Rea
     sync(true);
     const onVisible = () => document.visibilityState === "visible" && sync();
     document.addEventListener("visibilitychange", onVisible);
+    // 설정(예산·분류)처럼 저장 대기열 밖에서 바꾼 것
+    const onAsk = () => sync(true);
+    window.addEventListener("my-life:sync", onAsk);
     // 저장이 끝나면 바뀐 목록을 받아 온다
     const off = onResult((job, result) => {
       if (!result.ok) return;
@@ -30,6 +33,7 @@ export function LocalProvider({ email, rootId, children }: Ctx & { children: Rea
     });
     return () => {
       document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("my-life:sync", onAsk);
       off();
     };
   }, [email, rootId]);

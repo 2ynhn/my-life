@@ -3,26 +3,24 @@ import Link from "next/link";
 import { MapToggle } from "@/components/MapToggle";
 import { JUMP_MIN_ITEMS, YearJump, yearAnchor } from "@/components/YearJump";
 import type { MapPoint } from "@/components/TravelMap";
-import { fileUrl, hrefFor, type DriveIndex, type FileEntry, type FolderEntry } from "@/lib/drive";
-import { diariesBetween, diaryNotes, photosIn } from "@/lib/trip-photos";
-import { collectNotes, dateOf } from "@/lib/folder-meta";
 import { splitFrontmatter } from "@/lib/markdown";
+import { dateOf, diariesBetween, type VFile, type ViewSource } from "@/lib/view-source";
 import { placeNames, placesOf, type Place } from "@/lib/places";
 
 // 여행 폴더 위에 보이는 요약: 모든 여행의 장소 지도(버튼으로 열기) + 해마다 묶은 여행 타임라인
 
 type Trip = {
-  file: FileEntry;
+  file: VFile;
   title: string;
   start: string;
   end: string;
   places: Place[];
   names: string[];
   companions: string[];
-  photos: FileEntry[];
+  photos: VFile[];
 };
 
-function parse(file: FileEntry, text: string): Trip | null {
+function parse(src: ViewSource, file: VFile, text: string): Trip | null {
   const meta = splitFrontmatter(text).meta;
   const start = dateOf(meta.start ?? meta.date, file);
   if (!start) return null;
@@ -36,15 +34,17 @@ function parse(file: FileEntry, text: string): Trip | null {
     places: placesOf(meta),
     names: placeNames(meta),
     companions,
-    photos: photosIn(file, text),
+    photos: src.photosIn(file, text),
   };
 }
 
 const dot = (d: string) => d.replace(/-/g, ".");
 const days = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000) + 1;
 
-export async function TravelView({ index, folder }: { index: DriveIndex; folder: FolderEntry }) {
-  const { items, read, total } = await collectNotes(index, folder, parse);
+export function TravelView({ src }: { src: ViewSource }) {
+  const items = src.notes.flatMap(({ file, text }) => parse(src, file, text) ?? []);
+  const read = src.notes.length;
+  const total = src.total;
   if (!items.length) {
     return (
       <section className="trips empty">
@@ -57,11 +57,10 @@ export async function TravelView({ index, folder }: { index: DriveIndex; folder:
   }
   const trips = items.sort((a, b) => b.start.localeCompare(a.start));
   const placePoints: MapPoint[] = trips.flatMap((t) =>
-    t.places.map((p) => ({ lat: p.lat, lng: p.lng, name: p.name, sub: `${t.title} · ${dot(p.date || t.start)}`, href: hrefFor(t.file) })),
+    t.places.map((p) => ({ lat: p.lat, lng: p.lng, name: p.name, sub: `${t.title} · ${dot(p.date || t.start)}`, href: t.file.href })),
   );
   // 사진 점: 여행 글의 사진 + 여행 기간에 쓴 일기의 사진 (위치가 있는 것만)
-  const { notes: diaries } = await diaryNotes(index);
-  const fromDiaries = await Promise.all(trips.map((t) => diariesBetween(index, diaries, t.start, t.end)));
+  const fromDiaries = trips.map((t) => diariesBetween(src, t.start, t.end));
   const seen = new Set<string>();
   const photoPoints: MapPoint[] = trips.flatMap((t, i) =>
     [...t.photos.map((f) => ({ file: f, note: t.file })), ...fromDiaries[i].photos]
@@ -71,8 +70,8 @@ export async function TravelView({ index, folder }: { index: DriveIndex; folder:
         lng: p.file.photo!.lng!,
         name: t.title,
         sub: p.file.photo?.taken ? dot(p.file.photo.taken) : p.note === t.file ? "여행 사진" : `일기 ${dot(p.note.name.slice(5, 10))}`,
-        href: hrefFor(p.note),
-        image: fileUrl(p.file),
+        href: p.note.href,
+        image: p.file.url,
       })),
   );
   const points = [...placePoints, ...photoPoints];
@@ -97,7 +96,7 @@ export async function TravelView({ index, folder }: { index: DriveIndex; folder:
               .filter((t) => t.start.startsWith(y))
               .map((t) => (
                 <li key={t.file.id}>
-                  <Link href={hrefFor(t.file)} className="trip">
+                  <Link href={t.file.href} className="trip">
                     <span className="trip-title">{t.title}</span>
                     <span className="muted small">
                       {dot(t.start)}
@@ -115,7 +114,7 @@ export async function TravelView({ index, folder }: { index: DriveIndex; folder:
       ))}
       {read < total && (
         <p className="muted small">
-          전체 {total}개 중 {read}개를 읽었어요. 새로고침하면 나머지도 나옵니다.
+          전체 {total}개 중 {read}개를 받았어요. 나머지는 받는 대로 나옵니다.
         </p>
       )}
     </section>

@@ -3,6 +3,7 @@
 import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { FeatureIcon } from "@/components/FeatureIcon";
+import { FeatureView } from "@/components/FeatureView";
 import { FolderList, NoteList, noteYears, type NoteItem } from "@/components/FolderList";
 import { Home, type HomeData, type HomeNode } from "@/components/Home";
 import { Plus } from "lucide-react";
@@ -12,7 +13,9 @@ import { NewFolderButton } from "@/components/NewFolderButton";
 import { NoteActions } from "@/components/NoteActions";
 import { NoteBody } from "@/components/NoteBody";
 import { PageSkeleton } from "@/components/PageSkeleton";
-import { normHref, type LocalState } from "@/lib/local-store";
+import { normHref, topOf, type LocalState } from "@/lib/local-store";
+
+export { topOf };
 import type { LocalEntry } from "@/lib/local-types";
 import { tableResolver, type LinkTable } from "@/lib/markdown";
 import { noteSummary } from "@/lib/note-summary";
@@ -38,10 +41,15 @@ const webUrl = (e: LocalEntry) =>
   e.k === "d" ? `https://drive.google.com/drive/folders/${e.id}` : `https://drive.google.com/file/d/${e.id}/view`;
 
 /** 기기 데이터로 그릴 수 있는 주소인지 (폴더·글 보기만. 첫 화면·편집·검색 등은 서버를 기다린다) */
+/** 폴더 요약의 보기 설정(구매 월·건강 기간)만 있는 주소도 사본으로 그린다 */
+const VIEW_PARAMS = new Set(["spend", "range"]);
+
 export function canPreview(local: LocalState | null, pathname: string, search: string): boolean {
-  if (!local || search) return false;
+  if (!local) return false;
+  const params = [...new URLSearchParams(search).keys()];
   const entry = local.byHref.get(normHref(pathname));
   if (!entry) return false;
+  if (params.length) return entry.k === "d" && !!entry.p && params.every((k) => VIEW_PARAMS.has(k));
   return entry.k === "d" || (!!entry.md && local.texts.has(entry.id));
 }
 
@@ -66,7 +74,7 @@ export function PreviewFor({ pathname, search }: { pathname: string; search: str
     return (
       <div className="local-preview" aria-busy="true">
         {head}
-        <FolderPreview local={local} folder={entry} />
+        <FolderPreview local={local} folder={entry} params={new URLSearchParams(search)} />
       </div>
     );
   const text = local.texts.get(entry.id)!.t;
@@ -119,16 +127,6 @@ function homeDataOf(local: LocalState, root: LocalEntry): HomeData {
   };
 }
 
-/** 맨 위 폴더 (쓰임새를 정하는 폴더) */
-export function topOf(local: LocalState, e: LocalEntry): LocalEntry {
-  let top = e;
-  while (top.p) {
-    const parent = local.byId.get(top.p);
-    if (!parent?.p) break;
-    top = parent;
-  }
-  return top;
-}
 
 const visible = (local: LocalState, folderId: string) => (local.children.get(folderId) ?? []).filter((c) => c.v);
 
@@ -141,7 +139,7 @@ function compare(a: LocalEntry, b: LocalEntry) {
   return ad ? b.n.localeCompare(a.n, "ko") : a.n.localeCompare(b.n, "ko");
 }
 
-function FolderPreview({ local, folder }: { local: LocalState; folder: LocalEntry }) {
+function FolderPreview({ local, folder, params }: { local: LocalState; folder: LocalEntry; params: URLSearchParams }) {
   const feature = local.tree.kinds[topOf(local, folder).id] ?? null;
   const kind = feature === "diary" ? null : feature;
   const items = visible(local, folder.id).sort(compare);
@@ -168,8 +166,8 @@ function FolderPreview({ local, folder }: { local: LocalState; folder: LocalEntr
           </div>
         )}
       </div>
-      {/* 구매·여행·건강·음식 요약은 서버 화면이 채운다 */}
-      {kind && <span className="sk sk-view" aria-hidden />}
+      {/* 구매·여행·건강·음식 요약도 사본으로 */}
+      {kind && <FeatureView kind={kind} folderId={folder.id} spend={params.get("spend") ?? undefined} range={params.get("range") ?? undefined} />}
       <FolderList
         folderId={folder.id}
         folders={items
