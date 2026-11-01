@@ -138,51 +138,68 @@ export function dismiss(id: string) {
 let running = false;
 let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
+/** 한 번에 묶어 보내는 저장 수·글자 수 */
+const BATCH_JOBS = 10;
+const BATCH_CHARS = 800_000;
+
 export async function kick() {
   if (running || typeof window === "undefined") return;
   running = true;
   clearTimeout(retryTimer);
   try {
     for (;;) {
-      const job = load().find((j) => j.state === "waiting");
-      if (!job) break;
-      patch(job.id, { state: "sending" });
-      let result: JobResult;
+      // 기다리는 것들을 묶는다: 같은 글은 하나만(다음 것은 앞 저장의 checksum이 필요), 앞 저장을 기다리는 것은 다음 번에
+      const batch: Job[] = [];
+      let chars = 0;
+      for (const j of load()) {
+        if (j.state !== "waiting" || j.chain) continue;
+        if (j.op === "save" && batch.some((b) => b.op === "save" && b.fileId === j.fileId)) continue;
+        if (batch.length && (batch.length >= BATCH_JOBS || chars + j.text.length > BATCH_CHARS)) break;
+        batch.push(j);
+        chars += j.text.length;
+      }
+      if (!batch.length) break;
+      const ids = new Set(batch.map((j) => j.id));
+      commit(load().map((j) => (ids.has(j.id) ? { ...j, state: "sending" as const } : j)));
+      let results: JobResult[];
       try {
-        result = await send(job);
+        results = await send(batch);
       } catch {
         // 인터넷이 끊겼거나 서버가 잠깐 안 됨: 그대로 두고 조금 뒤에 다시
-        patch(job.id, { state: "waiting" });
+        commit(load().map((j) => (ids.has(j.id) ? { ...j, state: "waiting" as const } : j)));
         retryTimer = setTimeout(() => void kick(), 15_000);
         break;
       }
-      finish(job, result);
+      batch.forEach((job, i) => finish(job, results[i] ?? { ok: false, error: "서버가 결과를 돌려주지 않았습니다." }));
     }
   } finally {
     running = false;
   }
 }
 
-async function send(job: Job): Promise<JobResult> {
-  const body =
-    job.op === "save"
-      ? { op: "save", rootId: job.rootId, fileId: job.fileId, checksum: job.checksum, text: job.text, force: job.force }
-      : {
-          op: "create",
-          rootId: job.rootId,
-          folderId: job.folderId,
-          name: job.name,
-          text: job.text,
-          subfolder: job.subfolder,
-          autoName: job.autoName,
-        };
+const bodyOf = (job: Job) =>
+  job.op === "save"
+    ? { op: "save", rootId: job.rootId, fileId: job.fileId, checksum: job.checksum, text: job.text, force: job.force }
+    : {
+        op: "create",
+        rootId: job.rootId,
+        folderId: job.folderId,
+        name: job.name,
+        text: job.text,
+        subfolder: job.subfolder,
+        autoName: job.autoName,
+      };
+
+async function send(batch: Job[]): Promise<JobResult[]> {
   const res = await fetch("/api/notes", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ jobs: batch.map(bodyOf) }),
   });
   if (res.status >= 500 || !res.headers.get("content-type")?.includes("json")) throw new Error(`HTTP ${res.status}`);
-  return (await res.json()) as JobResult;
+  const json = (await res.json()) as { results?: JobResult[] } & JobResult;
+  // 묶음을 못 받는 옛 서버면 한 덩어리 결과
+  return json.results ?? batch.map(() => json);
 }
 
 function finish(job: Job, result: JobResult) {

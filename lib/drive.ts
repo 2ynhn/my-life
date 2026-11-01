@@ -544,7 +544,7 @@ let textChars = 0;
 const MAX_TEXT_CHARS = 40_000_000;
 const textKey = (index: DriveIndex, file: FileEntry) => `${index.user.email.toLowerCase()}\n${file.id}`;
 
-function rememberText(index: DriveIndex, file: FileEntry, text: string) {
+export function rememberText(index: DriveIndex, file: FileEntry, text: string) {
   const key = textKey(index, file);
   const old = texts.get(key);
   if (old) textChars -= old.text.length;

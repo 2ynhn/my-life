@@ -141,41 +141,34 @@ export function syncLocal(email: string, rootId: string): Promise<void> {
         notify();
       }
     }
-    const res = await fetch(`/api/local?root=${encodeURIComponent(rootId)}`, { cache: "no-store" });
-    if (!res.ok) return;
-    const tree = (await res.json()) as LocalTree;
+    // 묶음 동기화: 가진 글의 버전을 한 번에 보내고, 바뀐 목록·글을 한 응답으로 받는다 (많으면 이어 받기)
     const texts = states.get(key)?.texts ?? new Map<string, LocalText>();
-    // 없어진 글은 지운다
-    const alive = new Set(tree.entries.map((e) => e.id));
-    const gone = [...texts.keys()].filter((id) => !alive.has(id));
-    for (const id of gone) texts.delete(id);
-    states.set(key, build(tree, texts));
-    notify();
-    await tx("readwrite", (s) => {
-      s.put(tree, treeKey(email, rootId));
-      for (const id of gone) s.delete(`${textPrefix(email)}${id}`);
-    });
-
-    // 바뀐 글: 최근 것부터 조금씩
-    const stale = tree.entries
-      // 바뀐 글 + 체크섬이 없는 옛 사본
-      .filter((e) => (e.md || e.j) && (texts.get(e.id)?.m !== e.m || !texts.get(e.id)?.c))
-      .sort((a, b) => b.m.localeCompare(a.m))
-      .map((e) => e.id);
-    for (let i = 0; i < stale.length; i += BATCH) {
-      const r = await fetch("/api/local", {
+    for (let round = 0; round < 20; round++) {
+      const have: Record<string, string> = {};
+      for (const t of texts.values()) if (t.c) have[t.id] = t.m; // 체크섬 없는 옛 사본은 다시 받는다
+      const res = await fetch("/api/local/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ root: rootId, ids: stale.slice(i, i + BATCH) }),
+        body: JSON.stringify({ root: rootId, have, tree: round === 0 }),
       });
-      if (!r.ok) break;
-      const { texts: got } = (await r.json()) as { texts: LocalText[] };
-      if (!got.length) break;
+      if (!res.ok) return;
+      const { tree, texts: got, more } = (await res.json()) as { tree: LocalTree | null; texts: LocalText[]; more: boolean };
+      let gone: string[] = [];
+      if (tree) {
+        // 없어진 글은 지운다
+        const alive = new Set(tree.entries.map((e) => e.id));
+        gone = [...texts.keys()].filter((id) => !alive.has(id));
+        for (const id of gone) texts.delete(id);
+      }
       for (const t of got) texts.set(t.id, t);
+      if (tree) states.set(key, build(tree, texts));
+      notify();
       await tx("readwrite", (s) => {
+        if (tree) s.put(tree, treeKey(email, rootId));
+        for (const id of gone) s.delete(`${textPrefix(email)}${id}`);
         for (const t of got) s.put(t, `${textPrefix(email)}${t.id}`);
       });
-      notify();
+      if (!more || !got.length) break;
     }
   })()
     .catch((e) => console.warn("[local] sync", e))
