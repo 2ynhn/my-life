@@ -2,7 +2,7 @@
 
 import { MapPin, MapPinPlus, Plus, Star, X } from "lucide-react";
 import { useState } from "react";
-import { numberish, readMeta, setFields, type FieldValue } from "@/lib/frontmatter-edit";
+import { numberish, readBody, readMeta, setBody, setFields, type FieldValue } from "@/lib/frontmatter-edit";
 import { METRIC_GROUPS, METRICS, HEALTH_TEXT_KEYS } from "@/lib/health-metrics";
 import { CATEGORIES } from "@/lib/receipt-shape";
 
@@ -192,6 +192,17 @@ function AddCategory({ onAdd, onAdded }: { onAdd: (name: string) => Promise<stri
   );
 }
 
+/** 본문 내용 (맨 위 # 제목 아래 전부). 마크다운을 몰라도 그냥 쓰면 된다 */
+function BodyField({ text, onChange, placeholder }: { text: string; onChange: (next: string) => void; placeholder: string }) {
+  const { content } = readBody(text);
+  return (
+    <label className="form-field body-field">
+      <span className="form-label">내용</span>
+      <textarea value={content} onChange={(e) => onChange(setBody(text, { content: e.target.value }))} placeholder={placeholder} rows={8} />
+    </label>
+  );
+}
+
 export function MetaForm({ kind, text, onChange, suggestions, onAddPlace, onAddCategory }: Props) {
   const meta = readMeta(text);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
@@ -207,10 +218,22 @@ export function MetaForm({ kind, text, onChange, suggestions, onAddPlace, onAddC
   const tags = (
     <Chips label="키워드" hash values={list(meta.tags)} onChange={(v) => set({ tags: v })} suggestions={s.tags} placeholder="예: 산책, 맛집 (엔터로 추가)" />
   );
+  const body = (placeholder: string) => <BodyField text={text} onChange={onChange} placeholder={placeholder} />;
 
-  if (kind === "diary")
+  if (kind === "diary") {
+    // 제목은 본문 맨 위 # 제목 (앞머리에 title 칸이 있으면 같이)
+    const title = readBody(text).heading ?? str(meta.title);
+    const setTitle = (v: string) => {
+      try {
+        onChange(setBody("title" in meta ? setFields(text, { title: v }) : text, { heading: v }));
+      } catch {}
+    };
     return (
-      <div className="meta-form compact">
+      <div className="meta-form">
+        <div className="form-grid">
+          <Text label="날짜" type="date" value={meta.date} onChange={(v) => set({ date: v })} />
+          <Text label="제목" value={title === "{{title}}" ? "" : title} onChange={setTitle} placeholder="예: 공원 산책" />
+        </div>
         {tags}
         <Chips
           label="함께한 사람"
@@ -219,8 +242,10 @@ export function MetaForm({ kind, text, onChange, suggestions, onAddPlace, onAddC
           suggestions={s.people}
           placeholder="예: 엄마, 동생"
         />
+        {body("오늘 있었던 일을 적어 보세요")}
       </div>
     );
+  }
 
   if (kind === "spending") {
     const cats: string[] = s.categories ?? [...CATEGORIES];
@@ -293,6 +318,7 @@ export function MetaForm({ kind, text, onChange, suggestions, onAddPlace, onAddC
           </button>
         </div>
         {tags}
+        {body("메모")}
         <datalist id="dl-stores">{s.stores.map((v) => <option key={v} value={v} />)}</datalist>
         <datalist id="dl-payments">{s.payments.map((v) => <option key={v} value={v} />)}</datalist>
       </div>
@@ -361,6 +387,7 @@ export function MetaForm({ kind, text, onChange, suggestions, onAddPlace, onAddC
           placeholder="예: 엄마, 민수"
         />
         {tags}
+        {body("맛, 분위기, 다음에 시킬 것…")}
         <datalist id="dl-restaurants">{(s.restaurants ?? []).map((v) => <option key={v} value={v} />)}</datalist>
       </div>
     );
@@ -410,6 +437,7 @@ export function MetaForm({ kind, text, onChange, suggestions, onAddPlace, onAddC
           )}
         </div>
         {tags}
+        {body("1일차, 2일차… 여행 이야기")}
       </div>
     );
   }
@@ -484,6 +512,7 @@ export function MetaForm({ kind, text, onChange, suggestions, onAddPlace, onAddC
         </button>
       </div>
       {tags}
+      {body("메모")}
     </div>
   );
 }

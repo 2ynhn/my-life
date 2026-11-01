@@ -11,7 +11,7 @@ import { readCategories } from "@/lib/categories";
 // 지출 기록 폴더 위에 보이는 요약: 월별 막대, 분류별 막대, 이달 목록 (가계부가 아니라 이달·올해 합계 숫자는 크게 보이지 않는다).
 // 글 앞머리의 amount·category·store·date를 읽는다 (date가 없으면 파일 이름의 날짜).
 
-type Spend = { file: FileEntry; date: string; amount: number; category: string; store: string };
+type Spend = { file: FileEntry; date: string; amount: number; category: string; store: string; items: string[] };
 
 const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
 /** 막대 위 짧은 표기: 58,400 → 5.8만, 1,234,000 → 123만 */
@@ -28,7 +28,10 @@ function parse(file: FileEntry, text: string): Spend | null {
   if (!date) return null;
   // 분류는 적힌 이름 그대로 (분류 관리에서 지우거나 바꾼 옛 이름도 따로 보인다)
   const category = String(meta.category ?? "").trim() || "기타";
-  return { file, date, amount: Math.round(amount), category, store: String(meta.store ?? "").trim() || file.slug };
+  const items = (Array.isArray(meta.items) ? meta.items : [])
+    .map((i) => String((i && typeof i === "object" ? (i as Record<string, unknown>).name : i) ?? "").trim())
+    .filter(Boolean);
+  return { file, date, amount: Math.round(amount), category, store: String(meta.store ?? "").trim() || file.slug, items };
 }
 
 const collect = async (index: DriveIndex, folder: FolderEntry) => {
@@ -161,8 +164,7 @@ export async function SpendingView({ index, folder, month }: { index: DriveIndex
           <thead>
             <tr>
               <th>날짜</th>
-              <th>가게</th>
-              <th>분류</th>
+              <th>품목</th>
               <th className="num">금액</th>
             </tr>
           </thead>
@@ -171,9 +173,9 @@ export async function SpendingView({ index, folder, month }: { index: DriveIndex
               <tr key={s.file.id}>
                 <td>{s.date.slice(5).replace("-", ".")}</td>
                 <td>
-                  <Link href={hrefFor(s.file)}>{s.store}</Link>
+                  {/* 품목을 안 적었으면 가게 이름 */}
+                  <Link href={hrefFor(s.file)}>{s.items.length ? s.items.join(", ") : s.store}</Link>
                 </td>
-                <td>{s.category}</td>
                 <td className="num">{won(s.amount)}</td>
               </tr>
             ))}

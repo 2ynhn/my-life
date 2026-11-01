@@ -119,7 +119,8 @@ export function Editor(props: Props) {
   const [message, setMessage] = useState<{ kind: "ok" | "info" | "error"; text: string } | null>(null);
   const [conflict, setConflict] = useState<{ text: string; checksum: string } | null>(null);
   const [pendingDraft, setPendingDraft] = useState<Draft | null>(null);
-  const tabbedForm = props.form && props.form !== "diary" ? props.form : null;
+  // 쓰임새 폴더(일기 포함)는 '항목' 탭의 입력 양식으로 시작한다. 마크다운 그대로 쓰려면 '쓰기'
+  const tabbedForm = props.form ?? null;
   const [tab, setTab] = useState<"form" | "write" | "preview">(tabbedForm ? "form" : "write");
   const [suggestions, setSuggestions] = useState<Suggestions | null>(null);
   const [uploading, setUploading] = useState<string | null>(null);
@@ -721,9 +722,6 @@ export function Editor(props: Props) {
         </div>
       )}
 
-      {props.form === "diary" && tab === "write" && (
-        <MetaForm kind="diary" text={text} onChange={(next) => replaceDoc(next, false)} suggestions={suggestions} />
-      )}
       <div className={`editor-panes show-${tab}`}>
         {tabbedForm && (
           <div className="pane-form">

@@ -83,3 +83,27 @@ export function numberish(raw: string): number | string | null {
   if (!t) return null;
   return /^-?\d+(\.\d+)?$/.test(t) ? Number(t) : raw;
 }
+
+// ───────────── 본문: 맨 위 # 제목 + 내용 (입력 폼의 '제목'·'내용' 칸) ─────────────
+
+const BLANK_LINES = /^(?:[ \t]*\r?\n)+/;
+const TOP_HEADING = /^(?:[ \t]*\r?\n)*#[ \t]+([^\r\n]*)(?:\r?\n)?/;
+
+/** 앞머리 뒤 본문을 맨 위 # 제목(없으면 null)과 나머지 내용으로 나눈다 */
+export function readBody(text: string): { heading: string | null; content: string } {
+  const m = FRONT.exec(text);
+  const body = m ? text.slice(m[0].length) : text;
+  const h = TOP_HEADING.exec(body);
+  if (!h) return { heading: null, content: body.replace(BLANK_LINES, "") };
+  return { heading: h[1].trim(), content: body.slice(h[0].length).replace(BLANK_LINES, "") };
+}
+
+/** 제목·내용을 바꾼다 (undefined는 그대로). 앞머리는 건드리지 않는다 */
+export function setBody(text: string, change: { heading?: string; content?: string }): string {
+  const m = FRONT.exec(text);
+  const front = m ? text.slice(0, m[0].length) : "";
+  const current = readBody(text);
+  const heading = change.heading ?? current.heading;
+  const content = change.content ?? current.content;
+  return `${front}${front ? "\n" : ""}${heading !== null ? `# ${heading.replace(/[\r\n]+/g, " ")}\n\n` : ""}${content}`;
+}

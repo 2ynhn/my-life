@@ -183,6 +183,33 @@ export function syncLocal(email: string, rootId: string): Promise<void> {
   return job;
 }
 
+const asked = new Set<string>();
+
+/** 지금 화면에 필요한 글을 먼저 받아 온다 (전체 동기화 순서를 기다리지 않게) */
+export async function fetchTexts(email: string, rootId: string, ids: string[]): Promise<void> {
+  const state = states.get(keyOf(email, rootId));
+  const want = ids.filter((id) => !asked.has(id) && !state?.texts.has(id)).slice(0, BATCH);
+  if (!state || !want.length) return;
+  for (const id of want) asked.add(id);
+  try {
+    const r = await fetch("/api/local", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ root: rootId, ids: want }),
+    });
+    if (!r.ok) return;
+    const { texts: got } = (await r.json()) as { texts: LocalText[] };
+    for (const t of got) state.texts.set(t.id, t);
+    await tx("readwrite", (s) => {
+      for (const t of got) s.put(t, `${textPrefix(email)}${t.id}`);
+    });
+    notify();
+  } catch {
+  } finally {
+    for (const id of want) asked.delete(id);
+  }
+}
+
 /** 방금 저장한 글은 서버를 기다리지 않고 기기에도 바로 반영 */
 export function putLocalText(email: string, rootId: string, id: string, text: string) {
   const state = states.get(keyOf(email, rootId));

@@ -37,6 +37,7 @@ export const useLocalContext = () => useContext(LocalContext);
 /** 기기에 받아 둔 이 일기장 (아직 없으면 null) */
 export function useLocal(): LocalState | null {
   const ctx = useContext(LocalContext);
-  useSyncExternalStore(subscribeLocal, localVersion, () => 0);
-  return ctx ? getLocal(ctx.email, ctx.rootId) : null;
+  // 서버 화면을 이어받는 첫 그리기(하이드레이션) 동안은 서버와 같게 '없음'
+  const version = useSyncExternalStore(subscribeLocal, localVersion, () => -1);
+  return ctx && version >= 0 ? getLocal(ctx.email, ctx.rootId) : null;
 }
