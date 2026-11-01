@@ -2,7 +2,8 @@ import { splitFrontmatter } from "@/lib/markdown";
 import type { FolderKind } from "@/lib/drive";
 
 // 글 목록 오른쪽에 보일 한 줄: 수정 날짜 대신 글 내용에서 뽑는다
-//  구매 → 첫 품목 (파일 이름에 이미 있으면 가게) · 여행 → 여행 이름 · 음식 → 식당 · 건강 → 검진/수치 · 그 밖 → # 제목
+//  구매 → 첫 품목 · 여행 → 여행 이름 · 음식 → 식당 · 건강 → 검진/수치 · 그 밖 → # 제목 → 본문 첫 줄
+//  파일 이름(날짜 + 제목)에 이미 있는 말은 건너뛰고 다음 것을 보여 준다
 
 const text = (v: unknown) => (typeof v === "string" || typeof v === "number" ? String(v).trim() : "");
 
@@ -12,8 +13,8 @@ function heading(body: string, slug: string): string {
   return h === slug ? "" : h;
 }
 
-/** 제목이 없을 때: 본문 첫 줄 */
-function firstLine(body: string, slug: string): string {
+/** 제목이 없을 때: 본문 첫 줄 (사진·마크다운 기호 뺀 글자) */
+export function firstLine(body: string, slug = ""): string {
   for (const raw of body.split(/\r?\n/)) {
     const line = raw
       .replace(/!?\[\[[^\]]*\]\]|!\[[^\]]*\]\([^)]*\)/g, "") // 사진·첨부
@@ -21,7 +22,8 @@ function firstLine(body: string, slug: string): string {
       .replace(/^\s*(#+|[-*+]|\d+\.|>)\s*/, "")
       .replace(/[*_`~]/g, "")
       .trim();
-    if (line && line !== slug && !/^메모:?$/.test(line)) return line;
+    // 파일 이름에 이미 들어간 줄(제목·첫 문장 일부)은 건너뛴다
+    if (line && !(slug && slug.includes(line.slice(0, 12))) && !/^메모:?$/.test(line)) return line;
   }
   return "";
 }
@@ -34,14 +36,12 @@ function firstItem(meta: Record<string, unknown>): string {
   return names.length > 1 ? `${names[0]} 외 ${names.length - 1}` : names[0];
 }
 
-function healthLine(meta: Record<string, unknown>): string {
-  const checkup = text(meta.checkup);
-  if (checkup) return checkup;
+function healthLines(meta: Record<string, unknown>): string[] {
   const parts: string[] = [];
   if (text(meta.weight)) parts.push(`체중 ${text(meta.weight)}`);
   if (text(meta.bp_sys) && text(meta.bp_dia)) parts.push(`혈압 ${text(meta.bp_sys)}/${text(meta.bp_dia)}`);
   if (text(meta.glucose)) parts.push(`혈당 ${text(meta.glucose)}`);
-  return parts.join(" · ");
+  return [text(meta.checkup), parts.join(" · ")];
 }
 
 export function noteSummary(source: string, slug: string, kind: FolderKind | null): string {
@@ -52,13 +52,14 @@ export function noteSummary(source: string, slug: string, kind: FolderKind | nul
   } catch {}
   const own =
     kind === "spending"
-      ? (slug.includes(firstItem(meta).split(" 외 ")[0]) ? "" : firstItem(meta)) || text(meta.store)
+      ? [firstItem(meta), text(meta.store)]
       : kind === "travel"
-        ? text(meta.title)
+        ? [text(meta.title)]
         : kind === "food"
-          ? text(meta.restaurant)
+          ? [text(meta.restaurant)]
           : kind === "health"
-            ? healthLine(meta)
-            : "";
-  return own || heading(body, slug) || text(meta.title) || firstLine(body, slug);
+            ? healthLines(meta)
+            : [];
+  const fresh = (v: string) => !!v && !slug.includes(v.split(" 외 ")[0]);
+  return [...own, heading(body, slug), text(meta.title)].find(fresh) ?? firstLine(body, slug);
 }

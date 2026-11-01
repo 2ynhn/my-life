@@ -22,6 +22,7 @@ import {
   type FolderEntry,
 } from "@/lib/drive";
 import { FEATURES, featureByName } from "@/lib/features";
+import { titleSnippet } from "@/lib/note-name";
 import { loadLibrary, markWritten } from "@/lib/library";
 import { getUser } from "@/lib/session";
 
@@ -267,7 +268,9 @@ export async function quickNote(rootId: string, raw: string): Promise<ActionResu
     } else {
       if (!target.can.addChildren) return { ok: false, error: NO_PERMISSION };
       const template = (await loadTemplate(index, daily)).replaceAll("{{date}}", date).replaceAll("{{title}}", "");
-      id = await createFile(index, target, `${date}.md`, `${template.replace(/\s*$/, "")}\n\n${entry}\n`);
+      // 이름: 날짜 + 그 한 줄의 앞부분 (다른 글처럼 날짜와 제목)
+      const name = uniqueName(target, `${date} ${titleSnippet(line)}`.trim(), ".md");
+      id = await createFile(index, target, name, `${template.replace(/\s*$/, "")}\n\n${entry}\n`);
     }
     invalidateIndex(index);
     await markWritten();
