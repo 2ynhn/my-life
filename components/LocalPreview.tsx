@@ -5,7 +5,11 @@ import { Suspense } from "react";
 import { FeatureIcon } from "@/components/FeatureIcon";
 import { FolderList, NoteList, noteYears, type NoteItem } from "@/components/FolderList";
 import { Home, type HomeData, type HomeNode } from "@/components/Home";
+import { Plus } from "lucide-react";
+import Link from "next/link";
 import { useLocal } from "@/components/LocalData";
+import { NewFolderButton } from "@/components/NewFolderButton";
+import { NoteActions } from "@/components/NoteActions";
 import { NoteBody } from "@/components/NoteBody";
 import { PageSkeleton } from "@/components/PageSkeleton";
 import { normHref, type LocalState } from "@/lib/local-store";
@@ -69,7 +73,17 @@ export function PreviewFor({ pathname, search }: { pathname: string; search: str
   return (
     <div className="local-preview" aria-busy="true">
       {head}
-      {entry.e && <div className="note-actions sk-actions" aria-hidden />}
+      {/* 버튼도 서버를 기다리지 않는다 (Drive 권한은 받아 둔 목록 그대로) */}
+      {(entry.e || entry.rn || entry.t) && (
+        <NoteActions
+          rootId={local.tree.rootId}
+          fileId={entry.id}
+          fileName={entry.n}
+          editHref={entry.e ? `${entry.h}?mode=edit` : null}
+          canRename={!!entry.rn}
+          canTrash={!!entry.t}
+        />
+      )}
       <NoteBody
         text={text}
         links={tableResolver(linkTableFor(local, entry))}
@@ -145,6 +159,14 @@ function FolderPreview({ local, folder }: { local: LocalState; folder: LocalEntr
           {feature && <FeatureIcon kind={feature} />}
           {folder.n}
         </h1>
+        {folder.a && (
+          <div className="title-actions">
+            <NewFolderButton rootId={local.tree.rootId} folderId={folder.id} />
+            <Link className="btn btn-save" href={`${folder.h}?mode=new`}>
+              <Plus size={16} aria-hidden />새 글
+            </Link>
+          </div>
+        )}
       </div>
       {/* 구매·여행·건강·음식 요약은 서버 화면이 채운다 */}
       {kind && <span className="sk sk-view" aria-hidden />}

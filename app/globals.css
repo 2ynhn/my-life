@@ -3603,9 +3603,6 @@ body:has(.editor) .tabbar {
   margin-bottom: 1rem;
   border-radius: 16px;
 }
-.note-actions.sk-actions {
-  min-height: 2.25rem;
-}
 /* 누르자마자 그린 다음 화면이 있으면 지금 화면은 숨긴다 */
 .with-sidebar:has(> .local-overlay) > :not(.local-overlay) {
   display: none;

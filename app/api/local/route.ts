@@ -31,6 +31,8 @@ export async function GET(req: Request) {
     if (e.parent && isListable(e)) item.v = 1;
     if (e.can.edit) item.e = 1;
     if (e.can.addChildren) item.a = 1;
+    if (e.can.rename) item.rn = 1;
+    if (e.can.trash) item.t = 1;
     if (e.kind === "folder") {
       if (e.restricted) item.r = 1;
       entries.push(item);
