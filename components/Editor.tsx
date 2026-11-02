@@ -13,6 +13,7 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } f
 import { MetaForm, type FormKind, type Suggestions } from "@/components/MetaForm";
 import { NoteBody } from "@/components/NoteBody";
 import { PlacePicker } from "@/components/PlacePicker";
+import type { PlaceInfo } from "@/lib/map-link";
 import { ReceiptCamera } from "@/components/ReceiptCamera";
 import { addPlace, readMeta, setFields } from "@/lib/frontmatter-edit";
 import { reverseName } from "@/lib/geo-name";
@@ -439,19 +440,24 @@ export function Editor(props: Props) {
     }
   };
 
-  // 장소: 앞머리 places 목록 끝에 한 줄 더한다 (날짜는 오늘)
-  const insertPlace = (p: { name: string; lat: number; lng: number }) => {
+  // 장소: 여행은 앞머리 places 목록 끝에 한 줄(날짜는 오늘), 음식은 place 하나. 좌표·지도 링크는 있을 때만
+  const insertPlace = (p: PlaceInfo) => {
     setPicker(false);
     const current = viewRef.current?.state.doc.toString() ?? text;
     try {
       const date = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Seoul" }).format(new Date());
       const round = (n: number) => Math.round(n * 1e5) / 1e5;
+      const geo = p.lat !== undefined && p.lng !== undefined ? { lat: round(p.lat), lng: round(p.lng) } : {};
+      const link = p.link ? { link: p.link } : {};
       replaceDoc(
         props.form === "food"
-          ? setFields(current, { place: { name: p.name, lat: round(p.lat), lng: round(p.lng) } })
-          : addPlace(current, { ...p, date }),
+          ? setFields(current, { place: { name: p.name, ...geo, ...link } })
+          : addPlace(current, { name: p.name, date, ...geo, ...link }),
       );
-      setMessage({ kind: "info", text: `'${p.name}'을(를) 장소 목록에 넣었어요. 날짜가 다르면 고쳐 주세요.` });
+      setMessage({
+        kind: "info",
+        text: props.form === "food" ? `'${p.name}'을(를) 장소로 넣었어요.` : `'${p.name}'을(를) 장소 목록에 넣었어요. 날짜가 다르면 고쳐 주세요.`,
+      });
     } catch {
       setMessage({ kind: "error", text: "앞머리(--- 사이)를 읽지 못해 장소를 넣지 못했습니다. 형식을 확인해 주세요." });
     }

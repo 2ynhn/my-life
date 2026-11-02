@@ -4499,3 +4499,40 @@ body:has(.editor) .tabbar {
   grid-column: 1 / -1;
   margin-top: -0.2rem;
 }
+
+/* ───── 장소: 지도 링크 ───── */
+.picker-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.here-confirm {
+  flex-wrap: wrap;
+}
+.here-confirm p {
+  order: 3;
+  flex-basis: 100%;
+}
+.place-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+.place-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  color: var(--accent);
+  text-decoration: none;
+}
+.place-link:hover {
+  text-decoration: underline;
+}
+.place-link svg {
+  flex: none;
+  opacity: 0.7;
+}
+.place-chip .icon-btn,
+.place-list .icon-btn {
+  color: var(--muted);
+}

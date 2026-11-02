@@ -119,14 +119,28 @@ start: 2025-05-03
 end: 2025-05-06
 places:
   - { name: 성산일출봉, date: 2025-05-03, lat: 33.4581, lng: 126.9425 }
+  - { name: 을지면옥, date: 2025-05-06, lat: 37.56642, lng: 126.99177, link: https://naver.me/… }
   - 불국사            # 이름만 적어도 됨 (지도에는 안 나오고 목록에만)
 companions: [엄마, 동생]
 ```
 
 - 폴더 화면: 모든 여행의 장소를 한 지도에, 아래에 연도별 타임라인 (기간·일수·동행·들른 곳)
 - 여행 글: 들른 순서대로 점선으로 이은 지도
-- 편집기의 **📍 장소 추가**: 이름으로 찾거나(OpenStreetMap) **지금 있는 곳**(휴대폰 위치)을 넣으면 좌표까지 한 줄로 들어감
-  - 검색·지도는 브라우저가 OpenStreetMap에 바로 묻습니다 (이 앱 서버를 거치지 않음, API 키 필요 없음)
+- 편집기의 **📍 장소 추가** (여행·음식): 한 칸에 이름을 적거나 지도 앱 공유 링크를 붙이면 좌표까지 한 줄로 들어감, **지금 있는 곳**(휴대폰 위치)도
+  - 이름 찾기 순서: **네이버 → 구글 → OpenStreetMap**. 앞 단계가 키가 없거나 못 찾거나 오류면 다음으로
+  - 네이버·구글은 이 앱 서버가 운영자 키로 묻고(키는 브라우저로 안 감), OpenStreetMap은 브라우저가 바로 묻습니다 (키 필요 없음)
+  - **지도 공유 링크**: 네이버 지도·카카오맵·구글 지도에서 '공유 → 링크 복사' 한 것을 붙여 넣거나 **복사한 지도 링크** 버튼.
+    이름은 공유 글·링크에서, 좌표는 링크에서(안 되면 이름으로 찾아서). 링크는 `link:`로 같이 저장
+  - 보기 화면에서 장소 이름을 누르면 지도로: 저장한 링크, 없으면 네이버 지도 검색
+
+장소 검색 키 (Vercel → Settings → Environment Variables, 넣은 뒤 다시 배포). 둘 다 없어도 OpenStreetMap으로 동작합니다.
+
+| 변수 | 어디서 |
+|---|---|
+| `NAVER_SEARCH_CLIENT_ID`, `NAVER_SEARCH_CLIENT_SECRET` | [네이버 개발자센터](https://developers.naver.com/apps/#/register) → 애플리케이션 등록 → 사용 API **검색** → 환경 **WEB**(서비스 URL에 앱 주소). 무료, 하루 25,000번 |
+| `GOOGLE_PLACES_API_KEY` | 로그인용 GCP 프로젝트 → **Places API (New)** 사용 → 사용자 인증 정보 → API 키 (API 제한: Places API (New)). 결제 계정 연결 필요, 월 무료 사용량 안에서는 0원 |
+
+로컬 시험: 가짜 서버가 네이버(`naver-dev`)·구글(`google-dev`) 검색도 흉내 냅니다 — `.env.local`에 `DEV_NAVER_API_BASE=http://localhost:4010`, `DEV_GOOGLE_PLACES_BASE=http://localhost:4010`과 그 키를 넣으세요.
 
 ## 건강
 

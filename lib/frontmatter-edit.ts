@@ -62,15 +62,18 @@ export function setFields(text: string, fields: Record<string, FieldValue | unde
   return close(doc, body);
 }
 
-/** places 목록 끝에 장소를 한 줄로 더한다: - { name: 성산일출봉, date: 2026-10-28, lat: 33.45, lng: 126.94 } */
-export function addPlace(text: string, place: { name: string; date: string; lat: number; lng: number }): string {
+/** places 목록 끝에 장소를 한 줄로 더한다: - { name: 성산일출봉, date: 2026-10-28, lat: 33.45, lng: 126.94, link: https://naver.me/… }
+ *  좌표·링크는 있을 때만 */
+export function addPlace(text: string, place: { name: string; date: string; lat?: number; lng?: number; link?: string }): string {
   const { doc, body } = open(text);
   if (!isSeq(doc.get("places"))) doc.set("places", doc.createNode([]));
   const node = doc.createNode({
     name: place.name,
     date: place.date,
-    lat: Math.round(place.lat * 1e5) / 1e5,
-    lng: Math.round(place.lng * 1e5) / 1e5,
+    ...(place.lat !== undefined && place.lng !== undefined
+      ? { lat: Math.round(place.lat * 1e5) / 1e5, lng: Math.round(place.lng * 1e5) / 1e5 }
+      : {}),
+    ...(place.link ? { link: place.link } : {}),
   });
   node.flow = true;
   doc.addIn(["places"], node);

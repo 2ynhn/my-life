@@ -3,6 +3,7 @@ import {
   Banknote,
   CalendarDays,
   CreditCard,
+  ExternalLink,
   Folder,
   List,
   MapPin,
@@ -18,6 +19,7 @@ import ReactMarkdown from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import { METRICS } from "@/lib/health-metrics";
+import { mapHref, mapLabel } from "@/lib/map-link";
 import { formatMetaValue, metaTags, rewriteObsidian, splitFrontmatter, type LinkResolver } from "@/lib/markdown";
 
 // 노트 본문 렌더링. 서버(보기 화면)와 클라이언트(편집기 미리보기·기기 사본 화면) 양쪽에서 쓴다.
@@ -50,7 +52,42 @@ const PILL_KEYS = new Set(["people", "companions", "menu", "category"]);
 const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
 const empty = (v: unknown) => v === null || v === undefined || v === "" || (Array.isArray(v) && v.length === 0);
 
+const num = (v: unknown) => (typeof v === "number" ? v : typeof v === "string" && v.trim() ? Number(v) : undefined);
+
+/** 장소 하나: 이름을 누르면 지도(붙여 둔 공유 링크, 없으면 네이버 지도 검색)로 */
+function PlaceLink({ p }: { p: unknown }) {
+  const o: Record<string, unknown> = p && typeof p === "object" ? (p as Record<string, unknown>) : { name: p };
+  const name = formatMetaValue(o.name ?? "").trim();
+  const link = typeof o.link === "string" ? o.link : undefined;
+  const href = mapHref({ name, link, lat: num(o.lat), lng: num(o.lng) });
+  const date = o.date ? formatMetaValue(o.date) : "";
+  if (!name && !href) return null;
+  return (
+    <span className="place-item">
+      {href ? (
+        <a href={href} target="_blank" rel="noopener noreferrer" className="place-link" title={link ? `${mapLabel(link)}에서 열기` : "네이버 지도에서 찾기"}>
+          {name || "지도에서 보기"}
+          <ExternalLink size={13} strokeWidth={1.75} aria-hidden />
+        </a>
+      ) : (
+        <span>{name}</span>
+      )}
+      {date && <span className="muted">{date}</span>}
+    </span>
+  );
+}
+
 function Value({ k, v }: { k: string; v: unknown }) {
+  if (k === "place" && v && typeof v === "object" && !Array.isArray(v)) return <PlaceLink p={v} />;
+  if (k === "places" && Array.isArray(v)) {
+    return (
+      <span className="prop-items">
+        {v.map((p, i) => (
+          <PlaceLink key={i} p={p} />
+        ))}
+      </span>
+    );
+  }
   if (PILL_KEYS.has(k)) {
     const list = Array.isArray(v) ? v.map(formatMetaValue) : [formatMetaValue(v)];
     return (

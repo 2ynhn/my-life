@@ -5,6 +5,7 @@ import {
   Banknote,
   CalendarDays,
   CreditCard,
+  ExternalLink,
   Folder,
   Hash,
   List,
@@ -21,6 +22,7 @@ import {
 import { useState } from "react";
 import { numberish, readBody, readMeta, setBody, setFields, type FieldValue } from "@/lib/frontmatter-edit";
 import { METRIC_GROUPS, METRICS, HEALTH_TEXT_KEYS } from "@/lib/health-metrics";
+import { mapHref, mapLabel } from "@/lib/map-link";
 import { CATEGORIES } from "@/lib/receipt-shape";
 
 // 카테고리별 입력 폼. 값은 편집기 글의 앞머리(YAML)에 바로 쓰고, 편집기에서 고친 것도 바로 여기 보인다.
@@ -233,6 +235,20 @@ function BodyField({ text, onChange, placeholder }: { text: string; onChange: (n
   );
 }
 
+/** 장소를 지도에서 열기 (붙여 둔 공유 링크, 없으면 이름으로 네이버 지도 검색) */
+function MapOpen({ p }: { p: unknown }) {
+  const o: Record<string, unknown> = p && typeof p === "object" ? (p as Record<string, unknown>) : { name: p };
+  const n = (v: unknown) => (typeof v === "number" ? v : undefined);
+  const link = typeof o.link === "string" ? o.link : undefined;
+  const href = mapHref({ name: str(o.name), link, lat: n(o.lat), lng: n(o.lng) });
+  if (!href) return null;
+  return (
+    <a className="icon-btn" href={href} target="_blank" rel="noopener noreferrer" aria-label={`${str(o.name)} ${link ? mapLabel(link) : "지도"}에서 열기`}>
+      <ExternalLink size={14} aria-hidden />
+    </a>
+  );
+}
+
 export function MetaForm({ kind, text, onChange, suggestions, onAddPlace, onAddCategory }: Props) {
   const meta = readMeta(text);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
@@ -373,7 +389,7 @@ export function MetaForm({ kind, text, onChange, suggestions, onAddPlace, onAddC
   }
 
   if (kind === "food") {
-    const place = meta.place && typeof meta.place === "object" ? (meta.place as { name?: unknown; lat?: unknown }) : null;
+    const place = meta.place && typeof meta.place === "object" ? (meta.place as { name?: unknown; lat?: unknown; lng?: unknown; link?: unknown }) : null;
     const rating = typeof meta.rating === "number" ? meta.rating : Number(meta.rating) || 0;
     return (
       <div className="meta-form">
@@ -414,7 +430,8 @@ export function MetaForm({ kind, text, onChange, suggestions, onAddPlace, onAddC
             {place?.name ? (
               <span className="place-chip">
                 <MapPin size={14} aria-hidden /> {str(place.name)}
-                {place.lat === undefined && <span className="muted small"> (좌표 없음)</span>}
+                {place.lat === undefined && <span className="muted small"> {place.link ? "(링크만)" : "(좌표 없음)"}</span>}
+                <MapOpen p={place} />
                 <button type="button" className="icon-btn" aria-label="장소 빼기" onClick={() => set({ place: null })}>
                   <X size={14} aria-hidden />
                 </button>
@@ -471,6 +488,7 @@ export function MetaForm({ kind, text, onChange, suggestions, onAddPlace, onAddC
                   <li key={i}>
                     <span>{placeName(p)}</span>
                     {p && typeof p === "object" && "date" in p ? <span className="muted small">{str((p as { date: unknown }).date)}</span> : null}
+                    <MapOpen p={p} />
                     <button
                       type="button"
                       className="icon-btn"

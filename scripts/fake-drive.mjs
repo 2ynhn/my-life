@@ -210,6 +210,22 @@ const server = createServer(async (req, res) => {
       return send(res, 200, { ok: true });
     }
     if (url.pathname === "/__stats") return send(res, 200, stats);
+    // ── 가짜 네이버 지역 검색 (키 "naver-dev"): '면옥'이 들어간 이름만 찾는다
+    if (req.method === "GET" && url.pathname === "/v1/search/local.json") {
+      if (req.headers["x-naver-client-id"] !== "naver-dev") return send(res, 401, { errorMessage: "Authentication failed" });
+      const q = url.searchParams.get("query") ?? "";
+      const items = q.includes("면옥")
+        ? [{ title: "<b>을지면옥</b>", category: "한식>냉면", address: "서울특별시 중구 입정동 177", roadAddress: "서울특별시 중구 충무로14길 2-1", mapx: "1269917720", mapy: "375664190" }]
+        : [];
+      return send(res, 200, { total: items.length, start: 1, display: items.length, items });
+    }
+    // ── 가짜 구글 Places 텍스트 검색 (키 "google-dev"): '에펠'이 들어간 이름만
+    if (req.method === "POST" && url.pathname === "/v1/places:searchText") {
+      if (req.headers["x-goog-api-key"] !== "google-dev") return send(res, 403, { error: { status: "PERMISSION_DENIED" } });
+      const q = JSON.parse(body.toString() || "{}").textQuery ?? "";
+      const places = q.includes("에펠") ? [{ displayName: { text: "에펠탑" }, formattedAddress: "Av. Gustave Eiffel, 75007 Paris, 프랑스", location: { latitude: 48.8583701, longitude: 2.2944813 } }] : [];
+      return send(res, 200, places.length ? { places } : {});
+    }
     // ── 가짜 Anthropic API (영수증 읽기 시험용). 키 "sk-ant-dev-ok…"만 통과
     if (url.pathname.startsWith("/v1/")) {
       // SDK 버전에 따라 x-api-key 또는 Authorization: Bearer 로 온다
