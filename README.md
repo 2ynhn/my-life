@@ -138,10 +138,11 @@ companions: [엄마, 동생]
 
 | 변수 | 어디서 |
 |---|---|
-| `NAVER_SEARCH_CLIENT_ID`, `NAVER_SEARCH_CLIENT_SECRET` | [네이버 개발자센터](https://developers.naver.com/apps/#/register) → 애플리케이션 등록 → 사용 API **검색** → 환경 **WEB**(서비스 URL에 앱 주소). 무료, 하루 25,000번 |
+| `NAVER_APIHUB_KEY_ID`, `NAVER_APIHUB_KEY` | [네이버 클라우드 플랫폼](https://www.ncloud.com) 콘솔 → **NAVER API HUB** → Application 등록, 검색 API(**지역**) 체크 → 받은 Client ID·Client Secret. 2026-08부터 새 키는 여기서만 받습니다 |
+| (예전 키) `NAVER_SEARCH_CLIENT_ID`, `NAVER_SEARCH_CLIENT_SECRET` | 네이버 개발자센터 검색 API. 2026-07-31 신규 발급 종료, 2027-06-30 종료 예정 — 이미 있는 키만. 둘 다 있으면 API HUB 키를 먼저 씁니다 |
 | `GOOGLE_PLACES_API_KEY` | 로그인용 GCP 프로젝트 → **Places API (New)** 사용 → 사용자 인증 정보 → API 키 (API 제한: Places API (New)). 결제 계정 연결 필요, 월 무료 사용량 안에서는 0원 |
 
-로컬 시험: 가짜 서버가 네이버(`naver-dev`)·구글(`google-dev`) 검색도 흉내 냅니다 — `.env.local`에 `DEV_NAVER_API_BASE=http://localhost:4010`, `DEV_GOOGLE_PLACES_BASE=http://localhost:4010`과 그 키를 넣으세요.
+로컬 시험: 가짜 서버가 네이버(API HUB 키 `hub-dev`, 예전 키 `naver-dev`)·구글(`google-dev`) 검색도 흉내 냅니다 — `.env.local`에 `DEV_NAVER_APIHUB_BASE`·`DEV_NAVER_API_BASE`·`DEV_GOOGLE_PLACES_BASE=http://localhost:4010`과 그 키를 넣으세요.
 
 ## 건강
 

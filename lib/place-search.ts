@@ -16,10 +16,28 @@ import {
 
 const dev = process.env.NODE_ENV !== "production";
 const NAVER_BASE = (dev && process.env.DEV_NAVER_API_BASE?.trim()) || "https://openapi.naver.com";
+const NAVER_HUB_BASE = (dev && process.env.DEV_NAVER_APIHUB_BASE?.trim()) || "https://naverapihub.apigw.ntruss.com";
 const GOOGLE_PLACES_BASE = (dev && process.env.DEV_GOOGLE_PLACES_BASE?.trim()) || "https://places.googleapis.com";
 
+// 네이버 검색 키는 두 가지:
+//  - NAVER API HUB (네이버 클라우드, 2026-08부터 새로 받는 곳): NAVER_APIHUB_KEY_ID / NAVER_APIHUB_KEY
+//  - 예전 개발자센터 (2026-07-31 신규 발급 종료, 2027-06-30 종료): NAVER_SEARCH_CLIENT_ID / NAVER_SEARCH_CLIENT_SECRET
+// 둘 다 파라미터·응답은 같고 주소·인증 머리글만 다르다. HUB 키가 있으면 그것부터.
+type NaverEndpoint = { url: string; headers: Record<string, string> };
+
+function naverEndpoint(): NaverEndpoint | null {
+  const hubId = process.env.NAVER_APIHUB_KEY_ID?.trim();
+  const hubKey = process.env.NAVER_APIHUB_KEY?.trim();
+  if (hubId && hubKey)
+    return { url: `${NAVER_HUB_BASE}/search/v1/local`, headers: { "X-NCP-APIGW-API-KEY-ID": hubId, "X-NCP-APIGW-API-KEY": hubKey } };
+  const id = process.env.NAVER_SEARCH_CLIENT_ID?.trim();
+  const secret = process.env.NAVER_SEARCH_CLIENT_SECRET?.trim();
+  if (id && secret) return { url: `${NAVER_BASE}/v1/search/local.json`, headers: { "X-Naver-Client-Id": id, "X-Naver-Client-Secret": secret } };
+  return null;
+}
+
 export function hasNaverSearch(): boolean {
-  return !!(process.env.NAVER_SEARCH_CLIENT_ID?.trim() && process.env.NAVER_SEARCH_CLIENT_SECRET?.trim());
+  return naverEndpoint() !== null;
 }
 
 export function hasGooglePlaces(): boolean {
@@ -41,13 +59,11 @@ const stripTags = (s: string) =>
 
 /** 네이버 지역 검색 (최대 5곳). 키가 없으면 null */
 export async function naverSearch(q: string): Promise<FoundPlace[] | null> {
-  if (!hasNaverSearch()) return null;
+  const endpoint = naverEndpoint();
+  if (!endpoint) return null;
   const params = new URLSearchParams({ query: q, display: "5", start: "1", sort: "random" });
-  const res = await fetch(`${NAVER_BASE}/v1/search/local.json?${params}`, {
-    headers: {
-      "X-Naver-Client-Id": process.env.NAVER_SEARCH_CLIENT_ID!.trim(),
-      "X-Naver-Client-Secret": process.env.NAVER_SEARCH_CLIENT_SECRET!.trim(),
-    },
+  const res = await fetch(`${endpoint.url}?${params}`, {
+    headers: endpoint.headers,
     signal: AbortSignal.timeout(6000),
     cache: "no-store",
   });

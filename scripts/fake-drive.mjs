@@ -211,8 +211,11 @@ const server = createServer(async (req, res) => {
     }
     if (url.pathname === "/__stats") return send(res, 200, stats);
     // ── 가짜 네이버 지역 검색 (키 "naver-dev"): '면옥'이 들어간 이름만 찾는다
-    if (req.method === "GET" && url.pathname === "/v1/search/local.json") {
-      if (req.headers["x-naver-client-id"] !== "naver-dev") return send(res, 401, { errorMessage: "Authentication failed" });
+    // NAVER API HUB 주소(/search/v1/local, 키 "hub-dev")도 같은 응답
+    if (req.method === "GET" && (url.pathname === "/v1/search/local.json" || url.pathname === "/search/v1/local")) {
+      const hub = url.pathname === "/search/v1/local";
+      if (hub ? req.headers["x-ncp-apigw-api-key-id"] !== "hub-dev" : req.headers["x-naver-client-id"] !== "naver-dev")
+        return send(res, 401, { errorMessage: "Authentication failed" });
       const q = url.searchParams.get("query") ?? "";
       const items = q.includes("면옥")
         ? [{ title: "<b>을지면옥</b>", category: "한식>냉면", address: "서울특별시 중구 입정동 177", roadAddress: "서울특별시 중구 충무로14길 2-1", mapx: "1269917720", mapy: "375664190" }]
