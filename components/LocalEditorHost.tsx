@@ -9,7 +9,7 @@ import { linkTableFor, topOf } from "@/components/LocalPreview";
 import type { FormKind } from "@/components/MetaForm";
 import { normHref, type LocalState } from "@/lib/local-store";
 import type { LocalEntry } from "@/lib/local-types";
-import { BUILTIN_TEMPLATES, DEFAULT_TEMPLATE, TEMPLATE_FOLDER, withEnd } from "@/lib/templates";
+import { BUILTIN_TEMPLATES, DEFAULT_TEMPLATE, TEMPLATE_FOLDER, isTemplateFile, withEnd } from "@/lib/templates";
 import { todayKST } from "@/lib/today";
 
 // 편집·새 글을 누르는 순간: 서버에 묻지 않고 기기 사본(글·템플릿)으로 편집기를 바로 연다.
@@ -28,18 +28,34 @@ function kindOf(local: LocalState, e: LocalEntry): FormKind | null {
   return (local.tree.kinds[topOf(local, e).id] ?? null) as FormKind | null;
 }
 
-/** 서버 loadTemplate과 같은 순서: _templates/<맨 위 폴더>.md → 내장 → _templates/default.md → 기본. 사본에 없으면 null */
+/** 폴더에서 위로 올라가며 가장 가까운 _template.md (일기장 맨 위는 빼고) */
+function nearTemplate(local: LocalState, folder: LocalEntry): LocalEntry | null {
+  for (let f: LocalEntry | undefined = folder; f?.p; f = local.byId.get(f.p)) {
+    const own = (local.children.get(f.id) ?? []).find((c) => c.k === "f" && isTemplateFile(c.n));
+    if (own) return own;
+  }
+  return null;
+}
+
+/**
+ * 서버 loadTemplate과 같은 순서: 가까운 _template.md → _templates/<맨 위 폴더>.md → 내장
+ * → 맨 위 _template.md → _templates/default.md → 기본. 사본에 없으면 null
+ */
 function templateFor(local: LocalState, folder: LocalEntry): string | null {
+  const text = (e: LocalEntry) => local.texts.get(e.id)?.t ?? null;
+  const near = nearTemplate(local, folder);
+  if (near) return text(near);
   const top = topOf(local, folder);
   const builtin = (top.p && BUILTIN_TEMPLATES[top.n.toLowerCase()]) || DEFAULT_TEMPLATE;
   const root = local.tree.entries.find((e) => !e.p);
   const templates = root && (local.children.get(root.id) ?? []).find((c) => c.k === "d" && c.n === TEMPLATE_FOLDER);
   const pick = (name: string) =>
     templates ? (local.children.get(templates.id) ?? []).find((c) => c.k === "f" && c.n.toLowerCase() === name.toLowerCase()) : undefined;
-  const text = (e: LocalEntry) => local.texts.get(e.id)?.t ?? null;
   const own = top.p ? pick(`${top.n}.md`) : undefined;
   if (own) return text(own);
   if (builtin !== DEFAULT_TEMPLATE) return builtin;
+  const rootOwn = root && (local.children.get(root.id) ?? []).find((c) => c.k === "f" && isTemplateFile(c.n));
+  if (rootOwn) return text(rootOwn);
   const fallback = pick("default.md");
   return fallback ? text(fallback) : DEFAULT_TEMPLATE;
 }
@@ -68,7 +84,8 @@ export function localEditorProps(local: LocalState | null, pathname: string, sea
     const t = local.texts.get(entry.id);
     const parent = entry.p ? local.byId.get(entry.p) : undefined;
     if (entry.k !== "f" || !entry.md || !entry.e || !t?.c || !parent) return null;
-    const form = kindOf(local, entry);
+    // 폴더 서식은 입력 폼 대신 원문으로
+    const form = isTemplateFile(entry.n) ? null : kindOf(local, entry);
     return {
       mode: "edit",
       fileId: entry.id,

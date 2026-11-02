@@ -1,5 +1,5 @@
 import "server-only";
-import { BUILTIN_TEMPLATES, DEFAULT_TEMPLATE, TEMPLATE_FOLDER } from "@/lib/templates";
+import { BUILTIN_TEMPLATES, DEFAULT_TEMPLATE, TEMPLATE_FOLDER, isTemplateFile } from "@/lib/templates";
 import { createHash } from "node:crypto";
 import { API, DriveError, driveFetch, isNotFound, type DriveUser } from "@/lib/google";
 import type { LinkResolver, LinkTable } from "@/lib/markdown";
@@ -714,6 +714,9 @@ export function checkNoteName(raw: string, folder: FolderEntry, self?: FileEntry
   if (base.length > 120) return { error: "파일 이름이 너무 깁니다." };
   if (/[\/\\\x00-\x1f]/.test(base) || base.startsWith(".")) return { error: "파일 이름에 / \\ 나 맨 앞 . 은 쓸 수 없습니다." };
   const name = `${base}.md`;
+  // 폴더 서식 이름은 '서식' 버튼으로만 (글로 만들면 목록에서 사라진다). 서식 파일 자신의 이름은 그대로 둔다
+  if (isTemplateFile(name) && !(self && isTemplateFile(self.name)))
+    return { error: "_template은 폴더 서식 이름이라 글 이름으로 쓸 수 없어요. 폴더 화면의 '서식' 버튼을 쓰세요." };
   const taken = folder.children.some((c) => c !== self && c.name.toLowerCase() === name.toLowerCase());
   return taken ? { error: `이 폴더에 '${name}' 파일이 이미 있습니다.` } : { name };
 }
@@ -818,20 +821,40 @@ const topFolderOf = (index: DriveIndex, folder: FolderEntry) => {
   return top;
 };
 
-/** _templates/<최상위 폴더 이름>.md → _templates/default.md → 내장 기본값 */
+/** 이 폴더에서 위로 올라가며 가장 가까운 _template.md (일기장 맨 위는 빼고) */
+export function folderTemplateFile(index: DriveIndex, folder: FolderEntry): FileEntry | null {
+  for (let f: FolderEntry | null = folder; f && f !== index.root; f = f.parent) {
+    const own = f.children.find((c): c is FileEntry => c.kind === "file" && isTemplateFile(c.name));
+    if (own) return own;
+  }
+  return null;
+}
+
+/**
+ * 새 글 서식: 가장 가까운 폴더의 _template.md → _templates/<최상위 폴더 이름>.md → 폴더 전용 내장 서식
+ *            → 일기장 맨 위 _template.md → _templates/default.md → 기본
+ */
 export async function loadTemplate(index: DriveIndex, folder: FolderEntry): Promise<string> {
+  const near = folderTemplateFile(index, folder);
+  if (near) return readText(index, near);
   const top = topFolderOf(index, folder);
   const builtin = (top !== index.root && BUILTIN_TEMPLATES[top.name.toLowerCase()]) || DEFAULT_TEMPLATE;
   const templates = index.root.children.find(
     (c): c is FolderEntry => c.kind === "folder" && c.name === TEMPLATE_FOLDER,
   );
-  if (!templates) return builtin;
+  if (!templates) {
+    if (builtin !== DEFAULT_TEMPLATE) return builtin;
+    const rootOwn = index.root.children.find((c): c is FileEntry => c.kind === "file" && isTemplateFile(c.name));
+    return rootOwn ? readText(index, rootOwn) : builtin;
+  }
   const pick = (name: string) =>
     templates.children.find((c): c is FileEntry => c.kind === "file" && c.name.toLowerCase() === name.toLowerCase());
   const own = top !== index.root ? pick(`${top.name}.md`) : undefined;
   if (own) return readText(index, own);
   // 폴더 전용 내장 템플릿이 있으면 default.md보다 우선
   if (builtin !== DEFAULT_TEMPLATE) return builtin;
+  const rootOwn = index.root.children.find((c): c is FileEntry => c.kind === "file" && isTemplateFile(c.name));
+  if (rootOwn) return readText(index, rootOwn);
   const fallback = pick("default.md");
   return fallback ? readText(index, fallback) : DEFAULT_TEMPLATE;
 }
@@ -902,11 +925,11 @@ export function hrefFor(entry: Entry): string {
   return [entry.lib.base, ...entry.slugPath.map(encodeURIComponent)].join("/");
 }
 
-/** attachments(이미지 보관)와 _로 시작하는 앱 내부 폴더(_templates)는 목록에서 숨긴다 */
+/** attachments(이미지 보관)·_로 시작하는 앱 내부 폴더(_templates)·폴더 서식(_template.md)은 목록에서 숨긴다 */
 export function isListable(entry: Entry): boolean {
   if (entry.kind === "folder")
     return entry.name.toLowerCase() !== "attachments" && !entry.name.startsWith("_") && entry.can.listChildren;
-  return entry.isMarkdown;
+  return entry.isMarkdown && !isTemplateFile(entry.name);
 }
 
 /** 목록에 보여 줄 하위 항목. 열 수 없는 폴더(Drive 접근 제한)는 빠진다 */

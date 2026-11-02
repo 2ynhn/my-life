@@ -4,6 +4,10 @@ import { setFields } from "@/lib/frontmatter-edit";
 
 export const TEMPLATE_FOLDER = "_templates";
 
+/** 폴더마다 두는 서식 파일. 그 폴더(와 하위 폴더)의 새 글은 가장 가까운 이 파일로 시작한다 */
+export const FOLDER_TEMPLATE = "_template.md";
+export const isTemplateFile = (name: string) => name.toLowerCase() === FOLDER_TEMPLATE;
+
 export const DEFAULT_TEMPLATE = `---
 date: {{date}}
 written: {{date}}

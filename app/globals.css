@@ -2534,7 +2534,8 @@ mark {
   }
 }
 @media (max-width: 768px) {
-  .title-actions .new-folder .btn-label {
+  .title-actions .new-folder .btn-label,
+  .title-actions .template-btn .btn-label {
     display: none;
   }
   .title-row {

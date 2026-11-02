@@ -6,6 +6,7 @@ import { AskView } from "@/components/AskView";
 import { DriveProblem } from "@/components/DriveProblem";
 import { Editor } from "@/components/Editor";
 import { FolderView } from "@/components/FolderView";
+import { TemplateButton } from "@/components/TemplateButton";
 import { NewFolderButton } from "@/components/NewFolderButton";
 import { NoteActions } from "@/components/NoteActions";
 import { NoteBody } from "@/components/NoteBody";
@@ -15,7 +16,7 @@ import { FeatureView } from "@/components/FeatureView";
 import { LocalRootView } from "@/components/LocalRootView";
 import { LOCAL_ROOT_VIEWS, type RootViewName } from "@/lib/root-views";
 import { Home } from "@/components/Home";
-import { withEnd } from "@/lib/templates";
+import { isTemplateFile, withEnd } from "@/lib/templates";
 import { homeData } from "@/lib/home-data";
 import { TripSection } from "@/components/TripSection";
 import {
@@ -181,6 +182,7 @@ async function Folder({ folder, index, spend, range }: { folder: FolderEntry; in
   let top = folder;
   while (top.parent?.parent) top = top.parent;
   const feature = kind ?? (featureByName(top.name) === "diary" ? "diary" : null);
+  const templateFile = folder.children.find((c): c is FileEntry => c.kind === "file" && isTemplateFile(c.name)) ?? null;
 
   return (
     <>
@@ -189,12 +191,20 @@ async function Folder({ folder, index, spend, range }: { folder: FolderEntry; in
           {feature && <FeatureIcon kind={feature} />}
           {folder.name}
         </h1>
-        {folder.can.addChildren && (
+        {(folder.can.addChildren || templateFile?.can.edit) && (
           <div className="title-actions">
-            <NewFolderButton rootId={index.lib.rootId} folderId={folder.id} />
-            <Link className="btn btn-save" href={`${hrefFor(folder)}?mode=new`}>
-              <Plus size={16} aria-hidden />새 글
-            </Link>
+            <TemplateButton
+              rootId={index.lib.rootId}
+              folderId={folder.id}
+              existing={templateFile ? { href: hrefFor(templateFile), editable: templateFile.can.edit } : null}
+              canCreate={folder.can.addChildren}
+            />
+            {folder.can.addChildren && <NewFolderButton rootId={index.lib.rootId} folderId={folder.id} />}
+            {folder.can.addChildren && (
+              <Link className="btn btn-save" href={`${hrefFor(folder)}?mode=new`}>
+                <Plus size={16} aria-hidden />새 글
+              </Link>
+            )}
           </div>
         )}
       </div>
@@ -261,6 +271,8 @@ async function EditNote({
   sharedPhotos?: boolean;
   insertPhoto?: string;
 }) {
+  // 폴더 서식(_template.md)은 {{date}} 같은 자리표시가 있어 입력 폼 대신 원문으로 고친다
+  const template = isTemplateFile(entry.name);
   let note: { text: string; checksum: string };
   try {
     note = await readNote(index, entry);
@@ -275,14 +287,14 @@ async function EditNote({
       fileId={entry.id}
       fileName={entry.name}
       checksum={note.checksum}
-      places={["travel", "food"].includes((await formKindOf(index, entry.parent!)) ?? "")}
-      form={await formKindOf(index, entry.parent!)}
+      places={!template && ["travel", "food"].includes((await formKindOf(index, entry.parent!)) ?? "")}
+      form={template ? null : await formKindOf(index, entry.parent!)}
       manageCategories={index.root.can.addChildren}
       sharedPhotos={sharedPhotos}
       insertPhoto={insertPhoto}
       initialText={note.text}
       closeHref={hrefFor(entry)}
-      doneHref={(await formKindOf(index, entry.parent!)) === "diary" ? index.lib.base : hrefFor(entry.parent!)}
+      doneHref={!template && (await formKindOf(index, entry.parent!)) === "diary" ? index.lib.base : hrefFor(entry.parent!)}
       uploadFolderId={entry.parent!.id}
       links={linkTable(index, entry.parent!)}
     />

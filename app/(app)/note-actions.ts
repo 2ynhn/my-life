@@ -22,6 +22,7 @@ import {
   type FolderEntry,
 } from "@/lib/drive";
 import { FEATURES, featureByName } from "@/lib/features";
+import { FOLDER_TEMPLATE, isTemplateFile } from "@/lib/templates";
 import { titleSnippet } from "@/lib/note-name";
 import { loadLibrary, markWritten } from "@/lib/library";
 import { getUser } from "@/lib/session";
@@ -255,7 +256,7 @@ export async function quickNote(rootId: string, raw: string): Promise<ActionResu
     }
     const target = daily;
     const notesIn = (f: FolderEntry): FileEntry[] =>
-      f.children.flatMap((c) => (c.kind === "file" ? (c.isMarkdown ? [c] : []) : notesIn(c)));
+      f.children.flatMap((c) => (c.kind === "file" ? (c.isMarkdown && !isTemplateFile(c.name) ? [c] : []) : notesIn(c)));
     const notes = notesIn(daily);
     const today = notes.find((n) => n.name === `${date}.md`) ?? notes.find((n) => n.slug.startsWith(date));
 
@@ -303,6 +304,29 @@ export async function createFolderIn(rootId: string, parentId: string, rawName: 
     await markWritten();
     revalidatePath("/", "layout");
     return { ok: true, href: await freshHref(index, id, `${hrefFor(parent)}/${encodeURIComponent(name)}`) };
+  } catch (e) {
+    return failure(e);
+  }
+}
+
+/**
+ * 폴더 서식(_template.md) 만들기: 지금 이 폴더의 새 글이 쓰는 서식 내용으로 시작한다.
+ * 이미 있으면 그 파일 주소만 돌려준다. 만들 수 있는지는 Drive 권한(폴더에 추가)이 정한다.
+ */
+export async function createFolderTemplate(rootId: string, folderId: string): Promise<ActionResult> {
+  const index = await libraryIndex(rootId);
+  if (typeof index === "string") return { ok: false, error: index };
+  const folder = folderById(index, folderId);
+  if (!folder || folder === index.root) return { ok: false, error: "폴더를 찾을 수 없습니다." };
+  const existing = folder.children.find((c): c is FileEntry => c.kind === "file" && isTemplateFile(c.name));
+  if (existing) return { ok: true, href: hrefFor(existing) };
+  if (!folder.can.addChildren) return { ok: false, error: NO_PERMISSION };
+  try {
+    const text = await loadTemplate(index, folder);
+    const id = await createFile(index, folder, FOLDER_TEMPLATE, text);
+    await markWritten();
+    revalidatePath("/", "layout");
+    return { ok: true, href: await freshHref(index, id, hrefFor(folder), true) };
   } catch (e) {
     return failure(e);
   }

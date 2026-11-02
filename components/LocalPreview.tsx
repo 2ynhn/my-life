@@ -1,5 +1,6 @@
 "use client";
 
+import { isTemplateFile } from "@/lib/templates";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { FeatureIcon } from "@/components/FeatureIcon";
@@ -11,6 +12,7 @@ import { Home, type HomeData, type HomeNode } from "@/components/Home";
 import { Plus } from "lucide-react";
 import Link from "next/link";
 import { useLocal } from "@/components/LocalData";
+import { TemplateButton } from "@/components/TemplateButton";
 import { NewFolderButton } from "@/components/NewFolderButton";
 import { NoteActions } from "@/components/NoteActions";
 import { NoteBody } from "@/components/NoteBody";
@@ -165,6 +167,7 @@ function FolderPreview({ local, folder, params }: { local: LocalState; folder: L
     if (t) summaries.set(n.id, noteSummary(t.t, n.slug, kind));
   }
   const years = noteYears(notes);
+  const templateFile = (local.children.get(folder.id) ?? []).find((c) => c.k === "f" && isTemplateFile(c.n));
   return (
     <>
       <div className="title-row">
@@ -172,12 +175,20 @@ function FolderPreview({ local, folder, params }: { local: LocalState; folder: L
           {feature && <FeatureIcon kind={feature} />}
           {folder.n}
         </h1>
-        {folder.a && (
+        {(folder.a || templateFile?.e) && (
           <div className="title-actions">
-            <NewFolderButton rootId={local.tree.rootId} folderId={folder.id} />
-            <Link className="btn btn-save" href={`${folder.h}?mode=new`}>
-              <Plus size={16} aria-hidden />새 글
-            </Link>
+            <TemplateButton
+              rootId={local.tree.rootId}
+              folderId={folder.id}
+              existing={templateFile ? { href: templateFile.h, editable: !!templateFile.e } : null}
+              canCreate={!!folder.a}
+            />
+            {folder.a && <NewFolderButton rootId={local.tree.rootId} folderId={folder.id} />}
+            {folder.a && (
+              <Link className="btn btn-save" href={`${folder.h}?mode=new`}>
+                <Plus size={16} aria-hidden />새 글
+              </Link>
+            )}
           </div>
         )}
       </div>

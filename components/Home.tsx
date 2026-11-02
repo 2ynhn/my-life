@@ -55,7 +55,7 @@ function allNotes(root: HomeNode): HomeNode[] {
   const walk = (f: HomeNode) => {
     for (const c of f.children) {
       if (c.kind === "file") {
-        if (c.isMarkdown) out.push(c);
+        if (c.isMarkdown && c.listable) out.push(c);
       } else if (c.listable) walk(c);
     }
   };
