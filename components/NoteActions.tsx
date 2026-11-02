@@ -1,5 +1,6 @@
 "use client";
 
+import { Pencil, TextCursorInput, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -43,6 +44,7 @@ export function NoteActions({
     <div className="note-actions">
       {editHref && (
         <Link className="btn btn-save" href={editHref}>
+          <Pencil size={15} aria-hidden />
           편집
         </Link>
       )}
@@ -55,6 +57,7 @@ export function NoteActions({
             if (next !== null && next.trim()) void run(() => renameNote(rootId, fileId, next));
           }}
         >
+          <TextCursorInput size={15} aria-hidden />
           이름 바꾸기
         </button>
       )}
@@ -67,6 +70,7 @@ export function NoteActions({
               void run(() => trashNote(rootId, fileId));
           }}
         >
+          <Trash2 size={15} aria-hidden />
           삭제
         </button>
       )}

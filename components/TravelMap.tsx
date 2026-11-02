@@ -21,8 +21,8 @@ export function TravelMap({ points, route = false }: { points: MapPoint[]; route
       const L = (await import("leaflet")).default;
       if (cancelled || !ref.current) return;
       const style = getComputedStyle(ref.current);
-      const color = style.getPropertyValue("--chart").trim() || "#b5562f";
-      const photoColor = style.getPropertyValue("--c-travel").trim() || "#2d68ad";
+      const color = style.getPropertyValue("--chart").trim() || "#2f6a47";
+      const photoColor = style.getPropertyValue("--c-travel").trim() || "#2f5ca3";
       map = L.map(ref.current, { scrollWheelZoom: false, attributionControl: true });
       L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,

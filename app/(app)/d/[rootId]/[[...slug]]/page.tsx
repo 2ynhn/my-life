@@ -35,7 +35,7 @@ import {
   type FileEntry,
   type FolderEntry,
 } from "@/lib/drive";
-import { featureByName } from "@/lib/features";
+import { featureByName, type FeatureKey } from "@/lib/features";
 import { setFields } from "@/lib/frontmatter-edit";
 import { libraryTitle } from "@/lib/labels";
 import { loadLibrary } from "@/lib/library";
@@ -148,8 +148,10 @@ export default async function EntryPage({ params, searchParams }: Props) {
   // 첫 화면은 경로 표시 없이 바로 카드
   if (entry.kind === "folder" && !entry.parent) return <Folder folder={entry} index={index} />;
 
+  // 쓰임새(일기·구매·여행·건강·음식)마다 강조색: 이 범위 안의 칩·버튼·링크가 그 색 (globals.css [data-feature])
+  const feature = await featureOf(index, entry);
   return (
-    <>
+    <div className="feature-scope" data-feature={feature ?? undefined}>
       <div className="entry-head">
         <a className="small muted" href={webUrlFor(entry)} target="_blank" rel="noopener noreferrer">
           Drive에서 열기 ↗
@@ -160,8 +162,17 @@ export default async function EntryPage({ params, searchParams }: Props) {
       ) : (
         <Note entry={entry} index={index} />
       )}
-    </>
+    </div>
   );
+}
+
+/** 맨 위 폴더로 정한 쓰임새 (일기는 이름, 나머지는 템플릿) */
+async function featureOf(index: DriveIndex, entry: Entry): Promise<FeatureKey | null> {
+  let top: Entry = entry;
+  while (top.parent?.parent) top = top.parent;
+  if (top.kind !== "folder" || top === index.root) return null;
+  if (featureByName(top.name) === "diary") return "diary";
+  return await folderKind(index, top);
 }
 
 async function Folder({ folder, index, spend, range }: { folder: FolderEntry; index: DriveIndex; spend?: string; range?: string }) {
@@ -231,6 +242,7 @@ async function Note({ entry, index }: { entry: FileEntry; index: DriveIndex }) {
       {isTrip && <TripSection index={index} entry={entry} text={text} meta={splitFrontmatter(text).meta as Record<string, unknown>} />}
       <NoteBody
         text={text}
+        title={entry.slug}
         links={linkResolver(index, entry.parent!)}
         tagHref={(t) => `${index.lib.base}?view=search&tag=${encodeURIComponent(t)}`}
       />

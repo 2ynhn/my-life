@@ -1,6 +1,6 @@
 "use client";
 
-import { PenLine } from "lucide-react";
+import { ArrowUp, LoaderCircle, PenLine } from "lucide-react";
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { quickNote } from "@/app/(app)/note-actions";
@@ -41,12 +41,13 @@ export function QuickNote({ rootId }: { rootId: string }) {
           setText(e.target.value);
           if (result?.ok) setResult(null);
         }}
-        placeholder="무슨 일이 있었나요?"
+        placeholder="지금 한 줄 · 오늘 일기에 붙어요"
         maxLength={2000}
         enterKeyHint="send"
       />
-      <button className="btn btn-save" type="submit" disabled={pending || !text.trim()}>
-        {pending ? "남기는 중…" : "남기기"}
+      <button className="btn btn-save" type="submit" disabled={pending || !text.trim()} title="오늘 일기에 남기기">
+        {pending ? <LoaderCircle size={18} className="spin" aria-hidden /> : <ArrowUp size={18} aria-hidden />}
+        <span className="sr-only">{pending ? "남기는 중…" : "남기기"}</span>
       </button>
       {result && (
         <p className={`quick-result small ${result.ok ? "ok" : "error"}`} role="status">

@@ -11,8 +11,8 @@ export default function manifest(): MetadataRoute.Manifest {
     start_url: "/",
     scope: "/",
     display: "standalone",
-    background_color: "#faf8f5",
-    theme_color: "#faf8f5",
+    background_color: "#f6f7f3",
+    theme_color: "#f6f7f3",
     // 휴대폰 '공유하기' 목록에 my-life가 나온다 (안드로이드 크롬에 설치했을 때). 받는 쪽은 public/sw.js
     share_target: {
       action: "/share-target",

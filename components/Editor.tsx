@@ -34,6 +34,8 @@ type Props = {
   closeHref: string;
   /** 저장(만들기)을 마치면 돌아갈 곳: 일기는 첫 화면, 나머지는 그 폴더 (새 글은 없으면 만든 폴더) */
   doneHref?: string;
+  /** 편집기를 떠날 때(저장·닫기) 먼저 부른다. 기기 사본으로 연 편집기는 여기서 바로 닫힌다 */
+  onLeave?: () => void;
   /** 이 글이 있는 일기장 (Drive 폴더 id) */
   rootId: string;
   /** 사진을 올릴 때 기준이 되는 노트 폴더 (가장 가까운 attachments 폴더에 저장) */
@@ -91,6 +93,10 @@ const fmtTime = (t: number) => new Date(t).toLocaleString("ko-KR", { dateStyle: 
 
 export function Editor(props: Props) {
   const router = useRouter();
+  const go = (href: string) => {
+    props.onLeave?.();
+    router.push(href);
+  };
   const local = useLocalContext();
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -285,7 +291,7 @@ export function Editor(props: Props) {
         if (local) putLocalText(local.email, local.rootId, props.fileId, current);
         if (leave) {
           submitted.current = true;
-          return router.push(props.doneHref ?? props.closeHref);
+          return go(props.doneHref ?? props.closeHref);
         }
         setMessage({ kind: "info", text: "저장 중…" });
         return;
@@ -309,7 +315,7 @@ export function Editor(props: Props) {
       submitted.current = true;
       setSavedText(current);
       // 일기는 첫 화면, 나머지는 그 폴더로 바로 (목록에는 '저장 중'으로 보이다가 끝나면 채워진다)
-      router.push(props.doneHref ?? props.closeHref);
+      go(props.doneHref ?? props.closeHref);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [text, checksum, name, nameAuto, draftKey],
@@ -551,11 +557,11 @@ export function Editor(props: Props) {
 
   const close = () => {
     if (dirty && !confirm("저장하지 않은 내용이 있습니다. 닫을까요?\n(브라우저 임시저장에는 남아 있어요)")) return;
-    router.push(props.closeHref);
+    go(props.closeHref);
   };
 
   return (
-    <div className="editor">
+    <div className="editor feature-scope" data-feature={props.form ?? undefined}>
       {/* 파일 이름: 모바일에서는 스크롤과 함께 올라가고, 위에는 아이콘 줄만 붙어 있다 */}
       <div className="editor-name">
         {props.mode === "new" ? (
@@ -578,62 +584,65 @@ export function Editor(props: Props) {
         )}
       </div>
       <div className="editor-bar">
-        <div className={`tabs${tabbedForm ? " has-form" : ""}`} role="tablist">
-          {tabbedForm && (
-            <button role="tab" aria-selected={tab === "form"} onClick={() => setTab("form")} title="항목 (입력 양식)">
-              <ListChecks size={17} aria-hidden />
-              <span className="tab-label">항목</span>
+        {/* 도구: 넓은 화면은 이 줄에, 휴대폰은 아래쪽에 떠 있는 막대로 (키보드 바로 위) */}
+        <div className="editor-tools">
+          <div className={`tabs${tabbedForm ? " has-form" : ""}`} role="tablist">
+            {tabbedForm && (
+              <button role="tab" aria-selected={tab === "form"} onClick={() => setTab("form")} title="항목 (입력 양식)">
+                <ListChecks size={17} aria-hidden />
+                <span className="tab-label">항목</span>
+              </button>
+            )}
+            <button role="tab" aria-selected={tab === "write"} onClick={() => setTab("write")} title="쓰기 (마크다운 그대로)">
+              <PenLine size={17} aria-hidden />
+              <span className="tab-label">쓰기</span>
+            </button>
+            <button role="tab" className="tab-preview" aria-selected={tab === "preview"} onClick={() => setTab("preview")} title="미리보기">
+              <Eye size={17} aria-hidden />
+              <span className="tab-label">미리보기</span>
+            </button>
+          </div>
+          <button
+            className="btn bar-btn"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={!!uploading}
+            title="사진 넣기 (붙여넣기·끌어다 놓기도 됩니다)"
+          >
+            <ImagePlus size={17} aria-hidden />
+            <span className="btn-text">사진</span>
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            hidden
+            onChange={(e) => {
+              const files = imageFiles(e.target.files);
+              e.target.value = "";
+              if (files.length) uploadRef.current(files);
+            }}
+          />
+          {/* 항목 탭에는 폼 안에 같은 버튼이 있다 */}
+          {props.places && tab !== "form" && (
+            <button className="btn bar-btn" onClick={() => setPicker(true)} disabled={!!uploading} title="들른 곳을 찾아 지도 좌표와 함께 넣습니다">
+              <MapPinPlus size={17} aria-hidden />
+              <span className="btn-text">장소 추가</span>
             </button>
           )}
-          <button role="tab" aria-selected={tab === "write"} onClick={() => setTab("write")} title="쓰기 (마크다운 그대로)">
-            <PenLine size={17} aria-hidden />
-            <span className="tab-label">쓰기</span>
-          </button>
-          <button role="tab" className="tab-preview" aria-selected={tab === "preview"} onClick={() => setTab("preview")} title="미리보기">
-            <Eye size={17} aria-hidden />
-            <span className="tab-label">미리보기</span>
-          </button>
+          {props.mode === "new" && props.receipt && (
+            // 모바일: 영수증 도구 세 개를 이 버튼 하나로 접고 편다 (넓은 화면에서는 늘 펼침)
+            <button
+              className={`btn bar-btn receipt-toggle${receiptOpen ? " on" : ""}`}
+              onClick={() => setReceiptOpen(!receiptOpen)}
+              aria-expanded={receiptOpen}
+              title="영수증으로 채우기"
+            >
+              <ScanText size={17} aria-hidden />
+              <span className="btn-text">영수증</span>
+            </button>
+          )}
         </div>
-        <button
-          className="btn bar-btn"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={!!uploading}
-          title="사진 넣기 (붙여넣기·끌어다 놓기도 됩니다)"
-        >
-          <ImagePlus size={17} aria-hidden />
-          <span className="btn-text">사진</span>
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          multiple
-          hidden
-          onChange={(e) => {
-            const files = imageFiles(e.target.files);
-            e.target.value = "";
-            if (files.length) uploadRef.current(files);
-          }}
-        />
-        {/* 항목 탭에는 폼 안에 같은 버튼이 있다 */}
-        {props.places && tab !== "form" && (
-          <button className="btn bar-btn" onClick={() => setPicker(true)} disabled={!!uploading} title="들른 곳을 찾아 지도 좌표와 함께 넣습니다">
-            <MapPinPlus size={17} aria-hidden />
-            <span className="btn-text">장소 추가</span>
-          </button>
-        )}
-        {props.mode === "new" && props.receipt && (
-          // 모바일: 영수증 도구 세 개를 이 버튼 하나로 접고 편다 (넓은 화면에서는 늘 펼침)
-          <button
-            className={`btn bar-btn receipt-toggle${receiptOpen ? " on" : ""}`}
-            onClick={() => setReceiptOpen(!receiptOpen)}
-            aria-expanded={receiptOpen}
-            title="영수증으로 채우기"
-          >
-            <ScanText size={17} aria-hidden />
-            <span className="btn-text">영수증</span>
-          </button>
-        )}
         <span className="spacer" />
         {uploading && <span className="status small muted">{uploading}</span>}
         {/* 저장 후 다시 고치기 시작하면 '저장됨' 대신 '저장 안 됨' (모바일은 저장 버튼의 점으로) */}
@@ -648,7 +657,7 @@ export function Editor(props: Props) {
         </button>
         <button
           className={`btn btn-save${dirty ? " dirty" : ""}`}
-          onClick={() => void (props.mode === "edit" && !dirty && props.doneHref ? router.push(props.doneHref) : save(false, true))}
+          onClick={() => void (props.mode === "edit" && !dirty && props.doneHref ? go(props.doneHref) : save(false, true))}
           title={props.mode === "new" ? "만들고 목록으로" : "저장하고 목록으로 (Ctrl+S는 저장만)"}
         >
           <Check size={17} aria-hidden />

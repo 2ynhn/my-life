@@ -1,27 +1,30 @@
 :root {
-  --bg: #faf8f5;
+  /* 세이지: 넓은 바탕은 차분한 회녹색, 쓰임새(일기·구매·여행·건강·음식)마다 강조색 */
+  --bg: #f6f7f3;
   --surface: #ffffff;
-  --text: #2a2723;
-  --muted: #7a736a;
-  --line: #e7e1d8;
-  --accent: #b5562f;
-  --accent-soft: #f6e7df;
+  --panel: #eaede4;
+  --pill: #e0e5da;
+  --text: #23281f;
+  --muted: #5f665a;
+  --line: #e3e7dd;
+  --accent: #2f6a47;
+  --accent-soft: #e1eee5;
   --sidebar-w: 240px;
-  /* 차트 막대: 배경 대비·밝기 검사를 통과한 값 (dataviz validate_palette) */
-  --chart: #b5562f;
-  /* 쓰임새별 색: 아이콘(글자색) + 옅은 바탕 */
-  --c-diary: #b5562f;
-  --c-diary-soft: #f8e9e1;
-  --c-spending: #2c7a57;
-  --c-spending-soft: #e2f1e9;
-  --c-travel: #2d68ad;
-  --c-travel-soft: #e3edf9;
-  --c-health: #be3a59;
-  --c-health-soft: #fae4ea;
-  --c-food: #a8580a;
-  --c-food-soft: #fbefdc;
-  --c-folder: #7a736a;
-  --c-folder-soft: #efebe5;
+  /* 차트 막대: 쓰임새 범위 안에서는 그 색 (아래 [data-feature]) */
+  --chart: #2f6a47;
+  /* 쓰임새별 색: 아이콘(글자색) + 옅은 바탕. 옅은 바탕 위 글자 대비 4.5:1 이상, 서로 밝기도 다르게 */
+  --c-diary: #a8452a;
+  --c-diary-soft: #f7e3db;
+  --c-spending: #835c00;
+  --c-spending-soft: #f4ead2;
+  --c-travel: #2f5ca3;
+  --c-travel-soft: #e1e9f6;
+  --c-health: #a8344f;
+  --c-health-soft: #f6e0e6;
+  --c-food: #6d3a85;
+  --c-food-soft: #ece2f1;
+  --c-folder: #5f665a;
+  --c-folder-soft: #eaede4;
   --shadow: 0 1px 2px rgb(60 40 20 / 0.05), 0 2px 8px rgb(60 40 20 / 0.04);
   --font: "Pretendard", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", "Segoe UI", sans-serif;
   color-scheme: light;
@@ -2695,7 +2698,7 @@ mark {
   transition: background 0.15s;
 }
 .today-band:hover {
-  background: #f3dccf;
+  background: color-mix(in srgb, var(--c-diary-soft) 85%, var(--c-diary));
 }
 .today-icon {
   display: inline-flex;
@@ -2722,7 +2725,7 @@ mark {
   color: var(--muted);
 }
 .today-chevron {
-  color: #8f4022;
+  color: var(--c-diary);
 }
 
 /* 쓰임새 카드: 큰 숫자가 먼저 */
@@ -2831,7 +2834,7 @@ mark {
 
 /* 사이드바: 옅은 바탕, 넉넉한 누름 영역 */
 .sidebar {
-  background: #f5f1eb;
+  background: var(--panel);
 }
 .sidebar a {
   padding: 0.3rem 0.5rem;
@@ -2935,7 +2938,7 @@ mark {
   padding: 0.25rem;
   border: 0;
   border-radius: 12px;
-  background: #f5f1eb;
+  background: var(--panel);
 }
 .range-tabs a {
   padding: 0.35rem 0.9rem;
@@ -3171,7 +3174,7 @@ mark {
     width: min(312px, 86vw);
     z-index: 50;
     padding: 0.5rem 0.75rem calc(1.5rem + env(safe-area-inset-bottom));
-    background: #f5f1eb;
+    background: var(--panel);
     box-shadow: 8px 0 32px rgb(42 39 35 / 0.18);
   }
   .sidebar.open {
@@ -3839,4 +3842,660 @@ body:has(.editor) .tabbar {
   .meta-form .seg > * {
     flex: none;
   }
+}
+
+/* ═════════════ 새 디자인: 상자 대신 종이 한 장 — 큰 제목 · 속성판 하나 · 본문은 그대로 ═════════════ */
+
+/* 쓰임새마다 강조색: 이 범위 안의 칩·버튼·링크·그래프가 그 색 */
+[data-feature="diary"] {
+  --accent: var(--c-diary);
+  --accent-soft: var(--c-diary-soft);
+  --chart: var(--c-diary);
+}
+[data-feature="spending"] {
+  --accent: var(--c-spending);
+  --accent-soft: var(--c-spending-soft);
+  --chart: var(--c-spending);
+}
+[data-feature="travel"] {
+  --accent: var(--c-travel);
+  --accent-soft: var(--c-travel-soft);
+}
+[data-feature="health"] {
+  --accent: var(--c-health);
+  --accent-soft: var(--c-health-soft);
+  --chart: var(--c-health);
+}
+[data-feature="food"] {
+  --accent: var(--c-food);
+  --accent-soft: var(--c-food-soft);
+  --chart: var(--c-food);
+}
+
+/* ── 글 보기: 큰 제목 → 속성판 → 본문 ── */
+.note-title {
+  margin: 0.25rem 0 1rem;
+  font-size: 1.9rem;
+  line-height: 1.25;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+.meta {
+  margin: 0 0 1.5rem;
+  padding: 0.3rem 0.9rem;
+  border: 0;
+  border-radius: 16px;
+  background: var(--panel);
+  font-size: 0.95rem;
+}
+.meta dl {
+  display: block;
+  margin: 0;
+}
+.meta .prop {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 44px;
+  padding: 0.25rem 0;
+}
+.meta .prop + .prop {
+  border-top: 1px solid color-mix(in srgb, var(--line) 70%, var(--panel));
+}
+.meta dt {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex: none;
+  width: 6.5rem;
+  color: var(--muted);
+}
+.meta dd {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.meta .tags {
+  margin: 0;
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.05rem 0.7rem;
+  border-radius: 999px;
+  background: var(--pill);
+  font-size: 0.9rem;
+}
+.prop-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.prop-strong {
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.prop-items {
+  display: flex;
+  flex-direction: column;
+}
+.prop-items > span {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.tags li {
+  padding: 0.05rem 0.7rem;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.tags a {
+  color: inherit;
+  text-decoration: none;
+}
+.prose a {
+  color: var(--accent);
+}
+
+/* 보기 화면 버튼: 작게, 편집만 강조 */
+.note-actions {
+  gap: 0.25rem;
+  margin: 0 0 0.5rem;
+}
+.note-actions .btn {
+  padding: 0.35rem 0.65rem;
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+}
+.note-actions .btn:hover {
+  background: var(--panel);
+  color: var(--text);
+}
+.note-actions .btn-save {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.note-actions .btn.danger {
+  color: var(--muted);
+}
+
+/* ── 쓰기: 큰 제목 칸 → 속성판(한 줄씩) → 내용 ── */
+.pane-form {
+  padding: 0 0.25rem;
+  border: 0;
+  background: none;
+}
+.meta-form {
+  gap: 1rem;
+}
+.title-field input {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 1.9rem;
+  line-height: 1.25;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  outline: none;
+}
+.title-field input::placeholder {
+  color: color-mix(in srgb, var(--muted) 60%, var(--bg));
+}
+.props {
+  display: flex;
+  flex-direction: column;
+  padding: 0.15rem 0.9rem;
+  border-radius: 16px;
+  background: var(--panel);
+}
+.props .form-grid,
+.props .metrics-grid {
+  display: contents;
+}
+.props .form-field,
+.props .chips-field {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr);
+  align-items: start;
+  column-gap: 0.75rem;
+  row-gap: 0.25rem;
+  padding: 0.2rem 0;
+  border-top: 1px solid color-mix(in srgb, var(--line) 70%, var(--panel));
+}
+.props > :first-child,
+.props > .form-grid:first-child > :first-child {
+  border-top: 0;
+}
+.props .form-field > :not(.form-label),
+.props .chips-field > :not(.form-label) {
+  grid-column: 2;
+}
+.props .form-label {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 42px;
+  font-size: 0.95rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+.props .form-field:focus-within > .form-label,
+.props .chips-field:focus-within > .form-label {
+  color: var(--accent);
+}
+.props input:not([type="checkbox"]) {
+  min-height: 42px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: 1rem;
+}
+.props input:focus,
+.props .chips:focus-within {
+  outline: none;
+  border-color: transparent;
+}
+.props .chips {
+  min-height: 42px;
+  align-items: center;
+  padding: 0.25rem 0;
+  border: 0;
+  background: transparent;
+}
+.props .chips input:not([type="checkbox"]) {
+  min-height: 32px;
+  min-width: 5rem;
+}
+.props .chip {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.props .chip-suggest {
+  padding-bottom: 0.4rem;
+}
+.props .chip-suggest button {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--line) 50%, var(--muted));
+  background: var(--surface);
+}
+.props .form-hint {
+  margin-top: -0.35rem;
+  padding-bottom: 0.3rem;
+}
+.props .seg {
+  min-height: 42px;
+  align-items: center;
+  padding: 0.3rem 0;
+}
+.props .seg button {
+  border: 0;
+  background: var(--pill);
+}
+.props .seg button.on {
+  background: var(--accent);
+  color: #fff;
+}
+.props .item-row {
+  border-bottom: 1px dashed color-mix(in srgb, var(--line) 60%, var(--muted));
+}
+.props .add-row,
+.props .btn.add-row {
+  justify-self: start;
+  margin: 0.2rem 0 0.4rem;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding-left: 0;
+}
+.props .metric-group {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-top: 1px solid color-mix(in srgb, var(--line) 70%, var(--panel));
+}
+.props .metric-group legend {
+  padding: 0.6rem 0 0.1rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+.props .metric-group legend button {
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+}
+.props .metric-group .form-field:first-child {
+  border-top: 0;
+}
+.props .add-metric {
+  padding: 0.4rem 0;
+  border-top: 1px solid color-mix(in srgb, var(--line) 70%, var(--panel));
+}
+.props .add-metric input:not([type="checkbox"]) {
+  min-height: 36px;
+}
+.props .place-chip,
+.props .stars {
+  min-height: 42px;
+  align-items: center;
+}
+/* 내용: 상자 없이 종이에 바로 */
+.body-field > .form-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.body-field textarea {
+  min-height: 12rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: 1.05rem;
+  line-height: 1.8;
+}
+.body-field textarea:focus {
+  outline: none;
+  border-color: transparent;
+}
+.editor .btn-save {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ── 첫 화면: 카드 대신 한 줄 목록 (아이콘·이름·최근·숫자·+) ── */
+.features {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0 0 2rem;
+  border-top: 1px solid var(--line);
+}
+.fcard,
+.fcard:hover {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.7rem 0.15rem;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  transform: none;
+}
+.fcard-diary {
+  --accent: var(--c-diary);
+}
+.fcard-spending {
+  --accent: var(--c-spending);
+}
+.fcard-travel {
+  --accent: var(--c-travel);
+}
+.fcard-health {
+  --accent: var(--c-health);
+}
+.fcard-food {
+  --accent: var(--c-food);
+}
+.fcard-main {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  grid-template-areas:
+    "icon name stat"
+    "icon sub stat";
+  column-gap: 0.85rem;
+  row-gap: 0;
+  align-items: center;
+  padding: 0;
+}
+.fcard-head {
+  display: contents;
+}
+.fcard-head .ficon {
+  grid-area: icon;
+}
+.fcard-name {
+  grid-area: name;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+.fcard-name strong {
+  font-size: 1rem;
+}
+.fcard-sub {
+  grid-area: sub;
+  font-size: 0.8rem;
+}
+.fcard-stat {
+  grid-area: stat;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0;
+}
+.fcard-stat strong {
+  font-size: 1.25rem;
+}
+.fcard-stat .small {
+  font-size: 0.72rem;
+}
+.fcard-action {
+  flex: none;
+  width: auto;
+  padding: 0.45rem 0.75rem;
+  border: 0;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.85rem;
+}
+.fcard-action:hover {
+  background: var(--accent);
+  filter: brightness(1.1);
+}
+.fcard-start {
+  border-style: solid;
+  opacity: 0.85;
+}
+.fcard-start .fcard-main {
+  grid-template-areas:
+    "icon name stat"
+    "icon sub sub";
+}
+.today-band {
+  border-radius: 16px;
+}
+.today-icon {
+  background: var(--c-diary);
+}
+/* 지난 오늘·최근: 상자 없이 줄로 */
+.on-this-day .note-list,
+.recent .note-list {
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  background: none;
+}
+.on-this-day .note-list a,
+.recent .note-list a {
+  padding: 0.65rem 0.15rem;
+}
+.past-years {
+  color: var(--accent);
+}
+
+/* ── 폴더 위 요약(구매·여행·건강·음식): 상자 걷어내기 ── */
+.spending,
+.trips,
+.health,
+.food {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+.folder-grid a {
+  border: 0;
+  background: var(--panel);
+  box-shadow: none;
+}
+
+@media (max-width: 768px) {
+  .note-title,
+  .title-field input {
+    font-size: 1.65rem;
+  }
+  .meta dt {
+    width: 5.75rem;
+  }
+  .props .form-field,
+  .props .chips-field {
+    grid-template-columns: 5.75rem minmax(0, 1fr);
+  }
+  /* 칸 이름은 속성판 왼쪽에 보인다 (예전 모바일 규칙 덮기) */
+  .chips-field.has-icon > .form-label {
+    position: static;
+    width: auto;
+    height: auto;
+    clip-path: none;
+  }
+  .props .form-label {
+    font-size: 0.85rem;
+  }
+
+  /* 편집기: 위에는 닫기·상태·저장, 도구는 아래에 떠 있는 막대 (키보드가 올라오면 그 위) */
+  .editor {
+    padding-bottom: 5.5rem;
+  }
+  .editor-bar {
+    flex-wrap: nowrap;
+  }
+  .editor-bar .bar-btn[title="닫기"] {
+    order: -1;
+    border-color: transparent;
+    background: transparent;
+  }
+  .editor-bar .spacer {
+    display: block;
+    flex: 1;
+  }
+  .editor-bar .status {
+    order: 0;
+    flex-basis: auto;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .editor-bar .status.unsaved {
+    display: none;
+  }
+  .editor-tools {
+    position: fixed;
+    left: 50%;
+    bottom: calc(14px + env(safe-area-inset-bottom));
+    z-index: 30;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 4px;
+    border-radius: 18px;
+    background: var(--text);
+    box-shadow: 0 6px 20px rgb(30 35 25 / 0.2);
+  }
+  .editor-tools .tabs {
+    display: inline-flex;
+    gap: 2px;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+  .editor-tools .tabs button,
+  .editor-tools .bar-btn {
+    min-width: 46px;
+    height: 42px;
+    justify-content: center;
+    padding: 0 0.6rem;
+    border: 0;
+    border-radius: 14px;
+    background: transparent;
+    color: color-mix(in srgb, var(--bg) 80%, var(--text));
+  }
+  .editor-tools .tabs button[aria-selected="true"],
+  .editor-tools .receipt-toggle.on {
+    background: rgb(255 255 255 / 0.16);
+    color: #fff;
+    font-weight: 400;
+  }
+  .editor-tools .bar-btn:disabled {
+    opacity: 0.5;
+  }
+}
+
+/* ── 첫 화면 다듬기 ── */
+/* 지금 한 줄: 속성판 색 한 줄 입력 + 화살표 버튼 */
+.quick-note {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.35rem 0.3rem 1rem;
+  border: 0;
+  border-radius: 14px;
+  background: var(--panel);
+  box-shadow: none;
+}
+.quick-note .quick-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.quick-note input {
+  font-size: 1rem;
+}
+.quick-note .btn {
+  align-self: center;
+  justify-self: auto;
+  width: 40px;
+  min-height: 40px;
+  padding: 0;
+  justify-content: center;
+  border-radius: 11px;
+}
+.quick-note:focus-within {
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+.quick-result {
+  grid-column: 1 / -1;
+}
+.meta-form .title-field input {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: 1.9rem;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+@media (max-width: 768px) {
+  .meta-form .title-field input {
+    font-size: 1.65rem;
+  }
+  /* 쓰임새 줄: 폴더 이름은 빼고, + 버튼은 아이콘만 */
+  .fcard-name .muted {
+    display: none;
+  }
+  .fcard-action:has(svg) {
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    justify-content: center;
+    font-size: 0;
+  }
+  .fcard-action:has(svg) svg {
+    width: 18px;
+    height: 18px;
+  }
+}
+/* 건강 수치: 이름을 넓게, 숫자 칸은 오른쪽에 좁게 */
+.props .metric-group .form-field {
+  grid-template-columns: minmax(0, 1fr) 7rem;
+  align-items: center;
+}
+.props .metric-group .form-field > .form-label {
+  min-height: 40px;
+  font-size: 0.9rem;
+  line-height: 1.3;
+}
+.props .metric-group .form-field input:not([type="checkbox"]) {
+  min-height: 36px;
+  padding: 0 0.5rem;
+  border-radius: 8px;
+  background: var(--surface);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.props .metric-group .form-field > .form-hint {
+  grid-column: 1 / -1;
+  margin-top: -0.2rem;
 }

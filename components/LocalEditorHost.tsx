@@ -162,7 +162,7 @@ export function LocalEditorHost() {
   if (!open) return null;
   return (
     <div className="local-editor">
-      <Editor key={open.key} {...open.props} />
+      <Editor key={open.key} {...open.props} onLeave={() => setOpen(null)} />
     </div>
   );
 }
