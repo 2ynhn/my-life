@@ -18,7 +18,7 @@ export default async function SharePage({ searchParams }: { searchParams: Promis
   const mine = await myLibrary(user);
   const loaded = mine.kind === "ok" ? await loadLibrary(user, mine.lib.rootId) : null;
   let rootId: string | null = null;
-  const targets: ShareTargets = { purchase: null, diary: false, food: null, travelNew: null, trips: [] };
+  const targets: ShareTargets = { purchase: null, diary: false, food: null, foodPlace: null, travelNew: null, trips: [] };
 
   if (loaded?.kind === "ok") {
     const index = loaded.index;
@@ -35,7 +35,11 @@ export default async function SharePage({ searchParams }: { searchParams: Promis
 
     // 음식: 새 음식 기록 (찍은 날·찍은 곳은 편집기가 사진에서 채운다)
     const food = of("food");
-    if (food?.can.addChildren) targets.food = `${hrefFor(food)}?mode=new&shared=photos`;
+    if (food?.can.addChildren) {
+      targets.food = `${hrefFor(food)}?mode=new&shared=photos`;
+      // 지도 앱에서 공유한 장소 → 그 가게로 새 음식 기록
+      targets.foodPlace = `${hrefFor(food)}?mode=new&shared=place`;
+    }
 
     // 여행: 새 여행, 또는 최근에 고친 여행 글 5개
     const travel = of("travel");

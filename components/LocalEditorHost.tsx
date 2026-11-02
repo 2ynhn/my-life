@@ -101,6 +101,7 @@ export function localEditorProps(local: LocalState | null, pathname: string, sea
     receipt: kind === "spending",
     sharedImage: shared === "1" && kind === "spending",
     sharedPhotos: shared === "photos",
+    sharedPlace: shared === "place" && kind === "food",
     insertPhoto,
     places: kind === "travel" || kind === "food",
     form: kind,

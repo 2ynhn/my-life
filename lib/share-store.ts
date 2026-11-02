@@ -31,6 +31,13 @@ export async function takeSharedImages(): Promise<Blob[]> {
   return images;
 }
 
+/** 받은 글을 꺼낸다 (꺼내면 브라우저에서 지움) */
+export async function takeSharedText(): Promise<string> {
+  const { text } = await peekShared();
+  await clearShared("text");
+  return text;
+}
+
 export async function clearShared(what: "images" | "text" | "all" = "all") {
   try {
     const cache = await open();

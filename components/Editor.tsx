@@ -13,7 +13,7 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } f
 import { MetaForm, type FormKind, type Suggestions } from "@/components/MetaForm";
 import { NoteBody } from "@/components/NoteBody";
 import { PlacePicker } from "@/components/PlacePicker";
-import type { PlaceInfo } from "@/lib/map-link";
+import { findMapUrl, type PlaceInfo } from "@/lib/map-link";
 import { ReceiptCamera } from "@/components/ReceiptCamera";
 import { addPlace, readMeta, setFields } from "@/lib/frontmatter-edit";
 import { reverseName } from "@/lib/geo-name";
@@ -23,7 +23,7 @@ import { useLocal, useLocalContext } from "@/components/LocalData";
 import { localSuggestions } from "@/components/LocalRootView";
 import { localVersion, putLocalText } from "@/lib/local-store";
 import { enqueue, onResult, pendingSave, readDraft, writeDraft, type Draft } from "@/lib/save-queue";
-import { takeSharedImages } from "@/lib/share-store";
+import { takeSharedImages, takeSharedText } from "@/lib/share-store";
 import { autoNoteName } from "@/lib/note-name";
 import { fillReceipt, receiptFileName, type Receipt } from "@/lib/receipt-shape";
 import { addCategory as addCategoryAction } from "@/app/(app)/budget-actions";
@@ -49,6 +49,8 @@ type Props = {
   manageCategories?: boolean;
   /** 휴대폰 '공유하기'로 받은 사진들을 열자마자 글 끝에 넣는다 (일기·여행) */
   sharedPhotos?: boolean;
+  /** 휴대폰 '공유하기'로 받은 지도 앱 공유 글(네이버 지도 등)로 장소·식당을 채운다 (음식) */
+  sharedPlace?: boolean;
   /** 이미 올려 둔 사진을 열자마자 글 끝에 넣는다 (여행 사진으로 일기 쓰기) */
   insertPhoto?: string;
 } & (
@@ -486,6 +488,39 @@ export function Editor(props: Props) {
       if (view) view.dispatch({ selection: { anchor: view.state.doc.length } });
       await uploadRef.current(blobs.map((b, i) => new File([b], `shared-${i + 1}`, { type: b.type || "image/jpeg" })));
       setMessage({ kind: "info", text: `사진 ${blobs.length}장을 글 끝에 넣었어요. 확인하고 저장하세요.` });
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 지도 앱에서 공유받은 장소: 장소(이름·좌표·링크)를 넣고, 식당이 비어 있으면 그 이름으로
+  const placeTaken = useRef(false);
+  useEffect(() => {
+    if (!props.sharedPlace || placeTaken.current) return;
+    placeTaken.current = true;
+    void (async () => {
+      const shared = await takeSharedText();
+      if (!findMapUrl(shared)) return setMessage({ kind: "info", text: "공유받은 지도 링크가 없어요. '장소 추가'로 넣어 주세요." });
+      setMessage({ kind: "info", text: "공유받은 장소를 찾는 중…" });
+      try {
+        const res = await fetch("/api/places", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: shared }) });
+        const j = (await res.json().catch(() => ({}))) as { place?: PlaceInfo; error?: string };
+        if (!res.ok || !j.place) throw new Error(j.error || "링크에서 장소를 꺼내지 못했습니다.");
+        const p = j.place;
+        const current = viewRef.current?.state.doc.toString() ?? text;
+        const round = (n: number) => Math.round(n * 1e5) / 1e5;
+        const geo = p.lat !== undefined && p.lng !== undefined ? { lat: round(p.lat), lng: round(p.lng) } : {};
+        const named = String(readMeta(current)?.restaurant ?? "").trim();
+        replaceDoc(
+          setFields(current, {
+            place: { name: p.name, ...geo, ...(p.link ? { link: p.link } : {}) },
+            ...(named ? {} : { restaurant: p.name }),
+          }),
+          false,
+        );
+        setMessage({ kind: "info", text: `'${p.name}'을(를) 넣었어요. 메뉴·별점을 적고 저장하세요.` });
+      } catch (e) {
+        setMessage({ kind: "error", text: e instanceof Error ? e.message : "공유받은 장소를 넣지 못했습니다." });
+      }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

@@ -336,6 +336,7 @@ async function NewNote({
       receipt={kind === "spending"}
       sharedImage={shared === "1" && kind === "spending"}
       sharedPhotos={shared === "photos"}
+      sharedPlace={shared === "place" && kind === "food"}
       insertPhoto={insertPhoto}
       places={kind === "travel" || kind === "food"}
       form={kind}

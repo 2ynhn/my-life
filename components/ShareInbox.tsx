@@ -6,10 +6,12 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { quickNote } from "@/app/(app)/note-actions";
 import { readExif } from "@/lib/exif";
+import { findMapUrl } from "@/lib/map-link";
 import { clearShared, peekShared } from "@/lib/share-store";
 
 // 휴대폰 '공유하기'로 받은 것을 어디에 넣을지 고른다.
 // 이미지: 구매(영수증으로 읽기) · 일기(오늘 일기에 사진) · 여행(최근 여행이나 새 여행에 사진). 글·링크: 오늘 일기에 한 줄.
+// 지도 앱 장소 공유(글 안에 지도 링크, 이미지 없음): 고르지 않고 바로 새 음식 기록.
 // 받은 내용은 브라우저 안(Cache Storage)에만 있고, 다 쓰거나 버리면 지운다.
 
 export type ShareTargets = {
@@ -18,6 +20,8 @@ export type ShareTargets = {
   diary: boolean;
   /** 새 음식 기록 주소 */
   food: string | null;
+  /** 지도 앱 공유 글로 새 음식 기록 (장소·식당을 채움) */
+  foodPlace: string | null;
   travelNew: string | null;
   trips: { title: string; path: string; href: string }[];
 };
@@ -30,6 +34,7 @@ const dayLabel = (d: string) =>
 export function ShareInbox({ rootId, targets, retry }: { rootId: string | null; targets: ShareTargets; retry: boolean }) {
   const router = useRouter();
   const [loaded, setLoaded] = useState(false);
+  const [opening, setOpening] = useState(false);
   const [images, setImages] = useState<string[]>([]);
   // 사진 찍은 날 (여러 장이면 가장 이른 날). 모르면 null → 오늘
   const [photoDay, setPhotoDay] = useState<string | null>(null);
@@ -43,6 +48,11 @@ export function ShareInbox({ rootId, targets, retry }: { rootId: string | null; 
     let urls: string[] = [];
     (async () => {
       const shared = await peekShared();
+      // 지도 앱(네이버 지도 등)에서 장소만 공유했으면 고르지 않고 바로 그 가게의 음식 기록으로
+      if (!shared.images.length && targets.foodPlace && findMapUrl(shared.text)) {
+        setOpening(true);
+        return router.replace(targets.foodPlace);
+      }
       setImages((urls = shared.images.map((b) => URL.createObjectURL(b))));
       const days = await Promise.all(
         shared.images.map(async (b) =>
@@ -56,9 +66,10 @@ export function ShareInbox({ rootId, targets, retry }: { rootId: string | null; 
       setLoaded(true);
     })();
     return () => urls.forEach((u) => URL.revokeObjectURL(u));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (!loaded) return <p className="muted">받은 내용을 여는 중…</p>;
+  if (!loaded) return <p className="muted">{opening ? "음식 기록을 여는 중…" : "받은 내용을 여는 중…"}</p>;
 
   if (!images.length && !text)
     return (
@@ -70,7 +81,7 @@ export function ShareInbox({ rootId, targets, retry }: { rootId: string | null; 
         )}
         <p className="muted small">
           휴대폰(안드로이드 크롬)에 my-life를 홈 화면에 설치하면, 갤러리·쇼핑 앱의 <b>공유하기</b> 목록에 my-life가 나옵니다. 사진은 구매(영수증
-          읽기)·일기·여행 중 넣을 곳을 고르고, 글이나 링크는 오늘 일기에 한 줄로 남길 수 있어요. (아이폰은 아직 이 기능을 지원하지 않아요)
+          읽기)·일기·여행 중 넣을 곳을 고르고, 글이나 링크는 오늘 일기에 한 줄로 남길 수 있어요. 네이버 지도·카카오맵에서 장소를 공유하면 그 가게의 음식 기록이 바로 열려요. (아이폰은 아직 이 기능을 지원하지 않아요)
         </p>
         <Link className="btn" href="/">
           첫 화면으로
