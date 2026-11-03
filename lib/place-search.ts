@@ -113,18 +113,40 @@ export async function googleSearch(q: string): Promise<FoundPlace[] | null> {
 }
 
 /** 네이버 → 구글 순서로: 키가 없거나 못 찾거나 오류면 다음으로. 둘 다 없으면 null (브라우저가 OpenStreetMap으로) */
-export async function searchPlaces(q: string): Promise<{ source: PlaceSource; results: FoundPlace[] } | null> {
-  const steps: [PlaceSource, (q: string) => Promise<FoundPlace[] | null>][] = [
-    ["naver", naverSearch],
-    ["google", googleSearch],
+export type SearchOutcome = { source: PlaceSource; results: FoundPlace[]; notes: string[] } | { source: null; notes: string[] };
+
+/** 이름 찾기. notes: 건너뛴 단계와 이유 (화면에 짧게 보여 줘 키 문제를 알 수 있게, 키 값은 넣지 않음) */
+export async function searchPlacesDetailed(q: string): Promise<SearchOutcome> {
+  const steps: [PlaceSource, string, (q: string) => Promise<FoundPlace[] | null>][] = [
+    ["naver", "네이버", naverSearch],
+    ["google", "구글", googleSearch],
   ];
-  for (const [source, run] of steps) {
+  const notes: string[] = [];
+  for (const [source, label, run] of steps) {
     try {
       const results = await run(q);
-      if (results?.length) return { source, results };
-    } catch {}
+      if (results?.length) return { source, results, notes };
+      notes.push(results === null ? `${label}: 키 없음` : `${label}: 결과 없음`);
+    } catch (e) {
+      const status = /\b(\d{3})\b/.exec(e instanceof Error ? e.message : "")?.[1];
+      const why =
+        status === "401" || status === "403"
+          ? `키 거부(${status}) — 키 값이나 사용 API(지역 검색) 설정 확인`
+          : status === "429"
+            ? "오늘 호출 한도 초과(429)"
+            : status
+              ? `오류(${status})`
+              : "응답 없음";
+      notes.push(`${label}: ${why}`);
+      console.error(`[places] ${source} search failed:`, e instanceof Error ? e.message : e);
+    }
   }
-  return null;
+  return { source: null, notes };
+}
+
+export async function searchPlaces(q: string): Promise<{ source: PlaceSource; results: FoundPlace[] } | null> {
+  const out = await searchPlacesDetailed(q);
+  return out.source ? { source: out.source, results: out.results } : null;
 }
 
 const UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";

@@ -1,4 +1,4 @@
-import { hasGooglePlaces, hasNaverSearch, resolveMapShare, searchPlaces } from "@/lib/place-search";
+import { hasGooglePlaces, hasNaverSearch, resolveMapShare, searchPlacesDetailed } from "@/lib/place-search";
 import { getUser } from "@/lib/session";
 
 // 장소 찾기: GET ?q= 네이버 → 구글 (키가 없거나 둘 다 못 찾으면 501 → 브라우저가 OpenStreetMap으로)
@@ -27,8 +27,8 @@ export async function GET(req: Request) {
   if (!q) return json({ results: [] });
   if (!hasNaverSearch() && !hasGooglePlaces()) return json({ error: "no-key" }, 501);
   if (!allow(user.email)) return json({ error: "잠시 뒤 다시 찾아 주세요." }, 429);
-  const found = await searchPlaces(q);
-  return found ? json(found) : json({ error: "not-found" }, 501);
+  const found = await searchPlacesDetailed(q);
+  return found.source ? json(found) : json({ error: "not-found", notes: found.notes }, 501);
 }
 
 export async function POST(req: Request) {

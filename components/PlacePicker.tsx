@@ -34,6 +34,8 @@ export function PlacePicker({ onPick, onClose }: Props) {
   const [busy, setBusy] = useState(false);
   const [results, setResults] = useState<Found[] | null>(null);
   const [source, setSource] = useState<"naver" | "google" | "osm" | null>(null);
+  // 앞 단계를 건너뛴 이유 (예: "네이버: 키 거부(401)")
+  const [notes, setNotes] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   // 넣기 전에 이름을 고칠 수 있게 (지금 있는 곳·공유 링크)
   const [pending, setPending] = useState<PlaceInfo | null>(null);
@@ -48,12 +50,11 @@ export function PlacePicker({ onPick, onClose }: Props) {
 
   const fromName = async (name: string) => {
     const res = await fetch(`/api/places?${new URLSearchParams({ q: name })}`);
-    if (res.ok) {
-      const j = (await res.json()) as { source: "naver" | "google"; results: Found[] };
-      if (j.results.length) {
-        setSource(j.source);
-        return setResults(j.results);
-      }
+    const j = (await res.json().catch(() => ({}))) as { source?: "naver" | "google"; results?: Found[]; notes?: string[] };
+    setNotes(j.notes ?? []);
+    if (res.ok && j.source && j.results?.length) {
+      setSource(j.source);
+      return setResults(j.results);
     }
     // 키가 없거나(501) 네이버·구글 모두 못 찾았거나 오류면 OpenStreetMap으로
     setSource("osm");
@@ -182,6 +183,7 @@ export function PlacePicker({ onPick, onClose }: Props) {
             ))}
           </ul>
         )}
+        {notes.length > 0 && source && <p className="small muted">{notes.join(" · ")}</p>}
         {(source || !pending) && <p className="small muted">{source === "naver" ? "검색: 네이버" : source === "google" ? "검색: Google" : source === "osm" ? "검색: © OpenStreetMap 기여자" : "네이버 지도·카카오맵·구글 지도에서 '공유 → 링크 복사' 한 것도 넣을 수 있어요"}</p>}
       </div>
     </div>
