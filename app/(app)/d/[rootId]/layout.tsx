@@ -4,7 +4,7 @@ import { LocalEditorHost } from "@/components/LocalEditorHost";
 import { LocalNav } from "@/components/LocalNav";
 import { Sidebar } from "@/components/Sidebar";
 import { TabBar } from "@/components/TabBar";
-import { folderTree, webUrlFor } from "@/lib/drive";
+import { folderTree } from "@/lib/drive";
 import { loadLibrary } from "@/lib/library";
 import { requireUser } from "@/lib/session";
 
@@ -27,7 +27,6 @@ export default async function LibraryLayout({
       <Sidebar
         tree={folderTree(index.root)}
         homeHref={index.lib.base}
-        driveHref={webUrlFor(index.root)}
       />
       <div className="with-sidebar">
         <Suspense fallback={null}>

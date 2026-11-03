@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, CalendarDays, ExternalLink, Folder, HeartPulse, Layers, Lock, Menu, NotebookPen, Plane, Receipt, Settings, Sparkles, X, UtensilsCrossed } from "lucide-react";
+import { ArrowLeft, CalendarDays, Folder, HeartPulse, Layers, Lock, Menu, NotebookPen, Plane, Receipt, Settings, Sparkles, X, UtensilsCrossed } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -49,8 +49,8 @@ function Branch({ nodes, pathname, top = false }: { nodes: TreeNode[]; pathname:
   );
 }
 
-/** 일기장 하나의 메뉴: 검색·도구·폴더 트리, 아래에 Drive에서 열기·설정·다시 불러오기. 모바일에서는 왼쪽 서랍 */
-export function Sidebar({ tree, homeHref, driveHref }: { tree: TreeNode[]; homeHref: string; driveHref: string }) {
+/** 일기장 하나의 메뉴: 검색·도구·폴더 트리, 아래에 설정·다시 불러오기 (Drive에서 열기는 설정에). 모바일에서는 왼쪽 서랍 */
+export function Sidebar({ tree, homeHref }: { tree: TreeNode[]; homeHref: string }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   // 모바일 메뉴 버튼은 머리줄 왼쪽 자리에 넣는다
@@ -100,10 +100,6 @@ export function Sidebar({ tree, homeHref, driveHref }: { tree: TreeNode[]; homeH
         </div>
         <Branch nodes={tree} pathname={pathname} top />
         <div className="side-foot">
-          <a href={driveHref} target="_blank" rel="noopener noreferrer">
-            <ExternalLink size={16} aria-hidden />
-            Drive에서 열기
-          </a>
           <Link href="/settings">
             <Settings size={16} aria-hidden />
             설정

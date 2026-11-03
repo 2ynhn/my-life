@@ -41,9 +41,6 @@ function Preview() {
   return <PreviewFor pathname={pathname} search={params.toString()} />;
 }
 
-const webUrl = (e: LocalEntry) =>
-  e.k === "d" ? `https://drive.google.com/drive/folders/${e.id}` : `https://drive.google.com/file/d/${e.id}/view`;
-
 /** 기기 데이터로 그릴 수 있는 주소인지 (폴더·글 보기만. 첫 화면·편집·검색 등은 서버를 기다린다) */
 /** 폴더 요약의 보기 설정(구매 월·건강 기간)만 있는 주소도 사본으로 그린다 */
 const VIEW_PARAMS = new Set(["spend", "range"]);
@@ -77,26 +74,17 @@ export function PreviewFor({ pathname, search }: { pathname: string; search: str
         <Home data={homeDataOf(local, entry)} />
       </div>
     );
-  const head = (
-    <div className="entry-head">
-      <a className="small muted" href={webUrl(entry)} target="_blank" rel="noopener noreferrer">
-        Drive에서 열기 ↗
-      </a>
-    </div>
-  );
   // 쓰임새마다 강조색 (서버 화면의 feature-scope와 같게)
   const feature = local.tree.kinds[topOf(local, entry).id] ?? undefined;
   if (entry.k === "d")
     return (
       <div className="local-preview feature-scope" data-feature={feature} aria-busy="true">
-        {head}
         <FolderPreview local={local} folder={entry} params={new URLSearchParams(search)} />
       </div>
     );
   const text = local.texts.get(entry.id)!.t;
   return (
     <div className="local-preview feature-scope" data-feature={feature} aria-busy="true">
-      {head}
       {/* 버튼도 서버를 기다리지 않는다 (Drive 권한은 받아 둔 목록 그대로) */}
       {(entry.e || entry.rn || entry.t) && (
         <NoteActions

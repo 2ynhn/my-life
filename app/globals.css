@@ -4537,3 +4537,384 @@ body:has(.editor) .tabbar {
 .place-list .icon-btn {
   color: var(--muted);
 }
+
+/* ═════════════ 한 단계 작게: 글자 · 여백 · 버튼 (모든 화면) ═════════════ */
+/* 상단 바 */
+.topbar {
+  min-height: 46px;
+  padding: 0.3rem 0.75rem;
+}
+/* 글 보기: 작은 제목 · 촘촘한 속성판 · 15px 본문 */
+.note-actions {
+  gap: 0.1rem;
+  margin: 0 0 0.35rem -0.5rem;
+}
+.note-actions .btn {
+  min-height: 32px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.8125rem;
+  border-radius: 9px;
+}
+.note-actions .btn svg {
+  width: 15px;
+  height: 15px;
+}
+.note-title {
+  margin: 0.1rem 0 0.6rem;
+  font-size: 1.375rem;
+  line-height: 1.3;
+  letter-spacing: -0.015em;
+}
+.meta {
+  margin: 0 0 1rem;
+  padding: 0.1rem 0.65rem;
+  border-radius: 12px;
+  font-size: 0.875rem;
+}
+.meta .prop {
+  gap: 0.6rem;
+  min-height: 36px;
+  padding: 0.15rem 0;
+}
+.meta dt {
+  gap: 0.45rem;
+  width: 5rem;
+  font-size: 0.8125rem;
+}
+.meta dt svg {
+  width: 16px;
+  height: 16px;
+}
+.pill,
+.tags li {
+  padding: 0 0.6rem;
+  font-size: 0.8125rem;
+}
+.prose {
+  font-size: 0.9375rem;
+  line-height: 1.7;
+}
+.prose h1 {
+  font-size: 1.25rem;
+}
+.prose h2 {
+  font-size: 1.1rem;
+}
+/* 쓰기 화면도 같은 크기로 */
+.title-field input,
+.meta-form .title-field input {
+  font-size: 1.375rem;
+  line-height: 1.3;
+}
+.meta-form {
+  gap: 0.75rem;
+}
+.props {
+  padding: 0.05rem 0.65rem;
+  border-radius: 12px;
+}
+.props .form-field,
+.props .chips-field {
+  grid-template-columns: 5rem minmax(0, 1fr);
+  column-gap: 0.6rem;
+  padding: 0.05rem 0;
+}
+.props .form-label {
+  gap: 0.45rem;
+  min-height: 36px;
+  font-size: 0.8125rem;
+}
+.props .form-label svg {
+  width: 16px;
+  height: 16px;
+}
+.props input:not([type="checkbox"]),
+.props .chips,
+.props .seg,
+.props .place-chip,
+.props .stars {
+  min-height: 36px;
+  font-size: 0.875rem;
+}
+.body-field textarea {
+  font-size: 0.9375rem;
+  line-height: 1.7;
+}
+
+/* 폴더(항목) 화면 머리: 20px 제목 · 30px 아이콘 · 34px 버튼 */
+.title-row {
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+.page-title {
+  margin: 0.1rem 0 0.75rem;
+  font-size: 1.25rem;
+  gap: 0.5rem;
+}
+.title-row .page-title {
+  margin: 0;
+  min-width: 0;
+}
+.page-title .ficon,
+.title-row .ficon {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+}
+.page-title .ficon svg {
+  width: 16px;
+  height: 16px;
+}
+.title-actions {
+  gap: 0.35rem;
+}
+.title-actions .btn {
+  min-height: 34px;
+  padding: 0.2rem 0.7rem;
+  border-radius: 9px;
+  font-size: 0.8125rem;
+}
+.title-actions .new-folder,
+.title-actions .template-btn {
+  padding: 0.2rem 0.5rem;
+}
+.title-actions .btn svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* 요약 숫자 (구매·음식·건강·여행) */
+.spend-head {
+  gap: 1rem;
+  margin-bottom: 0.6rem;
+}
+.spend-head strong,
+.spending .spend-head strong,
+.food .spend-head strong {
+  font-size: 1.0625rem;
+  line-height: 1.25;
+}
+.spend-head .muted.small {
+  font-size: 0.75rem;
+}
+.food .spend-head {
+  display: flex;
+  gap: 1.5rem;
+}
+.food .spend-head .stat {
+  padding: 0;
+  background: none;
+}
+.map-toggle .btn {
+  min-height: 32px;
+  padding: 0.15rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+}
+
+/* 음식 목록: 카드 대신 줄 */
+.meals {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0.5rem 0 1rem;
+  border-top: 1px solid var(--line);
+}
+.meals a,
+.meals a:hover {
+  gap: 0.75rem;
+  padding: 0.6rem 0.1rem;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+}
+.meals img,
+.meal-noimg {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+}
+.meal-noimg svg {
+  width: 16px;
+  height: 16px;
+}
+.meal-text strong,
+.meal-text > :first-child {
+  font-size: 0.9375rem;
+}
+.meal-text .small {
+  font-size: 0.75rem;
+}
+
+/* 글 목록 (모든 폴더) */
+.note-list a {
+  padding: 0.55rem 0.1rem;
+  font-size: 0.875rem;
+}
+.note-list .summary,
+.note-list .muted {
+  font-size: 0.75rem;
+}
+
+/* 첫 화면 */
+.home-head {
+  margin-bottom: 0.6rem;
+}
+.home .home-date {
+  font-size: 1.0625rem;
+}
+.quick-note {
+  padding: 0.2rem 0.3rem 0.2rem 0.75rem;
+  border-radius: 12px;
+}
+.quick-note input {
+  font-size: 0.875rem;
+}
+.quick-note .btn {
+  width: 32px;
+  min-height: 32px;
+  border-radius: 9px;
+}
+.today-band {
+  gap: 0.65rem;
+  padding: 0.55rem 0.75rem;
+  margin: 0 0 0.6rem;
+  border-radius: 12px;
+}
+.today-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+}
+.today-icon svg {
+  width: 16px;
+  height: 16px;
+}
+.today-band strong {
+  font-size: 0.875rem;
+}
+.today-band .small,
+.today-band .muted {
+  font-size: 0.75rem;
+}
+.home-search input[name="q"] {
+  min-height: 38px;
+  font-size: 0.875rem;
+}
+.home-search .btn {
+  min-height: 38px;
+  font-size: 0.8125rem;
+}
+.fcard,
+.fcard:hover {
+  gap: 0.6rem;
+  padding: 0.5rem 0.1rem;
+}
+.fcard-main {
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  column-gap: 0.7rem;
+}
+.fcard-head .ficon {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+}
+.fcard-head .ficon svg {
+  width: 16px;
+  height: 16px;
+}
+.fcard-name strong {
+  font-size: 0.9375rem;
+}
+.fcard-sub {
+  font-size: 0.75rem;
+}
+.fcard-stat strong {
+  font-size: 1rem;
+}
+.fcard-stat .small {
+  font-size: 0.6875rem;
+}
+.fcard-action {
+  margin: 0;
+  padding: 0.3rem 0.6rem;
+  border-radius: 9px;
+  font-size: 0.8125rem;
+}
+.on-this-day h2,
+.recent h2,
+.home-section h2 {
+  font-size: 0.75rem;
+}
+
+/* 버튼은 작게 보여도 누르는 범위는 넉넉히 (손가락 44px) */
+.note-actions .btn,
+.title-actions .btn,
+.fcard-action,
+.quick-note .btn,
+.map-toggle .btn {
+  position: relative;
+}
+.note-actions .btn::before,
+.title-actions .btn::before,
+.fcard-action::before,
+.quick-note .btn::before,
+.map-toggle .btn::before {
+  content: "";
+  position: absolute;
+  inset: -6px -2px;
+}
+
+@media (max-width: 768px) {
+  .note-title,
+  .title-field input,
+  .meta-form .title-field input {
+    font-size: 1.375rem;
+  }
+  .meta dt {
+    width: 5rem;
+  }
+  .props .form-field,
+  .props .chips-field {
+    grid-template-columns: 5rem minmax(0, 1fr);
+  }
+  .props .form-label {
+    font-size: 0.8125rem;
+  }
+  .fcard-action:has(svg) {
+    width: 32px;
+    height: 32px;
+  }
+  .fcard-action:has(svg) svg {
+    width: 16px;
+    height: 16px;
+  }
+  /* 검색: 한 줄에 입력 + 물어보기 (엔터는 검색, '검색' 버튼은 화면에서만 숨김) */
+  .home-search {
+    flex-wrap: nowrap;
+    gap: 0.35rem;
+  }
+  .home-search input[name="q"] {
+    flex: 1 1 auto;
+    flex-basis: auto;
+    min-width: 0;
+  }
+  .home-search .search-icon {
+    top: auto;
+  }
+  .home-search .btn {
+    flex: none;
+  }
+  .home-search .btn:not(.btn-ask) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    border: 0;
+  }
+  .home-search .btn-ask svg {
+    display: none;
+  }
+}

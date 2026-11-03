@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
+import { ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { DriveProblem } from "@/components/DriveProblem";
 import { AiSettingsForm } from "@/components/AiSettingsForm";
 import { InviteLink, RestrictList, ShareList } from "@/components/ShareManager";
 import { AI_MODELS, getAiSettings } from "@/lib/ai-settings";
-import { DriveError, listShares, sharingFolders, type Share } from "@/lib/drive";
+import { DriveError, listShares, sharingFolders, webUrlFor, type Share } from "@/lib/drive";
 import { loadLibrary, myLibrary } from "@/lib/library";
 import { requireUser, type AppUser } from "@/lib/session";
 import { LogoutButton } from "@/components/LogoutButton";
@@ -113,6 +114,12 @@ async function SettingsBody({ user }: { user: AppUser }) {
         <p className="muted small">
           내 Drive의 <b>{index.lib.name}</b> 폴더를 쓰고 있어요.{" "}
           <Link href="/libraries">일기장 목록</Link>에서 공유받은 일기장을 열거나 내 일기장 폴더를 바꿀 수 있어요.
+        </p>
+        <p>
+          <a className="btn" href={webUrlFor(index.root)} target="_blank" rel="noopener noreferrer">
+            <ExternalLink size={16} aria-hidden />
+            Drive에서 열기
+          </a>
         </p>
       </section>
     </div>

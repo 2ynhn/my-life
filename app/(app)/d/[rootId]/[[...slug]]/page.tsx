@@ -30,7 +30,6 @@ import {
   loadTemplate,
   readNote,
   resolveSlugPath,
-  webUrlFor,
   type DriveIndex,
   type Entry,
   type FileEntry,
@@ -153,11 +152,6 @@ export default async function EntryPage({ params, searchParams }: Props) {
   const feature = await featureOf(index, entry);
   return (
     <div className="feature-scope" data-feature={feature ?? undefined}>
-      <div className="entry-head">
-        <a className="small muted" href={webUrlFor(entry)} target="_blank" rel="noopener noreferrer">
-          Drive에서 열기 ↗
-        </a>
-      </div>
       {entry.kind === "folder" ? (
         <Folder folder={entry} index={index} spend={spend} range={range} />
       ) : (

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Star, UtensilsCrossed } from "lucide-react";
-import { TravelMap, type MapPoint } from "@/components/TravelMap";
+import { MapToggle } from "@/components/MapToggle";
+import type { MapPoint } from "@/components/TravelMap";
 import { splitFrontmatter } from "@/lib/markdown";
 import { todayKST } from "@/lib/today";
 import { dateOf, type VFile, type ViewSource } from "@/lib/view-source";
@@ -105,7 +106,7 @@ export function FoodView({ src }: { src: ViewSource }) {
           ))}
         </p>
       )}
-      {points.length > 0 && <TravelMap points={points} />}
+      {points.length > 0 && <MapToggle points={points} label="지도" />}
       <ul className="meals">
         {meals.slice(0, 30).map((m) => (
           <li key={m.file.id}>
