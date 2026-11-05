@@ -9,6 +9,8 @@ import { linkTableFor, topOf } from "@/components/LocalPreview";
 import type { FormKind } from "@/components/MetaForm";
 import { normHref, type LocalState } from "@/lib/local-store";
 import type { LocalEntry } from "@/lib/local-types";
+import { featureByName } from "@/lib/features";
+import { kindOfTemplate, templateTextFor, type TemplateFile } from "@/lib/template-types";
 import { BUILTIN_TEMPLATES, DEFAULT_TEMPLATE, TEMPLATE_FOLDER, isTemplateFile, withEnd } from "@/lib/templates";
 import { todayKST } from "@/lib/today";
 
@@ -28,36 +30,49 @@ function kindOf(local: LocalState, e: LocalEntry): FormKind | null {
   return (local.tree.kinds[topOf(local, e).id] ?? null) as FormKind | null;
 }
 
-/** 폴더에서 위로 올라가며 가장 가까운 _template.md (일기장 맨 위는 빼고) */
-function nearTemplate(local: LocalState, folder: LocalEntry): LocalEntry | null {
-  for (let f: LocalEntry | undefined = folder; f?.p; f = local.byId.get(f.p)) {
-    const own = (local.children.get(f.id) ?? []).find((c) => c.k === "f" && isTemplateFile(c.n));
-    if (own) return own;
-  }
-  return null;
+/** 일기장의 _templates 폴더 (사본) */
+function templatesDir(local: LocalState): LocalEntry | undefined {
+  const root = local.tree.entries.find((e) => !e.p);
+  return root && (local.children.get(root.id) ?? []).find((c) => c.k === "d" && c.n === TEMPLATE_FOLDER);
 }
 
-/**
- * 서버 loadTemplate과 같은 순서: 가까운 _template.md → _templates/<맨 위 폴더>.md → 내장
- * → 맨 위 _template.md → _templates/default.md → 기본. 사본에 없으면 null
- */
+/** _templates 안의 서식들 (사본에 내용이 있는 것은 그 글) */
+export function localTemplateFiles(local: LocalState): TemplateFile[] {
+  const dir = templatesDir(local);
+  if (!dir) return [];
+  return (local.children.get(dir.id) ?? [])
+    .filter((c) => c.k === "f" && c.md)
+    .map((c) => ({ stem: c.n.replace(/\.md$/i, ""), text: local.texts.get(c.id)?.t ?? null }));
+}
+
+/** _templates/<최상위 폴더 이름>.md (사본) */
+export function localOwnTemplate(local: LocalState, folder: LocalEntry): LocalEntry | undefined {
+  const top = topOf(local, folder);
+  const dir = templatesDir(local);
+  if (!dir || !top.p) return undefined;
+  return (local.children.get(dir.id) ?? []).find((c) => c.k === "f" && c.n.toLowerCase() === `${top.n}.md`.toLowerCase());
+}
+
+/** 서버 loadTemplate과 같은 순서: _templates/<맨 위 폴더>.md → 폴더 쓰임새의 내장 서식 → _templates/default.md → 기본. 사본에 없으면 null */
 function templateFor(local: LocalState, folder: LocalEntry): string | null {
   const text = (e: LocalEntry) => local.texts.get(e.id)?.t ?? null;
-  const near = nearTemplate(local, folder);
-  if (near) return text(near);
-  const top = topOf(local, folder);
-  const builtin = (top.p && BUILTIN_TEMPLATES[top.n.toLowerCase()]) || DEFAULT_TEMPLATE;
-  const root = local.tree.entries.find((e) => !e.p);
-  const templates = root && (local.children.get(root.id) ?? []).find((c) => c.k === "d" && c.n === TEMPLATE_FOLDER);
-  const pick = (name: string) =>
-    templates ? (local.children.get(templates.id) ?? []).find((c) => c.k === "f" && c.n.toLowerCase() === name.toLowerCase()) : undefined;
-  const own = top.p ? pick(`${top.n}.md`) : undefined;
+  const own = localOwnTemplate(local, folder);
   if (own) return text(own);
+  const top = topOf(local, folder);
+  const feature = top.p ? featureByName(top.n) : null;
+  const key = feature === "spending" ? "purchase" : feature === "diary" ? null : feature;
+  const builtin = (top.p && (BUILTIN_TEMPLATES[top.n.toLowerCase()] ?? (key && BUILTIN_TEMPLATES[key]))) || DEFAULT_TEMPLATE;
   if (builtin !== DEFAULT_TEMPLATE) return builtin;
-  const rootOwn = root && (local.children.get(root.id) ?? []).find((c) => c.k === "f" && isTemplateFile(c.n));
-  if (rootOwn) return text(rootOwn);
-  const fallback = pick("default.md");
+  const dir = templatesDir(local);
+  const fallback = dir && (local.children.get(dir.id) ?? []).find((c) => c.k === "f" && c.n.toLowerCase() === "default.md");
   return fallback ? text(fallback) : DEFAULT_TEMPLATE;
+}
+
+/** 서식 파일인지 (_templates 안 · _template.md): 입력 폼 대신 원문으로 */
+function isTemplateEntry(local: LocalState, e: LocalEntry): boolean {
+  if (isTemplateFile(e.n)) return true;
+  const dir = templatesDir(local);
+  return !!dir && e.p === dir.id;
 }
 
 function freeName(local: LocalState, folder: LocalEntry, base: string) {
@@ -84,8 +99,8 @@ export function localEditorProps(local: LocalState | null, pathname: string, sea
     const t = local.texts.get(entry.id);
     const parent = entry.p ? local.byId.get(entry.p) : undefined;
     if (entry.k !== "f" || !entry.md || !entry.e || !t?.c || !parent) return null;
-    // 폴더 서식은 입력 폼 대신 원문으로
-    const form = isTemplateFile(entry.n) ? null : kindOf(local, entry);
+    // 서식 파일은 원문으로. 유형 없는 폴더의 글은 앞머리 모양으로 폼을 정한다 (예: 가족 폴더의 건강 글)
+    const form: FormKind | null = isTemplateEntry(local, entry) ? null : (kindOf(local, entry) ?? kindOfTemplate(t.t));
     return {
       mode: "edit",
       fileId: entry.id,
@@ -106,13 +121,16 @@ export function localEditorProps(local: LocalState | null, pathname: string, sea
   }
 
   if (entry.k !== "d" || !entry.a || !entry.p) return null;
-  const template = templateFor(local, entry);
+  const folderForm = kindOf(local, entry);
+  // 유형이 없는 폴더만 고른 유형(tpl)을 따른다. 사본에 그 서식이 없으면 서버 화면으로
+  const tpl = sp.get("tpl");
+  const template = !folderForm && tpl ? templateTextFor(tpl, localTemplateFiles(local)) : templateFor(local, entry);
   if (template === null) return null;
   const rawDate = sp.get("date");
   const date = rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : todayKST();
   const rawEnd = sp.get("end");
   const end = rawDate && rawEnd && /^\d{4}-\d{2}-\d{2}$/.test(rawEnd) && rawEnd > date ? rawEnd : undefined;
-  const kind = kindOf(local, entry);
+  const kind: FormKind | null = folderForm ?? kindOfTemplate(template);
   return {
     mode: "new",
     receipt: kind === "spending",

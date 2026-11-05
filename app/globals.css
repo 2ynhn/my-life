@@ -4918,3 +4918,47 @@ body:has(.editor) .tabbar {
     display: none;
   }
 }
+
+/* ───── 새 글: 유형 고르기 (유형이 없는 폴더) ───── */
+.new-menu {
+  position: relative;
+}
+.new-menu > summary {
+  list-style: none;
+  cursor: pointer;
+}
+.new-menu > summary::-webkit-details-marker {
+  display: none;
+}
+.new-menu-list {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 25;
+  min-width: 11rem;
+  max-height: 60vh;
+  overflow: auto;
+  margin: 0;
+  padding: 0.3rem;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgb(30 35 25 / 0.14);
+}
+.new-menu-list a {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 40px;
+  padding: 0.45rem 0.65rem;
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 0.875rem;
+  text-decoration: none;
+}
+.new-menu-list a:hover,
+.new-menu-list a:focus-visible {
+  background: var(--panel);
+}

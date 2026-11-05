@@ -12,6 +12,8 @@ import {
   hrefFor,
   invalidateIndex,
   loadTemplate,
+  ownTemplateFile,
+  templatesFolder,
   readNote,
   renameFile,
   trashFile,
@@ -22,7 +24,7 @@ import {
   type FolderEntry,
 } from "@/lib/drive";
 import { FEATURES, featureByName } from "@/lib/features";
-import { FOLDER_TEMPLATE, isTemplateFile } from "@/lib/templates";
+import { TEMPLATE_FOLDER, isTemplateFile } from "@/lib/templates";
 import { titleSnippet } from "@/lib/note-name";
 import { loadLibrary, markWritten } from "@/lib/library";
 import { getUser } from "@/lib/session";
@@ -310,23 +312,31 @@ export async function createFolderIn(rootId: string, parentId: string, rawName: 
 }
 
 /**
- * 폴더 서식(_template.md) 만들기: 지금 이 폴더의 새 글이 쓰는 서식 내용으로 시작한다.
- * 이미 있으면 그 파일 주소만 돌려준다. 만들 수 있는지는 Drive 권한(폴더에 추가)이 정한다.
+ * 이 폴더(의 최상위 폴더) 서식 _templates/<최상위 폴더 이름>.md 만들기: 지금 쓰는 서식 내용으로 시작한다.
+ * 이미 있으면 그 파일 주소만. _templates 폴더가 없으면 만든다. 만들 수 있는지는 Drive 권한이 정한다.
  */
 export async function createFolderTemplate(rootId: string, folderId: string): Promise<ActionResult> {
   const index = await libraryIndex(rootId);
   if (typeof index === "string") return { ok: false, error: index };
   const folder = folderById(index, folderId);
   if (!folder || folder === index.root) return { ok: false, error: "폴더를 찾을 수 없습니다." };
-  const existing = folder.children.find((c): c is FileEntry => c.kind === "file" && isTemplateFile(c.name));
+  const existing = ownTemplateFile(index, folder);
   if (existing) return { ok: true, href: hrefFor(existing) };
-  if (!folder.can.addChildren) return { ok: false, error: NO_PERMISSION };
+  let top = folder;
+  while (top.parent && top.parent !== index.root) top = top.parent;
   try {
+    let templates = templatesFolder(index);
+    if (!templates) {
+      if (!index.root.can.addChildren) return { ok: false, error: NO_PERMISSION };
+      const id = await createFolder(index, index.root, TEMPLATE_FOLDER);
+      templates = { ...index.root, id, name: TEMPLATE_FOLDER, parent: index.root, children: [] };
+    } else if (!templates.can.addChildren) return { ok: false, error: NO_PERMISSION };
     const text = await loadTemplate(index, folder);
-    const id = await createFile(index, folder, FOLDER_TEMPLATE, text);
+    const id = await createFile(index, templates, `${top.name}.md`, text);
+    invalidateIndex(index);
     await markWritten();
     revalidatePath("/", "layout");
-    return { ok: true, href: await freshHref(index, id, hrefFor(folder), true) };
+    return { ok: true, href: await freshHref(index, id, hrefFor(folder)) };
   } catch (e) {
     return failure(e);
   }

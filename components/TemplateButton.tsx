@@ -7,8 +7,8 @@ import { useState } from "react";
 import { createFolderTemplate } from "@/app/(app)/note-actions";
 
 /**
- * 폴더 서식(_template.md) 고치기. 있으면 바로 편집기로, 없으면 지금 쓰는 서식 내용으로 만들고 편집기로.
- * 보이는지는 Drive 권한이 정한다: 파일이 있으면 그 파일을 고칠 수 있을 때, 없으면 폴더에 추가할 수 있을 때.
+ * 유형이 정해진 폴더의 서식(_templates/<최상위 폴더 이름>.md) 고치기. 있으면 바로 편집기로,
+ * 없으면 지금 쓰는 서식 내용으로 만들고 편집기로. 보이는지는 Drive 권한이 정한다.
  */
 export function TemplateButton({
   rootId,
@@ -30,7 +30,7 @@ export function TemplateButton({
   if (existing) {
     if (!existing.editable) return null;
     return (
-      <Link className="btn template-btn" href={`${existing.href}?mode=edit`} title="이 폴더의 새 글 서식 고치기" aria-label="서식 고치기">
+      <Link className="btn template-btn" href={`${existing.href}?mode=edit`} title="이 폴더의 새 글 서식 고치기 (_templates 폴더)" aria-label="서식 고치기">
         {icon}
         {label}
       </Link>
@@ -42,7 +42,7 @@ export function TemplateButton({
       <button
         className="btn template-btn"
         disabled={busy}
-        title="이 폴더의 새 글 서식 만들기 (_template.md)"
+        title="이 폴더의 새 글 서식 만들기 (_templates 폴더에)"
         aria-label="서식 만들기"
         onClick={async () => {
           setBusy(true);

@@ -1,4 +1,6 @@
 import "server-only";
+import { featureByName } from "@/lib/features";
+import { kindOfTemplate, type TemplateFile } from "@/lib/template-types";
 import { BUILTIN_TEMPLATES, DEFAULT_TEMPLATE, TEMPLATE_FOLDER, isTemplateFile } from "@/lib/templates";
 import { createHash } from "node:crypto";
 import { API, DriveError, driveFetch, isNotFound, type DriveUser } from "@/lib/google";
@@ -821,41 +823,46 @@ const topFolderOf = (index: DriveIndex, folder: FolderEntry) => {
   return top;
 };
 
-/** 이 폴더에서 위로 올라가며 가장 가까운 _template.md (일기장 맨 위는 빼고) */
-export function folderTemplateFile(index: DriveIndex, folder: FolderEntry): FileEntry | null {
-  for (let f: FolderEntry | null = folder; f && f !== index.root; f = f.parent) {
-    const own = f.children.find((c): c is FileEntry => c.kind === "file" && isTemplateFile(c.name));
-    if (own) return own;
-  }
-  return null;
+/** 일기장의 _templates 폴더 (없으면 null) */
+export function templatesFolder(index: DriveIndex): FolderEntry | null {
+  return index.root.children.find((c): c is FolderEntry => c.kind === "folder" && c.name === TEMPLATE_FOLDER) ?? null;
 }
 
-/**
- * 새 글 서식: 가장 가까운 폴더의 _template.md → _templates/<최상위 폴더 이름>.md → 폴더 전용 내장 서식
- *            → 일기장 맨 위 _template.md → _templates/default.md → 기본
- */
-export async function loadTemplate(index: DriveIndex, folder: FolderEntry): Promise<string> {
-  const near = folderTemplateFile(index, folder);
-  if (near) return readText(index, near);
+/** _templates 안의 서식들 (유형 고르기용). 못 읽은 파일은 text: null */
+export async function templateFiles(index: DriveIndex): Promise<TemplateFile[]> {
+  const folder = templatesFolder(index);
+  if (!folder) return [];
+  const md = folder.children.filter((c): c is FileEntry => c.kind === "file" && c.isMarkdown);
+  return Promise.all(md.map(async (f) => ({ stem: f.name.replace(/\.md$/i, ""), text: await readText(index, f).catch(() => null) })));
+}
+
+/** 유형이 정해진 폴더의 서식 파일 자리: _templates/<최상위 폴더 이름>.md (있으면 그 파일) */
+export function ownTemplateFile(index: DriveIndex, folder: FolderEntry): FileEntry | null {
   const top = topFolderOf(index, folder);
-  const builtin = (top !== index.root && BUILTIN_TEMPLATES[top.name.toLowerCase()]) || DEFAULT_TEMPLATE;
-  const templates = index.root.children.find(
-    (c): c is FolderEntry => c.kind === "folder" && c.name === TEMPLATE_FOLDER,
-  );
-  if (!templates) {
-    if (builtin !== DEFAULT_TEMPLATE) return builtin;
-    const rootOwn = index.root.children.find((c): c is FileEntry => c.kind === "file" && isTemplateFile(c.name));
-    return rootOwn ? readText(index, rootOwn) : builtin;
-  }
-  const pick = (name: string) =>
-    templates.children.find((c): c is FileEntry => c.kind === "file" && c.name.toLowerCase() === name.toLowerCase());
-  const own = top !== index.root ? pick(`${top.name}.md`) : undefined;
+  const t = templatesFolder(index);
+  if (!t || top === index.root) return null;
+  return t.children.find((c): c is FileEntry => c.kind === "file" && c.name.toLowerCase() === `${top.name}.md`.toLowerCase()) ?? null;
+}
+
+/** 최상위 폴더의 내장 서식: 폴더 이름으로 아는 쓰임새(purchase·구매·eat·음식 …) → 그 서식 */
+function builtinFor(index: DriveIndex, top: FolderEntry): string {
+  if (top === index.root) return DEFAULT_TEMPLATE;
+  const byName = BUILTIN_TEMPLATES[top.name.toLowerCase()];
+  if (byName) return byName;
+  const feature = featureByName(top.name);
+  const key = feature === "spending" ? "purchase" : feature === "diary" ? null : feature;
+  return (key && BUILTIN_TEMPLATES[key]) || DEFAULT_TEMPLATE;
+}
+
+/** 새 글 서식: _templates/<최상위 폴더 이름>.md → 폴더 쓰임새의 내장 서식 → _templates/default.md → 기본 */
+export async function loadTemplate(index: DriveIndex, folder: FolderEntry): Promise<string> {
+  const top = topFolderOf(index, folder);
+  const own = ownTemplateFile(index, folder);
   if (own) return readText(index, own);
-  // 폴더 전용 내장 템플릿이 있으면 default.md보다 우선
+  // 폴더 전용 내장 서식이 있으면 default.md보다 우선
+  const builtin = builtinFor(index, top);
   if (builtin !== DEFAULT_TEMPLATE) return builtin;
-  const rootOwn = index.root.children.find((c): c is FileEntry => c.kind === "file" && isTemplateFile(c.name));
-  if (rootOwn) return readText(index, rootOwn);
-  const fallback = pick("default.md");
+  const fallback = templatesFolder(index)?.children.find((c): c is FileEntry => c.kind === "file" && c.name.toLowerCase() === "default.md");
   return fallback ? readText(index, fallback) : DEFAULT_TEMPLATE;
 }
 
@@ -868,11 +875,7 @@ export type FolderKind = "spending" | "travel" | "health" | "food";
 export async function folderKind(index: DriveIndex, folder: FolderEntry): Promise<FolderKind | null> {
   if (folder === index.root) return null;
   try {
-    const t = await loadTemplate(index, folder);
-    if (/^amount:/m.test(t)) return "spending";
-    if (/^places:/m.test(t)) return "travel";
-    if (/^(weight|sleep|steps|bp_sys|glucose):/m.test(t)) return "health";
-    if (/^restaurant:/m.test(t)) return "food";
+    return kindOfTemplate(await loadTemplate(index, folder));
   } catch {}
   return null;
 }

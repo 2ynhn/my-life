@@ -39,6 +39,8 @@ const NAMES: Record<string, FeatureKey> = {
   건강: "health",
   food: "food",
   foods: "food",
+  eat: "food",
+  eats: "food",
   음식: "food",
   맛집: "food",
 };

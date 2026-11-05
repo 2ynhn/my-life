@@ -1,6 +1,5 @@
 "use client";
 
-import { isTemplateFile } from "@/lib/templates";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { FeatureIcon } from "@/components/FeatureIcon";
@@ -13,6 +12,9 @@ import { Plus } from "lucide-react";
 import Link from "next/link";
 import { useLocal } from "@/components/LocalData";
 import { TemplateButton } from "@/components/TemplateButton";
+import { NewNoteMenu } from "@/components/NewNoteMenu";
+import { localOwnTemplate, localTemplateFiles } from "@/components/LocalEditorHost";
+import { templateChoices } from "@/lib/template-types";
 import { NewFolderButton } from "@/components/NewFolderButton";
 import { NoteActions } from "@/components/NoteActions";
 import { NoteBody } from "@/components/NoteBody";
@@ -155,7 +157,10 @@ function FolderPreview({ local, folder, params }: { local: LocalState; folder: L
     if (t) summaries.set(n.id, noteSummary(t.t, n.slug, kind));
   }
   const years = noteYears(notes);
-  const templateFile = (local.children.get(folder.id) ?? []).find((c) => c.k === "f" && isTemplateFile(c.n));
+  // 유형이 정해진 폴더: '서식' 버튼(_templates/<최상위 폴더>.md). 유형이 없는 폴더: 새 글에서 유형 고르기
+  const templateFile = feature ? localOwnTemplate(local, folder) : undefined;
+  const canMakeTemplate = !!feature && !!local.tree.entries.find((e) => !e.p)?.a;
+  const choices = !feature && folder.a ? templateChoices(localTemplateFiles(local)) : null;
   return (
     <>
       <div className="title-row">
@@ -163,20 +168,18 @@ function FolderPreview({ local, folder, params }: { local: LocalState; folder: L
           {feature && <FeatureIcon kind={feature} />}
           {folder.n}
         </h1>
-        {(folder.a || templateFile?.e) && (
+        {(folder.a || templateFile?.e || canMakeTemplate) && (
           <div className="title-actions">
-            <TemplateButton
-              rootId={local.tree.rootId}
-              folderId={folder.id}
-              existing={templateFile ? { href: templateFile.h, editable: !!templateFile.e } : null}
-              canCreate={!!folder.a}
-            />
-            {folder.a && <NewFolderButton rootId={local.tree.rootId} folderId={folder.id} />}
-            {folder.a && (
-              <Link className="btn btn-save" href={`${folder.h}?mode=new`}>
-                <Plus size={16} aria-hidden />새 글
-              </Link>
+            {feature && (
+              <TemplateButton
+                rootId={local.tree.rootId}
+                folderId={folder.id}
+                existing={templateFile ? { href: templateFile.h, editable: !!templateFile.e } : null}
+                canCreate={canMakeTemplate}
+              />
             )}
+            {folder.a && <NewFolderButton rootId={local.tree.rootId} folderId={folder.id} />}
+            {folder.a && <NewNoteMenu href={folder.h} choices={choices} />}
           </div>
         )}
       </div>

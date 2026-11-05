@@ -7,6 +7,7 @@ import { DriveProblem } from "@/components/DriveProblem";
 import { Editor } from "@/components/Editor";
 import { FolderView } from "@/components/FolderView";
 import { TemplateButton } from "@/components/TemplateButton";
+import { NewNoteMenu } from "@/components/NewNoteMenu";
 import { NewFolderButton } from "@/components/NewFolderButton";
 import { NoteActions } from "@/components/NoteActions";
 import { NoteBody } from "@/components/NoteBody";
@@ -16,7 +17,8 @@ import { FeatureView } from "@/components/FeatureView";
 import { LocalRootView } from "@/components/LocalRootView";
 import { LOCAL_ROOT_VIEWS, type RootViewName } from "@/lib/root-views";
 import { Home } from "@/components/Home";
-import { isTemplateFile, withEnd } from "@/lib/templates";
+import { TEMPLATE_FOLDER, isTemplateFile, withEnd } from "@/lib/templates";
+import { kindOfTemplate, templateChoices, templateTextFor } from "@/lib/template-types";
 import { homeData } from "@/lib/home-data";
 import { TripSection } from "@/components/TripSection";
 import {
@@ -28,6 +30,9 @@ import {
   linkResolver,
   linkTable,
   loadTemplate,
+  ownTemplateFile,
+  templateFiles,
+  templatesFolder,
   readNote,
   resolveSlugPath,
   type DriveIndex,
@@ -55,6 +60,7 @@ type Props = {
     spend?: string;
     range?: string;
     shared?: string;
+    tpl?: string;
     tab?: string;
     who?: string;
     store?: string;
@@ -142,7 +148,8 @@ export default async function EntryPage({ params, searchParams }: Props) {
         redirect(`${hrefFor(existing)}?${keep}`);
       }
     }
-    return <NewNote folder={entry} index={index} subfolder={sub} shared={shared} date={date} end={end} insertPhoto={photo} />;
+    const tpl = typeof sp.tpl === "string" ? sp.tpl : undefined;
+    return <NewNote folder={entry} index={index} subfolder={sub} shared={shared} date={date} end={end} insertPhoto={photo} tpl={tpl} />;
   }
 
   // 첫 화면은 경로 표시 없이 바로 카드
@@ -176,7 +183,11 @@ async function Folder({ folder, index, spend, range }: { folder: FolderEntry; in
   let top = folder;
   while (top.parent?.parent) top = top.parent;
   const feature = kind ?? (featureByName(top.name) === "diary" ? "diary" : null);
-  const templateFile = folder.children.find((c): c is FileEntry => c.kind === "file" && isTemplateFile(c.name)) ?? null;
+  // 유형이 정해진 폴더: '서식' 버튼으로 _templates/<최상위 폴더>.md 고치기. 유형이 없는 폴더: 새 글에서 유형 고르기
+  const templateFile = feature ? ownTemplateFile(index, folder) : null;
+  const templates = templatesFolder(index);
+  const canMakeTemplate = !!feature && (templates ? templates.can.addChildren : index.root.can.addChildren);
+  const choices = !feature && folder.can.addChildren ? templateChoices(await templateFiles(index).catch(() => [])) : null;
 
   return (
     <>
@@ -185,20 +196,18 @@ async function Folder({ folder, index, spend, range }: { folder: FolderEntry; in
           {feature && <FeatureIcon kind={feature} />}
           {folder.name}
         </h1>
-        {(folder.can.addChildren || templateFile?.can.edit) && (
+        {(folder.can.addChildren || templateFile?.can.edit || canMakeTemplate) && (
           <div className="title-actions">
-            <TemplateButton
-              rootId={index.lib.rootId}
-              folderId={folder.id}
-              existing={templateFile ? { href: hrefFor(templateFile), editable: templateFile.can.edit } : null}
-              canCreate={folder.can.addChildren}
-            />
-            {folder.can.addChildren && <NewFolderButton rootId={index.lib.rootId} folderId={folder.id} />}
-            {folder.can.addChildren && (
-              <Link className="btn btn-save" href={`${hrefFor(folder)}?mode=new`}>
-                <Plus size={16} aria-hidden />새 글
-              </Link>
+            {feature && (
+              <TemplateButton
+                rootId={index.lib.rootId}
+                folderId={folder.id}
+                existing={templateFile ? { href: hrefFor(templateFile), editable: templateFile.can.edit } : null}
+                canCreate={canMakeTemplate}
+              />
             )}
+            {folder.can.addChildren && <NewFolderButton rootId={index.lib.rootId} folderId={folder.id} />}
+            {folder.can.addChildren && <NewNoteMenu href={hrefFor(folder)} choices={choices} />}
           </div>
         )}
       </div>
@@ -265,14 +274,16 @@ async function EditNote({
   sharedPhotos?: boolean;
   insertPhoto?: string;
 }) {
-  // 폴더 서식(_template.md)은 {{date}} 같은 자리표시가 있어 입력 폼 대신 원문으로 고친다
-  const template = isTemplateFile(entry.name);
+  // 서식 파일(_templates 안·_template.md)은 {{date}} 같은 자리표시가 있어 입력 폼 대신 원문으로 고친다
+  const template = isTemplateFile(entry.name) || (entry.parent?.name === TEMPLATE_FOLDER && entry.parent.parent === index.root);
   let note: { text: string; checksum: string };
   try {
     note = await readNote(index, entry);
   } catch (e) {
     return readProblem(e);
   }
+  // 폼 종류: 폴더 유형 → (유형 없는 폴더) 글 앞머리 모양 (예: 가족 폴더의 건강 글)
+  const form: FormKind | null = template ? null : ((await formKindOf(index, entry.parent!)) ?? kindOfTemplate(note.text));
   return (
     <Editor
       key={entry.id}
@@ -281,14 +292,14 @@ async function EditNote({
       fileId={entry.id}
       fileName={entry.name}
       checksum={note.checksum}
-      places={!template && ["travel", "food"].includes((await formKindOf(index, entry.parent!)) ?? "")}
-      form={template ? null : await formKindOf(index, entry.parent!)}
+      places={form === "travel" || form === "food"}
+      form={form}
       manageCategories={index.root.can.addChildren}
       sharedPhotos={sharedPhotos}
       insertPhoto={insertPhoto}
       initialText={note.text}
       closeHref={hrefFor(entry)}
-      doneHref={!template && (await formKindOf(index, entry.parent!)) === "diary" ? index.lib.base : hrefFor(entry.parent!)}
+      doneHref={form === "diary" ? index.lib.base : hrefFor(entry.parent!)}
       uploadFolderId={entry.parent!.id}
       links={linkTable(index, entry.parent!)}
     />
@@ -315,6 +326,7 @@ async function NewNote({
   date: forDate,
   end,
   insertPhoto,
+  tpl,
 }: {
   folder: FolderEntry;
   index: DriveIndex;
@@ -327,15 +339,20 @@ async function NewNote({
   end?: string;
   /** 이미 올린 사진을 글 끝에 넣기 */
   insertPhoto?: string;
+  /** 유형이 없는 폴더에서 고른 유형 (_templates/<이름>.md 또는 내장 서식) */
+  tpl?: string;
 }) {
+  const folderForm = await formKindOf(index, folder);
   let template: string;
   try {
-    template = await loadTemplate(index, folder);
+    // 유형이 정해진 폴더는 늘 자기 서식. 유형이 없는 폴더만 고른 유형을 따른다
+    const chosen = !folderForm && tpl ? templateTextFor(tpl, await templateFiles(index)) : null;
+    template = chosen ?? (await loadTemplate(index, folder));
   } catch (e) {
     return readProblem(e);
   }
   const date = forDate ?? today();
-  const kind = await formKindOf(index, folder);
+  const kind: FormKind | null = folderForm ?? kindOfTemplate(template);
   return (
     <Editor
       mode="new"
