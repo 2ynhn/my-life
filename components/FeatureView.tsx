@@ -28,7 +28,7 @@ export function json<T>(local: LocalState, settings: LocalEntry | undefined, nam
   }
 }
 
-function sourceOf(local: LocalState, folder: LocalEntry): { src: ViewSource; missing: string[] } {
+export function sourceOf(local: LocalState, folder: LocalEntry): { src: ViewSource; missing: string[] } {
   const all = notesUnder(local, folder.id);
   const notes = all.flatMap((e) => {
     const t = local.texts.get(e.id);

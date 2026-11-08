@@ -8,7 +8,7 @@ import { dateOf, type VFile, type ViewSource } from "@/lib/view-source";
 
 // 음식 폴더 위 요약: 이번 달 횟수·금액, 자주 간 곳, 먹은 곳 지도(장소나 사진 위치), 최근 기록(사진·메뉴·가격·별점)
 
-type Meal = {
+export type Meal = {
   file: VFile;
   date: string;
   restaurant: string;
@@ -23,7 +23,7 @@ const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
 const dot = (d: string) => d.replace(/-/g, ".");
 const num = (v: unknown) => (typeof v === "number" ? v : Number(String(v ?? "").replace(/[,원\s]/g, "")) || 0);
 
-function parse(src: ViewSource, file: VFile, text: string): Meal | null {
+export function parseMeal(src: ViewSource, file: VFile, text: string): Meal | null {
   const meta = splitFrontmatter(text).meta as Record<string, unknown>;
   const date = dateOf(meta.date, file);
   if (!date) return null;
@@ -53,7 +53,7 @@ function parse(src: ViewSource, file: VFile, text: string): Meal | null {
 }
 
 export function FoodView({ src }: { src: ViewSource }) {
-  const items = src.notes.flatMap(({ file, text }) => parse(src, file, text) ?? []);
+  const items = src.notes.flatMap(({ file, text }) => parseMeal(src, file, text) ?? []);
   const read = src.notes.length;
   const total = src.total;
   if (!items.length)

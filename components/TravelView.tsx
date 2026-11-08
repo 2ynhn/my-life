@@ -9,7 +9,7 @@ import { placeNames, placesOf, type Place } from "@/lib/places";
 
 // 여행 폴더 위에 보이는 요약: 모든 여행의 장소 지도(버튼으로 열기) + 해마다 묶은 여행 타임라인
 
-type Trip = {
+export type Trip = {
   file: VFile;
   title: string;
   start: string;
@@ -20,7 +20,7 @@ type Trip = {
   photos: VFile[];
 };
 
-function parse(src: ViewSource, file: VFile, text: string): Trip | null {
+export function parseTrip(src: ViewSource, file: VFile, text: string): Trip | null {
   const meta = splitFrontmatter(text).meta;
   const start = dateOf(meta.start ?? meta.date, file);
   if (!start) return null;
@@ -42,7 +42,7 @@ const dot = (d: string) => d.replace(/-/g, ".");
 const days = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000) + 1;
 
 export function TravelView({ src }: { src: ViewSource }) {
-  const items = src.notes.flatMap(({ file, text }) => parse(src, file, text) ?? []);
+  const items = src.notes.flatMap(({ file, text }) => parseTrip(src, file, text) ?? []);
   const read = src.notes.length;
   const total = src.total;
   if (!items.length) {

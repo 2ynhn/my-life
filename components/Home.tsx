@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { CalendarDays, ChevronRight, Clock, History, Layers, PenLine, Plus, Search, Sparkles } from "lucide-react";
 import { NewFolderButton } from "@/components/NewFolderButton";
+import { PcDashboard } from "@/components/PcDashboard";
 import { QuickNote } from "@/components/QuickNote";
 import { SearchForm } from "@/components/SearchForm";
 import { startFeature } from "@/app/(app)/note-actions";
@@ -254,6 +255,9 @@ export function Home({ data }: { data: HomeData }) {
         )}
       </div>
 
+      {/* PC(보기 위주): 음식 · 구매 · 여행. 휴대폰(쓰기 위주)은 아래 화면 그대로 — CSS로 나눈다 */}
+      <PcDashboard base={data.base} />
+
       <div className="home-body">
         <div className="home-main">
           {canQuick && <QuickNote rootId={data.rootId} />}
@@ -331,7 +335,7 @@ export function Home({ data }: { data: HomeData }) {
       </div>
 
       {(others.length > 0 || rootNotes.length > 0 || root.can.addChildren) && (
-        <section className="home-section">
+        <section className="home-section home-others">
           <div className="section-head">
             <h2>다른 폴더</h2>
             {root.can.addChildren && <NewFolderButton rootId={data.rootId} folderId={root.id} />}

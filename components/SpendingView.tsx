@@ -8,7 +8,7 @@ import { dateOf, type VFile, type ViewSource } from "@/lib/view-source";
 // 지출 기록 폴더 위에 보이는 요약: 월별 막대, 분류별 막대, 이달 목록 (가계부가 아니라 이달·올해 합계 숫자는 크게 보이지 않는다).
 // 글 앞머리의 amount·category·store·date를 읽는다 (date가 없으면 파일 이름의 날짜).
 
-type Spend = { file: VFile; date: string; amount: number; category: string; store: string; items: string[] };
+export type Spend = { file: VFile; date: string; amount: number; category: string; store: string; items: string[] };
 
 const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
 /** 막대 위 짧은 표기: 58,400 → 5.8만, 1,234,000 → 123만 */
@@ -17,7 +17,7 @@ const short = (n: number) => {
   return `${man < 10 ? man.toFixed(1).replace(/\.0$/, "") : Math.round(man).toLocaleString("ko-KR")}만`;
 };
 
-function parse(file: VFile, text: string): Spend | null {
+export function parseSpend(file: VFile, text: string): Spend | null {
   const meta = splitFrontmatter(text).meta;
   const amount = typeof meta.amount === "number" ? meta.amount : Number(String(meta.amount ?? "").replace(/[,원\s]/g, ""));
   if (!Number.isFinite(amount) || amount === 0) return null;
@@ -35,7 +35,7 @@ function parse(file: VFile, text: string): Spend | null {
 const pad = (n: number) => String(n).padStart(2, "0");
 
 export function SpendingView({ src, month }: { src: ViewSource; month?: string }) {
-  const spends = src.notes.flatMap(({ file, text }) => parse(file, text) ?? []);
+  const spends = src.notes.flatMap(({ file, text }) => parseSpend(file, text) ?? []);
   const { budget, categories } = src;
   const read = src.notes.length;
   const total = src.total;
