@@ -762,6 +762,25 @@ export function Editor(props: Props) {
               <span className="btn-text">영수증</span>
             </button>
           )}
+          {/* 서식 (옵시디언처럼): 미리보기에서는 숨긴다 */}
+          {tab !== "preview" && (
+            <span className="format-tools" role="group" aria-label="서식">
+              {formatTools.map((f) => (
+                <button
+                  key={f.label}
+                  type="button"
+                  className="btn bar-btn fmt-btn"
+                  title={f.label}
+                  aria-label={f.label}
+                  // 누를 때 입력 칸의 커서·선택이 풀리지 않게
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={f.run}
+                >
+                  {f.icon}
+                </button>
+              ))}
+            </span>
+          )}
         </div>
         <span className="spacer" />
         {uploading && <span className="status small muted">{uploading}</span>}
@@ -879,25 +898,6 @@ export function Editor(props: Props) {
             <summary className="small">Drive에 있는 내용 보기</summary>
             <pre>{conflict.text}</pre>
           </details>
-        </div>
-      )}
-
-      {tab !== "preview" && (
-        <div className="format-bar" role="toolbar" aria-label="서식">
-          {formatTools.map((f) => (
-            <button
-              key={f.label}
-              type="button"
-              className="bar-btn"
-              title={f.label}
-              aria-label={f.label}
-              // 누를 때 입력 칸의 커서·선택이 풀리지 않게
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={f.run}
-            >
-              {f.icon}
-            </button>
-          ))}
         </div>
       )}
 

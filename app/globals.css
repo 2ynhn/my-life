@@ -5207,43 +5207,30 @@ body:has(.editor) .tabbar {
   }
 }
 
-/* ───── 글쓰기 서식 도구모음 (링크 · 제목 · 굵게 · 기울임 · 할 일 · 목록 · 인용 · 구분선) ───── */
-.format-bar {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  margin: 0 0 0.5rem;
-  padding: 3px;
-  border-radius: 12px;
-  background: var(--panel);
-  width: fit-content;
-  max-width: 100%;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.format-bar::-webkit-scrollbar {
-  display: none;
-}
-.format-bar .bar-btn {
-  flex: none;
+/* ───── 글쓰기 서식 도구모음: 편집기 도구 막대 안에 (탭 · 사진 · 장소 | 링크 · 제목 · 굵게 …) ───── */
+.format-tools {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 34px;
+  gap: 2px;
+  padding-left: 6px;
+  margin-left: 4px;
+  border-left: 1px solid var(--line);
+}
+.editor-tools .fmt-btn {
+  width: 34px;
+  min-height: 34px;
   padding: 0;
-  border: 0;
-  border-radius: 9px;
+  justify-content: center;
+  border-color: transparent;
   background: transparent;
   color: var(--muted);
-  cursor: pointer;
 }
-.format-bar .bar-btn:hover,
-.format-bar .bar-btn:focus-visible {
-  background: var(--surface);
+.editor-tools .fmt-btn:hover,
+.editor-tools .fmt-btn:focus-visible {
+  background: var(--panel);
   color: var(--text);
 }
-.format-bar .bar-btn:first-child {
+.editor-tools .fmt-btn:first-child {
   color: var(--accent);
 }
 .note-picker .picker-results svg {
@@ -5251,25 +5238,44 @@ body:has(.editor) .tabbar {
   color: var(--muted);
 }
 @media (max-width: 768px) {
-  /* 휴대폰: 아래 떠 있는 막대 바로 위에 한 줄 (키보드가 올라오면 그 위), 옆으로 밀어 더 보기 */
-  .editor {
-    padding-bottom: 8.5rem;
-  }
-  .format-bar {
-    position: fixed;
+  /* 휴대폰: 아래 떠 있는 막대 하나에 모두. 넘치면 옆으로 밀어 보기, 탭은 왼쪽에 붙어 있다 */
+  .editor-tools {
     left: 8px;
     right: 8px;
-    bottom: calc(68px + env(safe-area-inset-bottom));
-    z-index: 30;
-    width: auto;
-    margin: 0;
-    justify-content: flex-start;
-    background: var(--surface);
-    border: 1px solid var(--line);
-    box-shadow: 0 4px 14px rgb(30 35 25 / 0.12);
+    transform: none;
+    overflow-x: auto;
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
   }
-  .format-bar .bar-btn {
+  .editor-tools::-webkit-scrollbar {
+    display: none;
+  }
+  .editor-tools > * {
+    flex: none;
+  }
+  .editor-tools .tabs {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--text);
+    border-radius: 14px;
+  }
+  .format-tools {
+    border-left-color: rgb(255 255 255 / 0.18);
+  }
+  .editor-tools .fmt-btn {
     width: 42px;
-    height: 38px;
+    min-width: 42px;
+    height: 42px;
+    border-radius: 14px;
+    color: color-mix(in srgb, var(--bg) 80%, var(--text));
+  }
+  .editor-tools .fmt-btn:first-child {
+    color: #fff;
+  }
+  .editor-tools .fmt-btn:hover,
+  .editor-tools .fmt-btn:focus-visible {
+    background: rgb(255 255 255 / 0.12);
+    color: #fff;
   }
 }
