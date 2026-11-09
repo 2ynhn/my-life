@@ -1,18 +1,20 @@
 "use client";
 
-import { Camera, Check, ClipboardPaste, Eye, ImagePlus, ImageUp, ListChecks, MapPinPlus, PenLine, ScanText, X } from "lucide-react";
+import { Bold, Camera, Check, ClipboardPaste, Eye, Heading2, ImagePlus, ImageUp, Italic, Link2, List, ListChecks, ListTodo, MapPinPlus, Minus, PenLine, Quote, ScanText, X } from "lucide-react";
 import { markdown } from "@codemirror/lang-markdown";
 import { yamlFrontmatter } from "@codemirror/lang-yaml";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { languages } from "@codemirror/language-data";
 import { tags as t } from "@lezer/highlight";
-import { EditorView, placeholder } from "@codemirror/view";
+import { EditorView, keymap, placeholder } from "@codemirror/view";
 import { minimalSetup } from "codemirror";
 import { useRouter } from "next/navigation";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { MetaForm, type FormKind, type Suggestions } from "@/components/MetaForm";
 import { NoteBody } from "@/components/NoteBody";
 import { PlacePicker } from "@/components/PlacePicker";
+import { NotePicker } from "@/components/NotePicker";
+import { insertAt, insertLink, linePrefix, wrap, type Edit } from "@/lib/text-format";
 import { findMapUrl, type PlaceInfo } from "@/lib/map-link";
 import { ReceiptCamera } from "@/components/ReceiptCamera";
 import { addPlace, readMeta, setFields } from "@/lib/frontmatter-edit";
@@ -114,6 +116,12 @@ export function Editor(props: Props) {
   const [camera, setCamera] = useState(false);
   const [attachReceipt, setAttachReceipt] = useState(false);
   const [picker, setPicker] = useState(false);
+  // 글 링크 고르기: typed = 방금 [[ 를 쳐서 연 경우
+  const [linkPick, setLinkPick] = useState<{ typed: boolean } | null>(null);
+  // 서식 도구가 고칠 곳: 마지막으로 쓰던 '내용' 칸, 아니면 쓰기 탭의 편집기
+  const lastArea = useRef<HTMLTextAreaElement | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const formatRef = useRef<(fn: (text: string, from: number, to: number) => Edit) => void>(() => {});
   // 영수증 도구 (모바일에서 접고 펴기). 새 구매 글은 펼친 채로 시작 — 영수증으로 채우는 일이 많다
   const [receiptOpen, setReceiptOpen] = useState(true);
 
@@ -181,6 +189,12 @@ export function Editor(props: Props) {
       doc: latestText.current,
       parent: hostRef.current,
       extensions: [
+        // 서식 단축키: Ctrl+B 굵게 · Ctrl+I 기울임 · Ctrl+K 글 링크
+        keymap.of([
+          { key: "Mod-b", run: () => (formatRef.current((s, a, b) => wrap(s, a, b, "**", "**", "굵게")), true) },
+          { key: "Mod-i", run: () => (formatRef.current((s, a, b) => wrap(s, a, b, "*", "*", "기울임")), true) },
+          { key: "Mod-k", run: () => (setLinkPick({ typed: false }), true) },
+        ]),
         minimalSetup,
         yamlFrontmatter({ content: markdown({ codeLanguages: languages }) }),
         syntaxHighlighting(proseHighlight),
@@ -596,13 +610,78 @@ export function Editor(props: Props) {
     }
   };
 
+  // ── 서식 도구모음 (옵시디언처럼): 항목 탭이면 '내용' 칸, 쓰기 탭이면 편집기를 고친다 ──
+  const activeArea = (): HTMLTextAreaElement | null => {
+    if (tab !== "form") return null;
+    const last = lastArea.current;
+    if (last?.isConnected) return last;
+    return rootRef.current?.querySelector<HTMLTextAreaElement>(".pane-form .body-field textarea") ?? null;
+  };
+  const applyFormat = (fn: (text: string, from: number, to: number) => Edit) => {
+    const area = activeArea();
+    if (area) {
+      const e = fn(area.value, area.selectionStart, area.selectionEnd);
+      const next = area.value.slice(0, e.from) + e.insert + area.value.slice(e.to);
+      // 제어 컴포넌트(React)에 바뀐 값을 알리는 표준 방법: 기본 setter + input 이벤트
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set?.call(area, next);
+      area.dispatchEvent(new Event("input", { bubbles: true }));
+      requestAnimationFrame(() => {
+        area.focus();
+        area.setSelectionRange(e.selFrom, e.selTo);
+      });
+      return;
+    }
+    const view = viewRef.current;
+    if (!view) return;
+    const { from, to } = view.state.selection.main;
+    const e = fn(view.state.doc.toString(), from, to);
+    view.dispatch({ changes: { from: e.from, to: e.to, insert: e.insert }, selection: { anchor: e.selFrom, head: e.selTo }, scrollIntoView: true });
+    view.focus();
+  };
+  formatRef.current = applyFormat;
+
+  /** 방금 [[ 를 쳤으면 글 고르기를 연다 (![[ 사진은 빼고) */
+  const watchLinkTyping = () => {
+    setTimeout(() => {
+      const area = activeArea();
+      let before = "";
+      if (area && document.activeElement === area) before = area.value.slice(Math.max(0, area.selectionStart - 3), area.selectionStart);
+      else if (tab === "write" && viewRef.current?.hasFocus) {
+        const s = viewRef.current.state;
+        const head = s.selection.main.head;
+        before = s.doc.sliceString(Math.max(0, head - 3), head);
+      } else return;
+      if (before.endsWith("[[") && !before.endsWith("![[")) setLinkPick({ typed: true });
+    }, 0);
+  };
+
+  const formatTools: { label: string; icon: React.ReactNode; run: () => void }[] = [
+    { label: "글 링크 [[ ]] (Ctrl+K)", icon: <Link2 size={17} aria-hidden />, run: () => setLinkPick({ typed: false }) },
+    { label: "제목", icon: <Heading2 size={17} aria-hidden />, run: () => applyFormat((s, a, b) => linePrefix(s, a, b, "## ")) },
+    { label: "굵게 (Ctrl+B)", icon: <Bold size={17} aria-hidden />, run: () => applyFormat((s, a, b) => wrap(s, a, b, "**", "**", "굵게")) },
+    { label: "기울임 (Ctrl+I)", icon: <Italic size={17} aria-hidden />, run: () => applyFormat((s, a, b) => wrap(s, a, b, "*", "*", "기울임")) },
+    { label: "할 일", icon: <ListTodo size={17} aria-hidden />, run: () => applyFormat((s, a, b) => linePrefix(s, a, b, "- [ ] ")) },
+    { label: "목록", icon: <List size={17} aria-hidden />, run: () => applyFormat((s, a, b) => linePrefix(s, a, b, "- ")) },
+    { label: "인용", icon: <Quote size={17} aria-hidden />, run: () => applyFormat((s, a, b) => linePrefix(s, a, b, "> ")) },
+    { label: "구분선", icon: <Minus size={17} aria-hidden />, run: () => applyFormat((s, a, b) => insertAt(s, a, b, "---", true)) },
+  ];
+
   const close = () => {
     if (dirty && !confirm("저장하지 않은 내용이 있습니다. 닫을까요?\n(브라우저 임시저장에는 남아 있어요)")) return;
     go(props.closeHref);
   };
 
   return (
-    <div className="editor feature-scope" data-feature={props.form ?? undefined}>
+    <div
+      className="editor feature-scope"
+      data-feature={props.form ?? undefined}
+      ref={rootRef}
+      onFocus={(e) => {
+        const el = e.target;
+        if (el instanceof HTMLTextAreaElement && el.closest(".body-field")) lastArea.current = el;
+      }}
+      onInput={watchLinkTyping}
+    >
       {/* 파일 이름: 모바일에서는 스크롤과 함께 올라가고, 위에는 아이콘 줄만 붙어 있다 */}
       <div className="editor-name">
         {props.mode === "new" ? (
@@ -803,6 +882,25 @@ export function Editor(props: Props) {
         </div>
       )}
 
+      {tab !== "preview" && (
+        <div className="format-bar" role="toolbar" aria-label="서식">
+          {formatTools.map((f) => (
+            <button
+              key={f.label}
+              type="button"
+              className="bar-btn"
+              title={f.label}
+              aria-label={f.label}
+              // 누를 때 입력 칸의 커서·선택이 풀리지 않게
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={f.run}
+            >
+              {f.icon}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className={`editor-panes show-${tab}`}>
         {tabbedForm && (
           <div className="pane-form">
@@ -832,6 +930,20 @@ export function Editor(props: Props) {
         />
       )}
       {picker && <PlacePicker onPick={insertPlace} onClose={() => setPicker(false)} />}
+      {linkPick && (
+        <NotePicker
+          fallback={Object.keys(props.links.notes)}
+          onClose={() => {
+            setLinkPick(null);
+            requestAnimationFrame(() => (activeArea() ?? viewRef.current)?.focus());
+          }}
+          onPick={(name) => {
+            const typed = linkPick.typed;
+            setLinkPick(null);
+            requestAnimationFrame(() => applyFormat((s, a, b) => insertLink(s, a, b, name, typed)));
+          }}
+        />
+      )}
       <p className="hint small muted">
         {receiptMode
           ? "Ctrl+S 저장 · 스크린샷은 복사한 뒤 Ctrl+V(⌘V)로 붙여넣으면 바로 영수증으로 읽어요 · 입력 내용은 브라우저에 자동 임시저장"

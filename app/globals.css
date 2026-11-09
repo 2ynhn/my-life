@@ -5206,3 +5206,70 @@ body:has(.editor) .tabbar {
     grid-template-columns: 1fr;
   }
 }
+
+/* ───── 글쓰기 서식 도구모음 (링크 · 제목 · 굵게 · 기울임 · 할 일 · 목록 · 인용 · 구분선) ───── */
+.format-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0 0 0.5rem;
+  padding: 3px;
+  border-radius: 12px;
+  background: var(--panel);
+  width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.format-bar::-webkit-scrollbar {
+  display: none;
+}
+.format-bar .bar-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.format-bar .bar-btn:hover,
+.format-bar .bar-btn:focus-visible {
+  background: var(--surface);
+  color: var(--text);
+}
+.format-bar .bar-btn:first-child {
+  color: var(--accent);
+}
+.note-picker .picker-results svg {
+  vertical-align: -2px;
+  color: var(--muted);
+}
+@media (max-width: 768px) {
+  /* 휴대폰: 아래 떠 있는 막대 바로 위에 한 줄 (키보드가 올라오면 그 위), 옆으로 밀어 더 보기 */
+  .editor {
+    padding-bottom: 8.5rem;
+  }
+  .format-bar {
+    position: fixed;
+    left: 8px;
+    right: 8px;
+    bottom: calc(68px + env(safe-area-inset-bottom));
+    z-index: 30;
+    width: auto;
+    margin: 0;
+    justify-content: flex-start;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    box-shadow: 0 4px 14px rgb(30 35 25 / 0.12);
+  }
+  .format-bar .bar-btn {
+    width: 42px;
+    height: 38px;
+  }
+}
