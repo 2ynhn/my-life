@@ -5279,3 +5279,6 @@ body:has(.editor) .tabbar {
     color: #fff;
   }
 }
+.note-picker .same-day {
+  background: var(--accent-soft);
+}

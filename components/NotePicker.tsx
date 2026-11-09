@@ -9,9 +9,15 @@ import { pathOf } from "@/lib/local-store";
 
 export function NotePicker({
   fallback,
+  date,
+  exclude,
   onPick,
   onClose,
 }: {
+  /** 쓰는 글의 날짜 (YYYY-MM-DD). 같은 날 글을 맨 위로 */
+  date?: string;
+  /** 지금 쓰는 글 (목록에서 뺀다) */
+  exclude?: string;
   /** 기기 사본이 없을 때 쓸 이름들 (편집기의 링크 표) */
   fallback: string[];
   onPick: (name: string) => void;
@@ -21,12 +27,21 @@ export function NotePicker({
   const [q, setQ] = useState("");
 
   const notes = useMemo(() => {
-    if (!local) return fallback.map((n) => ({ id: n, name: n, path: "", m: "" }));
+    const day = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : "";
+    if (!local)
+      return fallback
+        .map((n) => ({ id: n, name: n, path: "", m: "", same: !!day && n.startsWith(day) }))
+        .sort((a, b) => Number(b.same) - Number(a.same));
     return local.tree.entries
-      .filter((e) => e.k === "f" && e.md && e.v)
-      .map((e) => ({ id: e.id, name: e.n.replace(/\.md$/i, ""), path: pathOf(local, e).join(" / "), m: e.m }))
-      .sort((a, b) => b.m.localeCompare(a.m));
-  }, [local, fallback]);
+      .filter((e) => e.k === "f" && e.md && e.v && e.id !== exclude)
+      .map((e) => {
+        // 같은 날: 파일 이름이 그 날짜로 시작하거나, 앞머리 date·start가 그 날짜
+        const t = day ? local.texts.get(e.id)?.t : undefined;
+        const same = !!day && (e.n.startsWith(day) || (!!t && new RegExp(`^(date|start):\\s*["']?${day}`, "m").test(t.slice(0, 600))));
+        return { id: e.id, name: e.n.replace(/\.md$/i, ""), path: pathOf(local, e).join(" / "), m: e.m, same };
+      })
+      .sort((a, b) => Number(b.same) - Number(a.same) || b.m.localeCompare(a.m));
+  }, [local, fallback, date, exclude]);
 
   const query = q.trim().toLowerCase();
   const found = (query ? notes.filter((n) => n.name.toLowerCase().includes(query) || n.path.toLowerCase().includes(query)) : notes).slice(0, 40);
@@ -74,11 +89,11 @@ export function NotePicker({
           )}
           {found.map((n) => (
             <li key={n.id}>
-              <button onClick={() => onPick(n.name)}>
+              <button onClick={() => onPick(n.name)} className={n.same ? "same-day" : undefined}>
                 <span>
                   <FileText size={14} aria-hidden /> {n.name}
                 </span>
-                {n.path && <span className="muted small">{n.path}</span>}
+                <span className="muted small">{[n.same ? "같은 날" : "", n.path].filter(Boolean).join(" · ")}</span>
               </button>
             </li>
           ))}

@@ -15,6 +15,7 @@ import { NoteBody } from "@/components/NoteBody";
 import { PlacePicker } from "@/components/PlacePicker";
 import { NotePicker } from "@/components/NotePicker";
 import { insertAt, insertLink, linePrefix, wrap, type Edit } from "@/lib/text-format";
+import { dateOf } from "@/lib/view-source";
 import { findMapUrl, type PlaceInfo } from "@/lib/map-link";
 import { ReceiptCamera } from "@/components/ReceiptCamera";
 import { addPlace, readMeta, setFields } from "@/lib/frontmatter-edit";
@@ -933,6 +934,12 @@ export function Editor(props: Props) {
       {linkPick && (
         <NotePicker
           fallback={Object.keys(props.links.notes)}
+          // 이 글의 날짜 (앞머리 date·start, 없으면 파일 이름): 같은 날 글을 맨 위에
+          date={(() => {
+            const meta = readMeta(text) ?? {};
+            return dateOf(meta.date ?? meta.start, { name: props.mode === "new" ? name : props.fileName });
+          })()}
+          exclude={props.mode === "edit" ? props.fileId : undefined}
           onClose={() => {
             setLinkPick(null);
             requestAnimationFrame(() => (activeArea() ?? viewRef.current)?.focus());
