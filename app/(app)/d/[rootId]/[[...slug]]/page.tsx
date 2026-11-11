@@ -30,6 +30,7 @@ import {
   linkResolver,
   linkTable,
   loadTemplate,
+  ME_FOLDER,
   ownTemplateFile,
   templateFiles,
   templatesFolder,
@@ -282,6 +283,8 @@ async function EditNote({
   } catch (e) {
     return readProblem(e);
   }
+  // 나에 대해(_me/me.md): 저장하면 설정으로 돌아간다
+  const aboutMe = entry.parent?.name === ME_FOLDER && entry.parent.parent === index.root;
   // 폼 종류: 폴더 유형 → (유형 없는 폴더) 글 앞머리 모양 (예: 가족 폴더의 건강 글)
   const form: FormKind | null = template ? null : ((await formKindOf(index, entry.parent!)) ?? kindOfTemplate(note.text));
   return (
@@ -299,7 +302,7 @@ async function EditNote({
       insertPhoto={insertPhoto}
       initialText={note.text}
       closeHref={hrefFor(entry)}
-      doneHref={form === "diary" ? index.lib.base : hrefFor(entry.parent!)}
+      doneHref={aboutMe ? "/settings" : form === "diary" ? index.lib.base : hrefFor(entry.parent!)}
       uploadFolderId={entry.parent!.id}
       links={linkTable(index, entry.parent!)}
     />

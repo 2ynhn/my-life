@@ -108,6 +108,7 @@ function Answer({ result, base, q }: { result: AskResult; base: string; q: strin
       <p className="muted small ask-plan">
         찾은 낱말: {plan.keywords.length ? plan.keywords.join(", ") : "없음"}
         {(plan.from || plan.to) && ` · 기간 ${plan.from || "…"} ~ ${plan.to || "…"}`}
+        {result.aboutMe && " · '나에 대해' 참고"}
         {result.scanned < result.total && ` · ${result.total}개 중 ${result.scanned}개를 훑었어요 (다시 물으면 더 많이 봐요)`} ·{" "}
         <Link href={`${base}?view=search&q=${encodeURIComponent(q)}`}>
           <Search size={12} aria-hidden /> 그냥 검색하기

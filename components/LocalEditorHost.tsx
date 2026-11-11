@@ -114,7 +114,8 @@ export function localEditorProps(local: LocalState | null, pathname: string, sea
       sharedPhotos: shared === "photos",
       insertPhoto,
       closeHref: entry.h,
-      doneHref: form === "diary" ? local.tree.base : parent.h,
+      // 나에 대해(_me/me.md)는 설정으로
+      doneHref: parent.n === "_me" && !local.byId.get(parent.p ?? "")?.p ? "/settings" : form === "diary" ? local.tree.base : parent.h,
       uploadFolderId: parent.id,
       links: linkTableFor(local, entry),
     };

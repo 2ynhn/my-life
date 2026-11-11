@@ -916,6 +916,32 @@ export async function writeSettingsJson(index: DriveIndex, name: string, data: u
   invalidateIndex(fresh);
 }
 
+// ───────────── 나에 대해 (내 일기장의 _me/me.md) ─────────────
+// 물어보기(Claude)가 답하기 전에 먼저 읽는 '나에 대한 설명'. _me 폴더는 Drive '접근 제한'이라
+// 일기장을 공유받은 사람(가족 등)은 열 수 없다. 목록·검색에도 나오지 않는다 (_로 시작).
+
+export const ME_FOLDER = "_me";
+export const ME_FILE = "me.md";
+
+export function meFolder(index: DriveIndex): FolderEntry | null {
+  return index.root.children.find((c): c is FolderEntry => c.kind === "folder" && c.name === ME_FOLDER) ?? null;
+}
+
+export function meFile(index: DriveIndex): FileEntry | null {
+  return meFolder(index)?.children.find((c): c is FileEntry => c.kind === "file" && c.name.toLowerCase() === ME_FILE) ?? null;
+}
+
+/** 나에 대해 글 (없거나 못 읽으면 null). 바꾼 즉시 맞도록 늘 새로 받는다 (작은 파일) */
+export async function readMe(index: DriveIndex): Promise<string | null> {
+  const file = meFile(index);
+  if (!file) return null;
+  try {
+    return (await readNote(index, file)).text;
+  } catch {
+    return null;
+  }
+}
+
 // ───────────── 주소·목록 ─────────────
 
 export function webUrlFor(entry: Entry): string {

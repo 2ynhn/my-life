@@ -1,6 +1,7 @@
 import { getAiCredentials } from "@/lib/ai-settings";
 import { ask } from "@/lib/ask";
 import { AiError } from "@/lib/claude";
+import { readMe } from "@/lib/drive";
 import { loadLibrary, myLibrary } from "@/lib/library";
 import { getUser } from "@/lib/session";
 
@@ -45,7 +46,9 @@ export async function POST(req: Request) {
   if (!allow(user.email.toLowerCase())) return json({ error: "잠시 뒤 다시 물어보세요. (10분에 20번까지)" }, 429);
 
   try {
-    return json(await ask(loaded.index, creds.apiKey, creds.model, question));
+    // 나에 대해: 묻는 사람 '자기' 일기장의 _me/me.md (공유받은 일기장에 물어도 '나'는 묻는 사람)
+    const about = own?.kind === "ok" ? await readMe(own.index) : null;
+    return json(await ask(loaded.index, creds.apiKey, creds.model, question, about));
   } catch (e) {
     if (e instanceof AiError) return json({ error: e.message }, 502);
     console.error("[ask]", e);

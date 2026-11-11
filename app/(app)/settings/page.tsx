@@ -4,9 +4,10 @@ import { ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { DriveProblem } from "@/components/DriveProblem";
 import { AiSettingsForm } from "@/components/AiSettingsForm";
+import { AboutMeButton } from "@/components/AboutMeButton";
 import { InviteLink, RestrictList, ShareList } from "@/components/ShareManager";
 import { AI_MODELS, getAiSettings } from "@/lib/ai-settings";
-import { DriveError, listShares, sharingFolders, webUrlFor, type Share } from "@/lib/drive";
+import { DriveError, listShares, meFile, meFolder, sharingFolders, webUrlFor, type Share } from "@/lib/drive";
 import { loadLibrary, myLibrary } from "@/lib/library";
 import { requireUser, type AppUser } from "@/lib/session";
 import { LogoutButton } from "@/components/LogoutButton";
@@ -48,6 +49,8 @@ async function SettingsBody({ user }: { user: AppUser }) {
   if (loaded.kind !== "ok")
     return <DriveProblem message={loaded.kind === "problem" ? loaded.problem : "일기장을 열 수 없습니다."} />;
   const { index } = loaded;
+  const meDir = meFolder(index);
+  const aboutMe = meDir ? { file: meFile(index), restricted: meDir.restricted } : null;
 
   let shares: Share[] = [];
   let shareError: string | null = null;
@@ -93,6 +96,17 @@ async function SettingsBody({ user }: { user: AppUser }) {
           있어요. 예전 앱 규칙인 <code>.private</code> 파일은 이제 쓰지 않으니, 표시가 남은 폴더는 여기서 제한을 켠 뒤 그 파일을 지우세요.
         </p>
         {folders.length === 0 ? <p className="muted small">폴더가 없습니다.</p> : <RestrictList folders={folders} />}
+      </section>
+
+      <section>
+        <h2>나에 대해</h2>
+        <p className="muted small">
+          <b>물어보기</b>(Claude)가 답하기 전에 먼저 읽는 나에 대한 설명이에요. 가족, 자주 가는 곳, 관심사, 답하는 방식 등을 적어 두면
+          매번 설명하지 않아도 돼요. 파일은 내 Drive의 <code>{index.lib.name}/_me/me.md</code>이고, 이 폴더는 Drive <b>접근 제한</b>이라
+          일기장을 공유받은 사람은 열 수 없어요.
+          {aboutMe && !aboutMe.restricted && <b> (지금은 접근 제한이 꺼져 있어요. 아래 버튼을 누르면 다시 켭니다.)</b>}
+        </p>
+        <AboutMeButton exists={!!aboutMe?.file} />
       </section>
 
       <section>

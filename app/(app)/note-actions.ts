@@ -12,6 +12,11 @@ import {
   hrefFor,
   invalidateIndex,
   loadTemplate,
+  ME_FILE,
+  ME_FOLDER,
+  meFile,
+  meFolder,
+  setRestricted,
   ownTemplateFile,
   templatesFolder,
   readNote,
@@ -24,9 +29,9 @@ import {
   type FolderEntry,
 } from "@/lib/drive";
 import { FEATURES, featureByName } from "@/lib/features";
-import { TEMPLATE_FOLDER, isTemplateFile } from "@/lib/templates";
+import { ME_TEMPLATE, TEMPLATE_FOLDER, isTemplateFile } from "@/lib/templates";
 import { titleSnippet } from "@/lib/note-name";
-import { loadLibrary, markWritten } from "@/lib/library";
+import { loadLibrary, markWritten, myLibrary } from "@/lib/library";
 import { getUser } from "@/lib/session";
 
 // 모든 쓰기는 로그인한 사람 본인의 토큰으로 Drive에 요청한다 → 권한은 Drive가 최종 판단.
@@ -337,6 +342,49 @@ export async function createFolderTemplate(rootId: string, folderId: string): Pr
     await markWritten();
     revalidatePath("/", "layout");
     return { ok: true, href: await freshHref(index, id, hrefFor(folder)) };
+  } catch (e) {
+    return failure(e);
+  }
+}
+
+/**
+ * 나에 대해(_me/me.md) 열기: 없으면 _me 폴더를 Drive '접근 제한'으로 만들고 처음 내용으로 파일을 만든다.
+ * 내 일기장에만. 접근 제한을 못 걸면 만들지 않는다 (공유받은 사람에게 보이면 안 되므로).
+ */
+export async function openAboutMe(): Promise<ActionResult> {
+  const user = await getUser();
+  if (!user) return { ok: false, error: "로그인이 필요합니다." };
+  const mine = await myLibrary(user);
+  if (mine.kind !== "ok") return { ok: false, error: "먼저 내 일기장을 만들거나 고르세요." };
+  const index = await libraryIndex(mine.lib.rootId);
+  if (typeof index === "string") return { ok: false, error: index };
+  const existing = meFile(index);
+  if (existing) {
+    // 누군가 접근 제한을 껐으면 다시 켠다
+    const dir = meFolder(index);
+    if (dir && !dir.restricted) {
+      try {
+        await setRestricted(index, dir, true);
+        invalidateIndex(index);
+      } catch (e) {
+        return failure(e);
+      }
+    }
+    return { ok: true, href: hrefFor(existing) };
+  }
+  if (!index.root.can.addChildren) return { ok: false, error: NO_PERMISSION };
+  try {
+    let folder = meFolder(index);
+    if (!folder) {
+      const id = await createFolder(index, index.root, ME_FOLDER);
+      folder = { ...index.root, id, name: ME_FOLDER, parent: index.root, children: [] };
+    }
+    await setRestricted(index, folder, true);
+    const id = await createFile(index, folder, ME_FILE, ME_TEMPLATE);
+    invalidateIndex(index);
+    await markWritten();
+    revalidatePath("/", "layout");
+    return { ok: true, href: await freshHref(index, id, "/settings") };
   } catch (e) {
     return failure(e);
   }
