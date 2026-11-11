@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
-import { Star, UtensilsCrossed } from "lucide-react";
+import { LayoutGrid, List, Star, UtensilsCrossed } from "lucide-react";
+import { useEffect, useState } from "react";
 import { MapToggle } from "@/components/MapToggle";
 import type { MapPoint } from "@/components/TravelMap";
 import { splitFrontmatter } from "@/lib/markdown";
@@ -52,7 +55,23 @@ export function parseMeal(src: ViewSource, file: VFile, text: string): Meal | nu
   };
 }
 
+/** 목록 보기 · 썸네일 보기 (이 기기에 기억) */
+type FoodLayout = "list" | "grid";
+const LAYOUT_KEY = "my-life:food-layout";
+
 export function FoodView({ src }: { src: ViewSource }) {
+  const [layout, setLayout] = useState<FoodLayout>("list");
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(LAYOUT_KEY) === "grid") setLayout("grid");
+    } catch {}
+  }, []);
+  const choose = (next: FoodLayout) => {
+    setLayout(next);
+    try {
+      localStorage.setItem(LAYOUT_KEY, next);
+    } catch {}
+  };
   const items = src.notes.flatMap(({ file, text }) => parseMeal(src, file, text) ?? []);
   const read = src.notes.length;
   const total = src.total;
@@ -106,8 +125,18 @@ export function FoodView({ src }: { src: ViewSource }) {
           ))}
         </p>
       )}
-      {points.length > 0 && <MapToggle points={points} label="지도" />}
-      <ul className="meals">
+      <div className="food-bar">
+        {points.length > 0 && <MapToggle points={points} label="지도" />}
+        <div className="layout-toggle" role="group" aria-label="보기 방식">
+          <button type="button" aria-pressed={layout === "list"} onClick={() => choose("list")} title="목록 보기" aria-label="목록 보기">
+            <List size={16} aria-hidden />
+          </button>
+          <button type="button" aria-pressed={layout === "grid"} onClick={() => choose("grid")} title="썸네일 보기" aria-label="썸네일 보기">
+            <LayoutGrid size={16} aria-hidden />
+          </button>
+        </div>
+      </div>
+      <ul className={`meals${layout === "grid" ? " meals-grid" : ""}`}>
         {meals.slice(0, 30).map((m) => (
           <li key={m.file.id}>
             <Link href={m.file.href}>
