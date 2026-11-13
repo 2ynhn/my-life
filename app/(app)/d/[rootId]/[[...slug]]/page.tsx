@@ -1,3 +1,5 @@
+import { givenNoteName } from "@/lib/note-name";
+import { GraphJump, LocalGraph } from "@/components/LocalGraph";
 import type { Metadata } from "next";
 import { Plus } from "lucide-react";
 import Link from "next/link";
@@ -68,6 +70,7 @@ type Props = {
     date?: string;
     end?: string;
     photo?: string;
+    name?: string;
   }>;
 };
 
@@ -150,7 +153,8 @@ export default async function EntryPage({ params, searchParams }: Props) {
       }
     }
     const tpl = typeof sp.tpl === "string" ? sp.tpl : undefined;
-    return <NewNote folder={entry} index={index} subfolder={sub} shared={shared} date={date} end={end} insertPhoto={photo} tpl={tpl} />;
+    const given = sub === undefined ? givenNoteName(typeof sp.name === "string" ? sp.name : null) : null;
+    return <NewNote folder={entry} index={index} subfolder={sub} shared={shared} date={date} end={end} insertPhoto={photo} tpl={tpl} given={given} />;
   }
 
   // 첫 화면은 경로 표시 없이 바로 카드
@@ -242,25 +246,30 @@ async function Note({ entry, index }: { entry: FileEntry; index: DriveIndex }) {
   // 여행 글이면 지도(들른 곳·사진)와 이 여행의 사진·일기
   const isTrip = (await folderKind(index, entry.parent!)) === "travel";
   return (
-    <>
-      {(edit || rename || trash) && (
-        <NoteActions
-          rootId={index.lib.rootId}
-          fileId={entry.id}
-          fileName={entry.name}
-          editHref={edit ? `${hrefFor(entry)}?mode=edit` : null}
-          canRename={rename}
-          canTrash={trash}
+    <div className="note-layout">
+      <div className="note-main">
+        {(edit || rename || trash) && (
+          <NoteActions
+            rootId={index.lib.rootId}
+            fileId={entry.id}
+            fileName={entry.name}
+            editHref={edit ? `${hrefFor(entry)}?mode=edit` : null}
+            canRename={rename}
+            canTrash={trash}
+            extra={<GraphJump id={entry.id} />}
+          />
+        )}
+        {isTrip && <TripSection index={index} entry={entry} text={text} meta={splitFrontmatter(text).meta as Record<string, unknown>} />}
+        <NoteBody
+          text={text}
+          title={entry.slug}
+          links={linkResolver(index, entry.parent!)}
+          tagHref={(t) => `${index.lib.base}?view=search&tag=${encodeURIComponent(t)}`}
         />
-      )}
-      {isTrip && <TripSection index={index} entry={entry} text={text} meta={splitFrontmatter(text).meta as Record<string, unknown>} />}
-      <NoteBody
-        text={text}
-        title={entry.slug}
-        links={linkResolver(index, entry.parent!)}
-        tagHref={(t) => `${index.lib.base}?view=search&tag=${encodeURIComponent(t)}`}
-      />
-    </>
+      </div>
+      {/* 이어진 글은 기기 사본으로 (서버는 다른 글을 읽지 않음) */}
+      <LocalGraph id={entry.id} />
+    </div>
   );
 }
 
@@ -330,6 +339,7 @@ async function NewNote({
   end,
   insertPhoto,
   tpl,
+  given,
 }: {
   folder: FolderEntry;
   index: DriveIndex;
@@ -344,6 +354,8 @@ async function NewNote({
   insertPhoto?: string;
   /** 유형이 없는 폴더에서 고른 유형 (_templates/<이름>.md 또는 내장 서식) */
   tpl?: string;
+  /** 이 이름으로 (로컬 그래프의 '+ 새 글') */
+  given?: string | null;
 }) {
   const folderForm = await formKindOf(index, folder);
   let template: string;
@@ -373,7 +385,8 @@ async function NewNote({
       folderName={subfolder ? `${folder.name} / ${subfolder}` : folder.name}
       subfolder={subfolder}
       // 새로 만들 폴더는 비어 있으니 이름이 겹칠 일이 없다
-      defaultName={subfolder ? date : freeName(folder, date)}
+      defaultName={subfolder ? date : freeName(folder, given ?? date)}
+      nameGiven={!!given}
       initialText={withEnd(template.replaceAll("{{date}}", date).replaceAll("{{title}}", ""), end)}
       closeHref={hrefFor(folder)}
       // 연도 폴더가 아직 없으면 부모(daily) 기준 → daily/attachments 에 저장되고, 새 폴더에서도 그대로 찾아진다

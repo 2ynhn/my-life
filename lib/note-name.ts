@@ -53,3 +53,9 @@ export function autoNoteName(text: string, form: FormKind | null | undefined, de
   if (!label && date === fallbackDate) return defaultName;
   return label ? `${date} ${label}` : date;
 }
+
+/** 주소로 받은 글 이름 (?name=): 파일 이름에 못 쓰는 글자를 빼고 80자까지. 못 쓰면 null */
+export function givenNoteName(raw: string | null | undefined): string | null {
+  const name = (raw ?? "").replace(/[\\/:*?"<>|#\[\]\n\r\t]/g, " ").replace(/\s+/g, " ").trim().replace(/\.md$/i, "").slice(0, 80).trim();
+  return name && !name.startsWith(".") && !name.startsWith("_") ? name : null;
+}

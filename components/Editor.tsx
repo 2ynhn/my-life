@@ -63,6 +63,8 @@ type Props = {
       folderId: string;
       folderName: string;
       defaultName: string;
+      /** 이름을 정해서 열었으면 (로컬 그래프의 '+ 새 글') 본문으로 이름을 바꾸지 않는다 */
+      nameGiven?: boolean;
       subfolder?: string;
       /** 지출 기록 폴더면 '영수증으로 채우기' 버튼을 보인다 */
       receipt?: boolean;
@@ -133,7 +135,7 @@ export function Editor(props: Props) {
   const [checksum, setChecksum] = useState(props.mode === "edit" ? props.checksum : "");
   const [name, setName] = useState(props.mode === "new" ? props.defaultName : "");
   // 이름을 직접 고치기 전까지는 날짜·가게·식당·여행 이름을 따라 자동으로
-  const [nameAuto, setNameAuto] = useState(props.mode === "new");
+  const [nameAuto, setNameAuto] = useState(props.mode === "new" && !props.nameGiven);
   // 저장을 눌러 넘겼으면 임시저장을 더 하지 않는다 (화면이 바뀌기 전에 타이머가 돌아도)
   const submitted = useRef(false);
   // ok: 저장됨(다시 고치면 사라짐) · info: 안내(고쳐도 남음) · error

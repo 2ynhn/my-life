@@ -18,6 +18,7 @@ import { templateChoices } from "@/lib/template-types";
 import { NewFolderButton } from "@/components/NewFolderButton";
 import { NoteActions } from "@/components/NoteActions";
 import { NoteBody } from "@/components/NoteBody";
+import { GraphJump, LocalGraph } from "@/components/LocalGraph";
 import { PageSkeleton } from "@/components/PageSkeleton";
 import { normHref, topOf, type LocalState } from "@/lib/local-store";
 
@@ -88,22 +89,28 @@ export function PreviewFor({ pathname, search }: { pathname: string; search: str
   return (
     <div className="local-preview feature-scope" data-feature={feature} aria-busy="true">
       {/* 버튼도 서버를 기다리지 않는다 (Drive 권한은 받아 둔 목록 그대로) */}
-      {(entry.e || entry.rn || entry.t) && (
-        <NoteActions
-          rootId={local.tree.rootId}
-          fileId={entry.id}
-          fileName={entry.n}
-          editHref={entry.e ? `${entry.h}?mode=edit` : null}
-          canRename={!!entry.rn}
-          canTrash={!!entry.t}
-        />
-      )}
-      <NoteBody
-        text={text}
-        title={entry.s}
-        links={tableResolver(linkTableFor(local, entry))}
-        tagHref={(t) => `${local.tree.base}?view=search&tag=${encodeURIComponent(t)}`}
-      />
+      <div className="note-layout">
+        <div className="note-main">
+          {(entry.e || entry.rn || entry.t) && (
+            <NoteActions
+              rootId={local.tree.rootId}
+              fileId={entry.id}
+              fileName={entry.n}
+              editHref={entry.e ? `${entry.h}?mode=edit` : null}
+              canRename={!!entry.rn}
+              canTrash={!!entry.t}
+              extra={<GraphJump id={entry.id} />}
+            />
+          )}
+          <NoteBody
+            text={text}
+            title={entry.s}
+            links={tableResolver(linkTableFor(local, entry))}
+            tagHref={(t) => `${local.tree.base}?view=search&tag=${encodeURIComponent(t)}`}
+          />
+        </div>
+        <LocalGraph id={entry.id} />
+      </div>
     </div>
   );
 }

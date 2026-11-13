@@ -1,5 +1,6 @@
 "use client";
 
+import { givenNoteName } from "@/lib/note-name";
 import dynamic from "next/dynamic";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, type ComponentProps } from "react";
@@ -132,6 +133,7 @@ export function localEditorProps(local: LocalState | null, pathname: string, sea
   const rawEnd = sp.get("end");
   const end = rawDate && rawEnd && /^\d{4}-\d{2}-\d{2}$/.test(rawEnd) && rawEnd > date ? rawEnd : undefined;
   const kind: FormKind | null = folderForm ?? kindOfTemplate(template);
+  const given = givenNoteName(sp.get("name"));
   return {
     mode: "new",
     receipt: kind === "spending",
@@ -146,7 +148,8 @@ export function localEditorProps(local: LocalState | null, pathname: string, sea
     rootId: local.tree.rootId,
     folderId: entry.id,
     folderName: entry.n,
-    defaultName: freeName(local, entry, date),
+    defaultName: freeName(local, entry, given ?? date),
+    nameGiven: !!given,
     initialText: withEnd(template.replaceAll("{{date}}", date).replaceAll("{{title}}", ""), end),
     closeHref: entry.h,
     uploadFolderId: entry.id,

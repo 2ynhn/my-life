@@ -1,5 +1,6 @@
 "use client";
 
+import type React from "react";
 import { Pencil, TextCursorInput, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -14,6 +15,7 @@ export function NoteActions({
   editHref,
   canRename,
   canTrash,
+  extra,
 }: {
   rootId: string;
   fileId: string;
@@ -21,6 +23,8 @@ export function NoteActions({
   editHref: string | null;
   canRename: boolean;
   canTrash: boolean;
+  /** 줄 끝에 붙일 것 (연결된 글로 가기) */
+  extra?: React.ReactNode;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -75,6 +79,7 @@ export function NoteActions({
         </button>
       )}
       {error && <span className="status small error">{error}</span>}
+      {extra}
     </div>
   );
 }
