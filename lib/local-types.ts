@@ -48,4 +48,11 @@ export type LocalTree = {
 };
 
 /** 글 내용. c: md5 (Drive md5Checksum과 같음 — 기기 사본으로 연 편집기의 충돌 확인용) */
-export type LocalText = { id: string; m: string; t: string; c?: string };
+export type LocalText = {
+  id: string;
+  m: string;
+  t: string;
+  c?: string;
+  /** 이 기기에서 방금 저장한 시각 (서버 화면이 새 내용을 받기 전까지 사본을 보여 주는 데 씀) */
+  w?: number;
+};

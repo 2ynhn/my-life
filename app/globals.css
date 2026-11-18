@@ -5644,3 +5644,18 @@ body:has(.editor) .tabbar {
   stroke-width: 3px;
   stroke-linejoin: round;
 }
+
+/* 처음 열 때 기기 사본(BootPreview)이 있으면 자리표시는 숨긴다. PC에서는 왼쪽 메뉴 자리만큼 띄워 서버 화면과 같은 자리에 */
+.content:has(.boot-preview) .skeleton {
+  display: none;
+}
+@media (min-width: 769px) {
+  .boot-preview {
+    margin-left: var(--sidebar-w);
+    max-width: 860px;
+  }
+  .with-sidebar ~ .boot-preview,
+  .content:has(.sidebar) .boot-preview {
+    margin-left: var(--sidebar-w);
+  }
+}

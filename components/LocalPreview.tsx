@@ -20,7 +20,7 @@ import { NoteActions } from "@/components/NoteActions";
 import { NoteBody } from "@/components/NoteBody";
 import { GraphJump, LocalGraph } from "@/components/LocalGraph";
 import { PageSkeleton } from "@/components/PageSkeleton";
-import { normHref, topOf, type LocalState } from "@/lib/local-store";
+import { isPendingId, normHref, topOf, type LocalState } from "@/lib/local-store";
 
 export { topOf };
 import type { LocalEntry } from "@/lib/local-types";
@@ -156,7 +156,8 @@ function compare(a: LocalEntry, b: LocalEntry) {
 function FolderPreview({ local, folder, params }: { local: LocalState; folder: LocalEntry; params: URLSearchParams }) {
   const feature = local.tree.kinds[topOf(local, folder).id] ?? null;
   const kind = feature === "diary" ? null : feature;
-  const items = visible(local, folder.id).sort(compare);
+  // 저장 중인 새 글은 목록 위 '저장 중' 줄(PendingNotes)이 따로 보여 준다
+  const items = visible(local, folder.id).filter((e) => !isPendingId(e.id)).sort(compare);
   const notes: NoteItem[] = items.filter((e) => e.k === "f").map((e) => ({ id: e.id, href: e.h, slug: e.s }));
   const summaries = new Map<string, string>();
   for (const n of notes) {

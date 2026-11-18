@@ -1,5 +1,6 @@
 import { givenNoteName } from "@/lib/note-name";
 import { GraphJump, LocalGraph } from "@/components/LocalGraph";
+import { FreshNote } from "@/components/FreshNote";
 import type { Metadata } from "next";
 import { Plus } from "lucide-react";
 import Link from "next/link";
@@ -245,31 +246,34 @@ async function Note({ entry, index }: { entry: FileEntry; index: DriveIndex }) {
   const { edit, rename, trash } = entry.can;
   // 여행 글이면 지도(들른 곳·사진)와 이 여행의 사진·일기
   const isTrip = (await folderKind(index, entry.parent!)) === "travel";
+  // 방금 이 기기에서 고친 글이면 저장이 끝나 새 내용이 올 때까지 기기 사본으로 (FreshNote)
   return (
-    <div className="note-layout">
-      <div className="note-main">
-        {(edit || rename || trash) && (
-          <NoteActions
-            rootId={index.lib.rootId}
-            fileId={entry.id}
-            fileName={entry.name}
-            editHref={edit ? `${hrefFor(entry)}?mode=edit` : null}
-            canRename={rename}
-            canTrash={trash}
-            extra={<GraphJump id={entry.id} />}
+    <FreshNote fileId={entry.id} serverText={text}>
+      <div className="note-layout">
+        <div className="note-main">
+          {(edit || rename || trash) && (
+            <NoteActions
+              rootId={index.lib.rootId}
+              fileId={entry.id}
+              fileName={entry.name}
+              editHref={edit ? `${hrefFor(entry)}?mode=edit` : null}
+              canRename={rename}
+              canTrash={trash}
+              extra={<GraphJump id={entry.id} />}
+            />
+          )}
+          {isTrip && <TripSection index={index} entry={entry} text={text} meta={splitFrontmatter(text).meta as Record<string, unknown>} />}
+          <NoteBody
+            text={text}
+            title={entry.slug}
+            links={linkResolver(index, entry.parent!)}
+            tagHref={(t) => `${index.lib.base}?view=search&tag=${encodeURIComponent(t)}`}
           />
-        )}
-        {isTrip && <TripSection index={index} entry={entry} text={text} meta={splitFrontmatter(text).meta as Record<string, unknown>} />}
-        <NoteBody
-          text={text}
-          title={entry.slug}
-          links={linkResolver(index, entry.parent!)}
-          tagHref={(t) => `${index.lib.base}?view=search&tag=${encodeURIComponent(t)}`}
-        />
+        </div>
+        {/* 이어진 글은 기기 사본으로 (서버는 다른 글을 읽지 않음) */}
+        <LocalGraph id={entry.id} />
       </div>
-      {/* 이어진 글은 기기 사본으로 (서버는 다른 글을 읽지 않음) */}
-      <LocalGraph id={entry.id} />
-    </div>
+    </FreshNote>
   );
 }
 

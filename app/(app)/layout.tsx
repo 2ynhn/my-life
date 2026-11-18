@@ -1,6 +1,7 @@
 import { Settings } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
+import { BootPreview } from "@/components/BootPreview";
 import { SaveStatus } from "@/components/SaveStatus";
 import { TopNav } from "@/components/TopNav";
 import { requireUser } from "@/lib/session";
@@ -34,7 +35,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           )}
         </Link>
       </header>
-      <main className="content">{children}</main>
+      <main className="content">
+        <Suspense fallback={null}>
+          <BootPreview email={user.email.toLowerCase()} />
+        </Suspense>
+        {children}
+      </main>
       <Suspense fallback={null}>
         <SaveStatus />
       </Suspense>

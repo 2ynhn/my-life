@@ -87,7 +87,123 @@ const notify = () => {
   for (const l of listeners) l();
 };
 
-export const getLocal = (email: string, rootId: string): LocalState | null => states.get(keyOf(email, rootId)) ?? null;
+export const getLocal = (email: string, rootId: string): LocalState | null => {
+  const key = keyOf(email, rootId);
+  const base = states.get(key) ?? null;
+  return base ? withPending(key, base) : null;
+};
+
+// ───────────── 저장 중인 새 글 (기기에 먼저) ─────────────
+// 새 글은 저장을 누르자마자 사본에 '임시 항목'으로 넣어 목록·요약·캘린더에 바로 보인다 (id가 pending:으로 시작).
+// Drive 저장이 끝나 다음 동기화가 진짜 항목을 가져오면 뺀다. 실패하면 바로 뺀다 (내용은 임시본에 남아 있음).
+
+export type PendingJob = { id: string; at: number; rootId: string; folderId: string; subfolder?: string; name: string; text: string; failed: boolean };
+type Pending = { entries: LocalEntry[]; text: LocalText; at: number; done?: number };
+const pendings = new Map<string, Map<string, Pending>>();
+const merged = new Map<string, { base: LocalState; stamp: number; state: LocalState }>();
+let pendingStamp = 0;
+
+export const isPendingId = (id: string) => id.startsWith("pending:") || id.startsWith("pending-d:");
+
+function withPending(key: string, base: LocalState): LocalState {
+  const list = pendings.get(key);
+  if (!list?.size) return base;
+  const hit = merged.get(key);
+  if (hit && hit.base === base && hit.stamp === pendingStamp) return hit.state;
+  const entries = [...base.tree.entries];
+  const texts = new Map(base.texts);
+  const taken = new Set(base.tree.entries.map((e) => `${e.p}\n${e.n.toLowerCase()}`));
+  for (const pend of list.values()) {
+    const file = pend.entries.at(-1)!;
+    // 진짜 항목이 이미 왔으면 (같은 폴더·같은 이름, 그 뒤에 바뀐 것) 임시 항목은 뺀다
+    const real = base.tree.entries.find((e) => e.p === file.p && e.n.toLowerCase() === file.n.toLowerCase());
+    if (real && real.m >= new Date(pend.at - 60_000).toISOString()) continue;
+    for (const e of pend.entries) {
+      const k = `${e.p}\n${e.n.toLowerCase()}`;
+      if (e.k === "d" && taken.has(k)) continue;
+      taken.add(k);
+      entries.push(e);
+    }
+    texts.set(file.id, pend.text);
+  }
+  const state = build({ ...base.tree, entries }, texts);
+  merged.set(key, { base, stamp: pendingStamp, state });
+  return state;
+}
+
+function pendingFor(base: LocalState, job: PendingJob): Pending | null {
+  let parent = base.byId.get(job.folderId);
+  if (!parent || parent.k !== "d") return null;
+  const m = new Date(job.at).toISOString();
+  const entries: LocalEntry[] = [];
+  if (job.subfolder) {
+    // 저장할 때 만들 하위 폴더 (오늘 일기의 연도 폴더)
+    const existing = (base.children.get(parent.id) ?? []).find((e) => e.k === "d" && e.n === job.subfolder);
+    if (existing) parent = existing;
+    else {
+      const folder: LocalEntry = { id: `pending-d:${job.id}`, p: parent.id, n: job.subfolder, s: job.subfolder, k: "d", m, h: `${parent.h}/${encodeURIComponent(job.subfolder)}`, v: 1 };
+      entries.push(folder);
+      parent = folder;
+    }
+  }
+  const id = `pending:${job.id}`;
+  // 권한 표시는 없음: 저장이 끝나기 전에는 편집·이름 바꾸기·삭제를 못 한다
+  entries.push({ id, p: parent.id, n: `${job.name}.md`, s: job.name, k: "f", m, h: `${parent.h}/${encodeURIComponent(job.name)}`, v: 1, md: 1 });
+  return { entries, text: { id, m, t: job.text }, at: job.at };
+}
+
+/** 저장 대기열의 새 글들로 임시 항목을 맞춘다. 대기열에서 빠진 것(저장 끝)은 다음 동기화까지 둔다 */
+export function setPendingJobs(email: string, rootId: string, jobs: PendingJob[]) {
+  const key = keyOf(email, rootId);
+  const base = states.get(key);
+  const list = pendings.get(key) ?? new Map<string, Pending>();
+  let changed = false;
+  const now = Date.now();
+  const active = new Set<string>();
+  for (const job of jobs) {
+    if (job.rootId !== rootId) continue;
+    if (job.failed) {
+      if (list.delete(job.id)) changed = true;
+      continue;
+    }
+    active.add(job.id);
+    const had = list.get(job.id);
+    if (had && had.text.t === job.text) continue;
+    const pend = base ? pendingFor(base, job) : null;
+    if (pend) {
+      list.set(job.id, pend);
+      changed = true;
+    }
+  }
+  for (const [id, pend] of list) {
+    if (active.has(id)) continue;
+    if (!pend.done) {
+      pend.done = now;
+      changed = true;
+    } else if (now - pend.done > 120_000) {
+      list.delete(id);
+      changed = true;
+    }
+  }
+  pendings.set(key, list);
+  if (changed) {
+    pendingStamp++;
+    notify();
+  }
+}
+
+/** 동기화로 진짜 목록을 받았으면 저장이 끝난 임시 항목은 뺀다 */
+function dropDonePending(key: string) {
+  const list = pendings.get(key);
+  if (!list) return;
+  let changed = false;
+  for (const [id, pend] of list)
+    if (pend.done) {
+      list.delete(id);
+      changed = true;
+    }
+  if (changed) pendingStamp++;
+}
 
 /** 주소 비교용: 퍼센트 인코딩을 풀고 끝의 / 를 뗀다 */
 export const normHref = (h: string) => {
@@ -127,6 +243,26 @@ async function loadSaved(email: string, rootId: string): Promise<LocalState | nu
 }
 
 const running = new Map<string, Promise<void>>();
+const opening = new Map<string, Promise<void>>();
+
+/** 기기에 둔 사본만 꺼낸다 (서버에 묻지 않음). 첫 화면을 서버보다 먼저 그릴 때 */
+export function openLocal(email: string, rootId: string): Promise<void> {
+  const key = keyOf(email, rootId);
+  if (states.has(key)) return Promise.resolve();
+  const current = opening.get(key) ?? running.get(key);
+  if (current) return current;
+  const job = loadSaved(email, rootId)
+    .then((saved) => {
+      if (saved && !states.has(key)) {
+        states.set(key, saved);
+        notify();
+      }
+    })
+    .catch(() => {})
+    .finally(() => opening.delete(key));
+  opening.set(key, job);
+  return job;
+}
 
 /** 기기에 둔 것을 먼저 꺼내 보여 주고, 서버에서 바뀐 것만 받아 온다 (같은 일기장은 한 번에 하나만) */
 export function syncLocal(email: string, rootId: string): Promise<void> {
@@ -161,7 +297,10 @@ export function syncLocal(email: string, rootId: string): Promise<void> {
         for (const id of gone) texts.delete(id);
       }
       for (const t of got) texts.set(t.id, t);
-      if (tree) states.set(key, build(tree, texts));
+      if (tree) {
+        states.set(key, build(tree, texts));
+        dropDonePending(key);
+      }
       notify();
       await tx("readwrite", (s) => {
         if (tree) s.put(tree, treeKey(email, rootId));
@@ -219,7 +358,7 @@ export function putLocalText(email: string, rootId: string, id: string, text: st
   const state = states.get(keyOf(email, rootId));
   const entry = state?.byId.get(id);
   if (!state || !entry) return;
-  const t: LocalText = { id, m: entry.m, t: text };
+  const t: LocalText = { id, m: entry.m, t: text, w: Date.now() };
   state.texts.set(id, t);
   notify();
   void tx("readwrite", (s) => void s.put(t, `${textPrefix(email)}${id}`));
