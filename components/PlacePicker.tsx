@@ -1,7 +1,7 @@
 "use client";
 
 import { Link2, LocateFixed } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { findMapUrl, mapLabel, type PlaceInfo } from "@/lib/map-link";
 
 // 여행·음식 글에 장소 넣기: 한 칸에 이름을 적으면 찾고, 지도 앱 공유 링크를 붙이면 그 장소를 넣는다.
@@ -10,7 +10,12 @@ import { findMapUrl, mapLabel, type PlaceInfo } from "@/lib/map-link";
 // - 지금 있는 곳(GPS)
 
 type Found = PlaceInfo & { detail: string };
-type Props = { onPick: (p: PlaceInfo) => void; onClose: () => void };
+type Props = {
+  onPick: (p: PlaceInfo) => void;
+  onClose: () => void;
+  /** 처음 칸에 넣고 바로 찾을 이름 (음식 글의 식당 이름) */
+  initialQuery?: string;
+};
 
 const NOMINATIM = "https://nominatim.openstreetmap.org";
 
@@ -29,8 +34,10 @@ async function searchOsm(q: string): Promise<Found[]> {
   return json.map((r) => ({ name: r.name || r.display_name.split(",")[0], detail: r.display_name, lat: Number(r.lat), lng: Number(r.lon) }));
 }
 
-export function PlacePicker({ onPick, onClose }: Props) {
-  const [q, setQ] = useState("");
+export function PlacePicker({ onPick, onClose, initialQuery }: Props) {
+  const [q, setQ] = useState(initialQuery?.trim() ?? "");
+  const inputRef = useRef<HTMLInputElement>(null);
+  const started = useRef(false);
   const [busy, setBusy] = useState(false);
   const [results, setResults] = useState<Found[] | null>(null);
   const [source, setSource] = useState<"naver" | "google" | "osm" | null>(null);
@@ -76,6 +83,15 @@ export function PlacePicker({ onPick, onClose }: Props) {
       setBusy(false);
     }
   };
+
+  // 식당 이름을 이미 적었으면 칸에 넣고 바로 찾는다 (두 번 적지 않게). 다른 이름으로 찾으려면 그대로 덮어쓰기
+  useEffect(() => {
+    if (started.current || !q) return;
+    started.current = true;
+    inputRef.current?.select();
+    void search();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const useHere = () => {
     if (!navigator.geolocation) return setError("이 기기에서는 위치를 알 수 없습니다.");
@@ -134,7 +150,7 @@ export function PlacePicker({ onPick, onClose }: Props) {
             void search();
           }}
         >
-          <input name="q" value={q} onChange={(e) => setQ(e.target.value)} placeholder="장소 이름 또는 지도 공유 링크" autoFocus />
+          <input ref={inputRef} name="q" value={q} onChange={(e) => setQ(e.target.value)} placeholder="장소 이름 또는 지도 공유 링크" autoFocus />
           <button className="btn btn-save" type="submit" disabled={busy}>
             찾기
           </button>

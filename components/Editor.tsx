@@ -932,7 +932,13 @@ export function Editor(props: Props) {
           }}
         />
       )}
-      {picker && <PlacePicker onPick={insertPlace} onClose={() => setPicker(false)} />}
+      {picker && (
+        <PlacePicker
+          onPick={insertPlace}
+          onClose={() => setPicker(false)}
+          initialQuery={props.form === "food" ? String(readMeta(viewRef.current?.state.doc.toString() ?? text)?.restaurant ?? "").trim() || undefined : undefined}
+        />
+      )}
       {linkPick && (
         <NotePicker
           fallback={Object.keys(props.links.notes)}
