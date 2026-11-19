@@ -6106,3 +6106,50 @@ body:has(.editor) .tabbar {
   order: 1;
   margin-top: -0.3rem;
 }
+
+/* 추천 태그: '+'는 글자에 바짝, 색은 안내 글(회색)과 구별되게 쓰임새 색으로 (고른 태그는 굵게) */
+.chip-suggest button,
+.props .chip-suggest button {
+  gap: 0;
+  color: color-mix(in srgb, var(--fc, var(--accent)) 80%, var(--muted));
+}
+.chip-suggest button svg {
+  margin-right: 1px;
+}
+.chip-suggest button:hover,
+.props .chip-suggest button:hover {
+  color: var(--fc, var(--accent));
+}
+.chips .chip,
+.props .chips .chip {
+  color: var(--fc, var(--accent));
+  font-weight: 700;
+}
+
+/* 쓰기 맨 위 닫기: 아이콘만이어도 버튼처럼 (옅은 테두리·바탕) */
+.editor-bar .bar-btn[title="닫기"] {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+}
+.editor-bar .bar-btn[title="닫기"]:hover {
+  background: var(--panel);
+}
+
+/* 장소 찾기: 가까운 순 켜짐 · 거리 */
+.picker-quick .here.on {
+  border-color: var(--fc, var(--accent));
+  background: var(--fc-soft, var(--accent-soft));
+  color: var(--fc, var(--accent));
+}
+.picker-results .place-name {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+.place-dist {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--fc, var(--accent));
+}

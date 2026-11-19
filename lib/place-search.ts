@@ -84,7 +84,9 @@ export async function naverSearch(q: string): Promise<FoundPlace[] | null> {
 }
 
 /** 구글 Places 텍스트 검색 (최대 5곳, 한국어). 키가 없으면 null */
-export async function googleSearch(q: string): Promise<FoundPlace[] | null> {
+export type Near = { lat: number; lng: number };
+
+export async function googleSearch(q: string, near?: Near): Promise<FoundPlace[] | null> {
   if (!hasGooglePlaces()) return null;
   const res = await fetch(`${GOOGLE_PLACES_BASE}/v1/places:searchText`, {
     method: "POST",
@@ -94,7 +96,14 @@ export async function googleSearch(q: string): Promise<FoundPlace[] | null> {
       // 필요한 칸만 (요금 등급도 이걸로 정해진다)
       "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.location",
     },
-    body: JSON.stringify({ textQuery: q, languageCode: "ko", regionCode: "KR", pageSize: 5 }),
+    // 내 위치를 알면 그 근처(20km)를 먼저 (밖의 결과도 나오되 순서가 앞으로)
+    body: JSON.stringify({
+      textQuery: q,
+      languageCode: "ko",
+      regionCode: "KR",
+      pageSize: 5,
+      ...(near ? { locationBias: { circle: { center: { latitude: near.lat, longitude: near.lng }, radius: 20000 } } } : {}),
+    }),
     signal: AbortSignal.timeout(6000),
     cache: "no-store",
   });
@@ -116,10 +125,11 @@ export async function googleSearch(q: string): Promise<FoundPlace[] | null> {
 export type SearchOutcome = { source: PlaceSource; results: FoundPlace[]; notes: string[] } | { source: null; notes: string[] };
 
 /** 이름 찾기. notes: 건너뛴 단계와 이유 (화면에 짧게 보여 줘 키 문제를 알 수 있게, 키 값은 넣지 않음) */
-export async function searchPlacesDetailed(q: string): Promise<SearchOutcome> {
+export async function searchPlacesDetailed(q: string, near?: Near): Promise<SearchOutcome> {
+  // 네이버 지역 검색은 위치를 받지 않는다 (가까운 순 정렬은 화면에서)
   const steps: [PlaceSource, string, (q: string) => Promise<FoundPlace[] | null>][] = [
     ["naver", "네이버", naverSearch],
-    ["google", "구글", googleSearch],
+    ["google", "구글", (text) => googleSearch(text, near)],
   ];
   const notes: string[] = [];
   for (const [source, label, run] of steps) {

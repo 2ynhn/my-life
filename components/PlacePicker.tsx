@@ -1,6 +1,6 @@
 "use client";
 
-import { Link2, LocateFixed } from "lucide-react";
+import { Link2, LocateFixed, Navigation } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { findMapUrl, mapLabel, type PlaceInfo } from "@/lib/map-link";
 
@@ -19,8 +19,34 @@ type Props = {
 
 const NOMINATIM = "https://nominatim.openstreetmap.org";
 
-async function searchOsm(q: string): Promise<Found[]> {
+type Pos = { lat: number; lng: number };
+const NEAR_KEY = "my-life:place-near";
+
+/** 두 점 사이 거리 (m) */
+function distance(a: Pos, b: Pos): number {
+  const rad = (d: number) => (d * Math.PI) / 180;
+  const dLat = rad(b.lat - a.lat);
+  const dLng = rad(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 6_371_000 * 2 * Math.asin(Math.sqrt(h));
+}
+const distanceLabel = (m: number) => (m < 1000 ? `${Math.round(m / 10) * 10}m` : m < 100_000 ? `${(m / 1000).toFixed(1)}km` : `${Math.round(m / 1000)}km`);
+
+function currentPos(): Promise<Pos> {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) return reject(new Error("이 기기에서는 위치를 알 수 없습니다."));
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => resolve({ lat: coords.latitude, lng: coords.longitude }),
+      (e) => reject(new Error(e.code === e.PERMISSION_DENIED ? "위치 권한이 막혀 있습니다. 브라우저 설정에서 허용해 주세요." : "위치를 알 수 없습니다.")),
+      { enableHighAccuracy: false, timeout: 10_000, maximumAge: 5 * 60_000 },
+    );
+  });
+}
+
+async function searchOsm(q: string, near?: Pos | null): Promise<Found[]> {
   const params = new URLSearchParams({ q, format: "jsonv2", limit: "8", "accept-language": "ko", countrycodes: "kr" });
+  // 내 위치 근처를 먼저 (밖의 결과도 나옴)
+  if (near) params.set("viewbox", `${near.lng - 0.3},${near.lat + 0.3},${near.lng + 0.3},${near.lat - 0.3}`);
   let res = await fetch(`${NOMINATIM}/search?${params}`);
   if (!res.ok) throw new Error();
   let json = (await res.json()) as { name?: string; display_name: string; lat: string; lon: string }[];
@@ -38,6 +64,36 @@ export function PlacePicker({ onPick, onClose, initialQuery }: Props) {
   const [q, setQ] = useState(initialQuery?.trim() ?? "");
   const inputRef = useRef<HTMLInputElement>(null);
   const started = useRef(false);
+  // 가까운 순: 켜 두면 다음에도 (위치 권한은 처음 켤 때만 묻는다)
+  const [near, setNear] = useState(() => {
+    try {
+      return localStorage.getItem(NEAR_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const [pos, setPos] = useState<Pos | null>(null);
+  const posRef = useRef<Pos | null>(null);
+  const locate = async (): Promise<Pos | null> => {
+    if (posRef.current) return posRef.current;
+    try {
+      const p = await currentPos();
+      posRef.current = p;
+      setPos(p);
+      return p;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "위치를 알 수 없습니다.");
+      return null;
+    }
+  };
+  const toggleNear = async () => {
+    const next = !near;
+    setNear(next);
+    try {
+      localStorage.setItem(NEAR_KEY, next ? "1" : "0");
+    } catch {}
+    if (next && !(await locate())) setNear(false);
+  };
   const [busy, setBusy] = useState(false);
   const [results, setResults] = useState<Found[] | null>(null);
   const [source, setSource] = useState<"naver" | "google" | "osm" | null>(null);
@@ -56,7 +112,13 @@ export function PlacePicker({ onPick, onClose, initialQuery }: Props) {
   };
 
   const fromName = async (name: string) => {
-    const res = await fetch(`/api/places?${new URLSearchParams({ q: name })}`);
+    const here = near ? await locate() : null;
+    const params = new URLSearchParams({ q: name });
+    if (here) {
+      params.set("lat", here.lat.toFixed(4));
+      params.set("lng", here.lng.toFixed(4));
+    }
+    const res = await fetch(`/api/places?${params}`);
     const j = (await res.json().catch(() => ({}))) as { source?: "naver" | "google"; results?: Found[]; notes?: string[] };
     setNotes(j.notes ?? []);
     if (res.ok && j.source && j.results?.length) {
@@ -65,7 +127,7 @@ export function PlacePicker({ onPick, onClose, initialQuery }: Props) {
     }
     // 키가 없거나(501) 네이버·구글 모두 못 찾았거나 오류면 OpenStreetMap으로
     setSource("osm");
-    setResults(await searchOsm(name));
+    setResults(await searchOsm(name, here));
   };
 
   const search = async () => {
@@ -107,6 +169,8 @@ export function PlacePicker({ onPick, onClose, initialQuery }: Props) {
           const json = (await res.json()) as { name?: string; display_name?: string };
           name = json.name || json.display_name?.split(",")[0] || name;
         } catch {}
+        posRef.current = { lat: coords.latitude, lng: coords.longitude };
+        setPos(posRef.current);
         setResults(null);
         setPending({ lat: coords.latitude, lng: coords.longitude, name });
         setBusy(false);
@@ -134,6 +198,12 @@ export function PlacePicker({ onPick, onClose, initialQuery }: Props) {
     }
   };
 
+  // 가까운 순이면 거리를 붙여 정렬 (좌표 없는 결과는 뒤로)
+  const shown = (results ?? [])
+    .map((r) => ({ r, d: near && pos && r.lat !== undefined && r.lng !== undefined ? distance(pos, { lat: r.lat, lng: r.lng }) : null }))
+    .map((x, i) => ({ ...x, i }))
+    .sort((a, b) => (near && pos ? (a.d ?? Infinity) - (b.d ?? Infinity) || a.i - b.i : a.i - b.i));
+
   return (
     <div className="picker-backdrop" role="dialog" aria-modal="true" aria-label="장소 추가" onClick={onClose}>
       <div className="picker" onClick={(e) => e.stopPropagation()}>
@@ -156,6 +226,10 @@ export function PlacePicker({ onPick, onClose, initialQuery }: Props) {
           </button>
         </form>
         <div className="picker-quick">
+          <button className={`btn here${near ? " on" : ""}`} onClick={() => void toggleNear()} aria-pressed={near} title="찾은 장소를 지금 있는 곳에서 가까운 순으로">
+            <Navigation size={16} aria-hidden />
+            가까운 순
+          </button>
           <button className="btn here" onClick={useHere} disabled={busy}>
             <LocateFixed size={16} aria-hidden />
             지금 있는 곳
@@ -189,10 +263,13 @@ export function PlacePicker({ onPick, onClose, initialQuery }: Props) {
         {results && (
           <ul className="picker-results">
             {results.length === 0 && <li className="muted small">찾은 장소가 없어요. 다른 이름으로 찾거나, 지도 앱의 공유 링크를 붙여 넣어 보세요.</li>}
-            {results.map((r, i) => (
+            {shown.map(({ r, d }, i) => (
               <li key={i}>
                 <button onClick={() => onPick({ name: r.name, lat: r.lat, lng: r.lng })}>
-                  <span>{r.name}</span>
+                  <span className="place-name">
+                    {r.name}
+                    {d !== null && <span className="place-dist">{distanceLabel(d)}</span>}
+                  </span>
                   <span className="muted small">{r.detail}</span>
                 </button>
               </li>

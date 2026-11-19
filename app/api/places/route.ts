@@ -27,7 +27,11 @@ export async function GET(req: Request) {
   if (!q) return json({ results: [] });
   if (!hasNaverSearch() && !hasGooglePlaces()) return json({ error: "no-key" }, 501);
   if (!allow(user.email)) return json({ error: "잠시 뒤 다시 찾아 주세요." }, 429);
-  const found = await searchPlacesDetailed(q);
+  const sp = new URL(req.url).searchParams;
+  const lat = Number(sp.get("lat"));
+  const lng = Number(sp.get("lng"));
+  const near = sp.has("lat") && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? { lat, lng } : undefined;
+  const found = await searchPlacesDetailed(q, near);
   return found.source ? json(found) : json({ error: "not-found", notes: found.notes }, 501);
 }
 

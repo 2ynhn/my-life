@@ -218,7 +218,9 @@ const server = createServer(async (req, res) => {
         return send(res, 401, { errorMessage: "Authentication failed" });
       const q = url.searchParams.get("query") ?? "";
       const items = q.includes("면옥")
-        ? [{ title: "<b>을지면옥</b>", category: "한식>냉면", address: "서울특별시 중구 입정동 177", roadAddress: "서울특별시 중구 충무로14길 2-1", mapx: "1269917720", mapy: "375664190" }]
+        ? [{ title: "<b>을지면옥</b>", category: "한식>냉면", address: "서울특별시 중구 입정동 177", roadAddress: "서울특별시 중구 충무로14길 2-1", mapx: "1269917720", mapy: "375664190" },
+            // 멀리 있는 같은 이름 (가까운 순 정렬 확인용: 부산)
+            { title: "<b>을지면옥</b> 부산점", category: "한식>냉면", address: "부산광역시 중구 남포동", roadAddress: "부산광역시 중구 광복로 1", mapx: "1290330000", mapy: "350980000" }]
         : [];
       return send(res, 200, { total: items.length, start: 1, display: items.length, items });
     }
