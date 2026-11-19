@@ -5926,7 +5926,7 @@ body:has(.editor) .tabbar {
 .props .chips-field > .chip-suggest {
   grid-column: 1 / -1;
   margin: 0 -0.65rem;
-  padding: 0 0.65rem 0.4rem;
+  padding: 0 0.65rem;
   scroll-padding: 0 0.65rem;
 }
 
@@ -5994,4 +5994,115 @@ body:has(.editor) .tabbar {
 }
 .note-list .year-divider {
   padding-top: 1.1rem;
+}
+
+/* ── 쓰기 맨 위: [이름].md  ✕  ✓ 한 줄, 높이 36px로 가운데 맞춤. 닫기·만들기는 아이콘만 ── */
+.editor-bar .bar-btn[title="닫기"] .btn-text,
+.editor-bar .btn-save .btn-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.editor-bar .bar-btn[title="닫기"],
+.editor-bar .btn-save {
+  width: 40px;
+  height: 36px;
+  padding: 0;
+  justify-content: center;
+}
+.editor-bar .bar-btn[title="닫기"] {
+  border-color: transparent;
+  background: none;
+}
+.editor-name .name-field {
+  height: 36px;
+}
+.editor-name .name-field input {
+  height: 36px;
+  box-sizing: border-box;
+}
+.editor-name .name-field > span {
+  line-height: 36px;
+}
+.editor-name .file-name {
+  line-height: 36px;
+}
+@media (max-width: 768px) {
+  .editor-bar {
+    min-height: 52px;
+    column-gap: 0.35rem;
+  }
+}
+
+/* ── 항목 칸 정돈: 항목 사이는 넉넉히, 항목 아래 추천 태그는 바짝. 제목과 내용은 같은 40px 높이로 가운데 맞춤 ── */
+.props .form-field,
+.props .chips-field {
+  align-items: start;
+  row-gap: 0.1rem;
+  padding: 0.3rem 0;
+}
+.props .form-label {
+  min-height: 40px;
+  height: 40px;
+  margin: 0;
+  padding: 0;
+  align-items: center;
+}
+.props .form-field > input:not([type="checkbox"]),
+.props .form-field > select,
+.props .chips,
+.props .add-row,
+.props .btn.add-row,
+.props .seg {
+  min-height: 40px;
+  margin: 0;
+  box-sizing: border-box;
+}
+.props .form-field > input:not([type="checkbox"]),
+.props .form-field > select {
+  height: 40px;
+}
+.props .chips {
+  align-items: center;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.props .add-row,
+.props .btn.add-row {
+  display: inline-flex;
+  align-items: center;
+  align-self: start;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.props .seg {
+  align-items: center;
+  padding: 0;
+}
+.props .chips-field > .chip-suggest {
+  margin-top: -0.2rem;
+}
+.props .chip-suggest button {
+  padding: 0.1rem 0;
+}
+.props .item-row {
+  min-height: 40px;
+  align-items: center;
+}
+@media (max-width: 768px) {
+  .editor-bar > .editor-name,
+  .editor-bar > .bar-btn,
+  .editor-bar > .btn-save {
+    align-self: center;
+    margin-top: 0;
+    margin-bottom: 0;
+  }
+}
+/* 장소: '장소 추가' 버튼을 제목과 같은 줄에, 안내 글은 그 아래 작게 */
+.props .form-field > .form-hint {
+  order: 1;
+  margin-top: -0.3rem;
 }

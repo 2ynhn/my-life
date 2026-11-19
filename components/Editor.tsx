@@ -775,8 +775,7 @@ export function Editor(props: Props) {
         {/* 파일 이름: 휴대폰에서는 닫기·만들기와 한 줄 (daily / 이름 .md  ✕  만들기), 넓은 화면에서는 도구 줄 위 */}
         <div className="editor-name">
           {props.mode === "new" ? (
-            <label className="name-field">
-              <span className="muted small">{props.folderName} /</span>
+            <label className="name-field" title={`${props.folderName} 폴더에 만듭니다`}>
               <input
                 value={name}
                 onChange={(e) => {
@@ -799,11 +798,12 @@ export function Editor(props: Props) {
         </button>
         <button
           className={`btn btn-save${dirty ? " dirty" : ""}`}
+          aria-label={props.mode === "new" ? "만들기" : "저장"}
           onClick={() => void (props.mode === "edit" && !dirty && props.doneHref ? go(props.doneHref) : save(false, true))}
           title={props.mode === "new" ? "만들고 목록으로" : "저장하고 목록으로 (Ctrl+S는 저장만)"}
         >
-          <Check size={17} aria-hidden />
-          {props.mode === "new" ? "만들기" : "저장"}
+          <Check size={18} strokeWidth={2.25} aria-hidden />
+          <span className="btn-text">{props.mode === "new" ? "만들기" : "저장"}</span>
         </button>
       </div>
       {props.mode === "new" && props.receipt && (
