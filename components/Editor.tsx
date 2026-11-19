@@ -685,27 +685,6 @@ export function Editor(props: Props) {
       }}
       onInput={watchLinkTyping}
     >
-      {/* 파일 이름: 모바일에서는 스크롤과 함께 올라가고, 위에는 아이콘 줄만 붙어 있다 */}
-      <div className="editor-name">
-        {props.mode === "new" ? (
-          <label className="name-field">
-            <span className="muted small">{props.folderName} /</span>
-            <input
-              value={name}
-              onChange={(e) => {
-                setName(e.target.value);
-                setNameAuto(false);
-              }}
-              aria-label="파일 이름"
-              placeholder="파일 이름"
-              spellCheck={false}
-            />
-            <span className="muted small">.md</span>
-          </label>
-        ) : (
-          <span className="file-name">{props.fileName}</span>
-        )}
-      </div>
       <div className="editor-bar">
         {/* 도구: 넓은 화면은 이 줄에, 휴대폰은 아래쪽에 떠 있는 막대로 (키보드 바로 위) */}
         <div className="editor-tools">
@@ -793,6 +772,27 @@ export function Editor(props: Props) {
         ) : (
           dirty && <span className="status small muted unsaved">저장 안 됨</span>
         )}
+        {/* 파일 이름: 휴대폰에서는 닫기·만들기와 한 줄 (daily / 이름 .md  ✕  만들기), 넓은 화면에서는 도구 줄 위 */}
+        <div className="editor-name">
+          {props.mode === "new" ? (
+            <label className="name-field">
+              <span className="muted small">{props.folderName} /</span>
+              <input
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  setNameAuto(false);
+                }}
+                aria-label="파일 이름"
+                placeholder="파일 이름"
+                spellCheck={false}
+              />
+              <span className="muted small">.md</span>
+            </label>
+          ) : (
+            <span className="file-name">{props.fileName}</span>
+          )}
+        </div>
         <button className="btn bar-btn" onClick={close} title="닫기">
           <X size={17} aria-hidden />
           <span className="btn-text">닫기</span>

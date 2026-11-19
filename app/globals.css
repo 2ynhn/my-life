@@ -5850,3 +5850,148 @@ body:has(.editor) .tabbar {
   content: "· ";
   color: var(--muted);
 }
+
+/* ── 쓰기 맨 위: 휴대폰은 한 줄 (daily / [이름] .md  ✕  만들기). 넓은 화면은 이름이 도구 줄 위에 ── */
+.editor-name {
+  min-width: 0;
+}
+.editor-name .name-field {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+}
+.editor-name .name-field > span {
+  flex: none;
+  white-space: nowrap;
+}
+@media (min-width: 769px) {
+  .editor-bar .editor-name {
+    order: -1;
+    flex-basis: 100%;
+  }
+}
+@media (max-width: 768px) {
+  .editor-bar {
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 0.25rem;
+  }
+  .editor-bar .editor-name {
+    order: 1;
+    flex: 1;
+    padding: 0;
+  }
+  .editor-bar > .spacer {
+    display: none;
+  }
+  .editor-bar .bar-btn[title="닫기"] {
+    order: 2;
+    padding: 0.45rem;
+  }
+  .editor-bar > .btn-save {
+    order: 3;
+  }
+  .editor-bar > .status {
+    order: 10;
+  }
+  .editor-name .name-field {
+    width: 100%;
+  }
+  /* 폴더 이름이 길면(daily / 2026) 줄여서 이름 칸이 넉넉하게 */
+  .editor-name .name-field > span:first-child {
+    flex: 0 1 auto;
+    max-width: 30%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .editor-name .name-field input {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+    max-width: none;
+    padding: 0.3rem 0.4rem;
+    font-size: 0.875rem;
+  }
+  .editor-name .file-name {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.9rem;
+  }
+}
+
+/* ── 항목 칸의 추천 태그: 이름 칸 폭이 아니라 가로 전체로 밀어 보기 ── */
+.props .chips-field > .chip-suggest {
+  grid-column: 1 / -1;
+  margin: 0 -0.65rem;
+  padding: 0 0.65rem 0.4rem;
+  scroll-padding: 0 0.65rem;
+}
+
+/* ── 연도: 바로가기 칩·구분 줄의 상자·둥근 테두리 없이 글자만 ── */
+.year-jump {
+  gap: 0.1rem 0.9rem;
+}
+.year-jump a {
+  padding: 0.25rem 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--muted);
+  font-weight: 600;
+}
+.year-jump a:hover {
+  border: 0;
+  color: var(--accent);
+}
+
+/* ── 구분선은 최소한만: 앱 머리줄·아래 메뉴·편집 도구 줄·표 머리만 남기고, 목록 줄 사이 선은 간격으로 ── */
+.note-list,
+.on-this-day .note-list,
+.recent .note-list,
+.features,
+.meals,
+.pc-list,
+.person-list,
+.pending-notes {
+  border: 0;
+}
+.note-list a,
+.note-list li,
+.note-list .year-divider,
+.folder-grid a,
+.fcard,
+.fcard:hover,
+.meals a,
+.meals a:hover,
+.pc-list a,
+.person-list li,
+.pending-row,
+.graph-row,
+.spend-table td,
+.pc-table td {
+  border-top: 0;
+  border-bottom: 0;
+}
+.meta .prop + .prop,
+.props .form-field,
+.props .chips-field {
+  border-top: 0;
+}
+.local-graph {
+  border-top: 0;
+}
+.side-tools,
+.side-foot {
+  border-top: 0;
+}
+/* 선 대신 줄 간격을 조금 넉넉히 */
+.note-list a {
+  padding-top: 0.6rem;
+  padding-bottom: 0.6rem;
+}
+.note-list .year-divider {
+  padding-top: 1.1rem;
+}
