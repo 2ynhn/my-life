@@ -142,11 +142,18 @@ export async function findByKeywords(
   index: DriveIndex,
   keywords: string[],
   keep: (file: FileEntry) => boolean,
+  opts: {
+    /** 검색어가 하나도 없는 글도 넣을지 (기간·종류로 이미 좁힌 질문: 검색어는 순서만 정한다) */
+    all?: boolean;
+    /** 글 내용을 읽은 뒤 한 번 더 거르기 (앞머리 start·end 기간 등) */
+    keepText?: (text: string, file: FileEntry) => boolean;
+  } = {},
 ): Promise<{ hits: KeywordHit[]; scanned: number; total: number }> {
   const notes = listableNotes(index).filter(keep);
   const needles = [...new Set(keywords.map((k) => k.trim().toLowerCase()).filter(Boolean))];
   const hits: KeywordHit[] = [];
   const scanned = await scan(index, notes, (text, file) => {
+    if (opts.keepText && !opts.keepText(text, file)) return;
     if (!needles.length) return void hits.push({ file, score: 0, text });
     const title = file.slugPath.join("/").toLowerCase();
     const lower = text.toLowerCase();
@@ -155,7 +162,7 @@ export async function findByKeywords(
       if (title.includes(n)) score += 2;
       else if (lower.includes(n)) score += 1;
     }
-    if (score) hits.push({ file, score, text });
+    if (score || opts.all) hits.push({ file, score, text });
   });
   hits.sort((a, b) => b.score - a.score || newestFirst(a.file, b.file));
   return { hits, scanned, total: notes.length };

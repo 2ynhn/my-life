@@ -248,6 +248,13 @@ const server = createServer(async (req, res) => {
           const q = /질문:\s*(.*)/.exec(lastText)?.[1] ?? lastText;
           const keywords = q.replace(/[?？.!]/g, " ").split(/\s+/).map((w) => w.replace(/(에서|으로|에게|은|는|이|가|을|를|의|에|랑|과|와|도)$/, "")).filter((w) => w.length >= 2 && !/^(어디|언제|무엇|뭐|얼마|했지|갔지|먹은|먹었지|샀지|곳|있었지)/.test(w));
           out = { keywords, from: "", to: "", kinds: [] };
+          // "2026년 10월 여행 …"처럼 연·월이 있으면 실제 모델처럼 기간·종류로 (검색어에 '여행'도 남겨 둔다)
+          const ym = /(\d{4})년\s*(\d{1,2})월/.exec(q);
+          if (ym) {
+            const m = ym[2].padStart(2, "0");
+            const last = new Date(Date.UTC(Number(ym[1]), Number(m), 0)).getUTCDate();
+            out = { keywords: q.includes("여행") ? ["여행"] : [], from: `${ym[1]}-${m}-01`, to: `${ym[1]}-${m}-${last}`, kinds: q.includes("여행") ? ["travel", "diary"] : [] };
+          }
         } else if (props.answer) {
           // 물어보기 2단계: 첫 번째 자료를 근거로 답한 척
           const first = /\[(\d+)\] ([^\n]+)/.exec(lastText);
