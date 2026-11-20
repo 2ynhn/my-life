@@ -288,7 +288,7 @@ export function LocalGraph({ id }: { id: string }) {
                           style={
                             n.kind === "ghost"
                               ? { fill: "var(--surface)", stroke: "var(--fc, var(--accent))", strokeWidth: 2 }
-                              : { fill: colorOf(n.kind), opacity: n.depth === 2 ? 0.45 : 1 }
+                              : { fill: n.depth === 2 ? `color-mix(in srgb, ${colorOf(n.kind)} 45%, var(--surface))` : colorOf(n.kind) }
                           }
                         />
                         <text

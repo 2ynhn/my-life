@@ -30,7 +30,7 @@ export function TravelMap({ points, route = false }: { points: MapPoint[]; route
       }).addTo(map);
       const latlngs = points.map((p) => L.latLng(p.lat, p.lng));
       const placeLine = points.filter((p) => !p.image).map((p) => L.latLng(p.lat, p.lng));
-      if (route && placeLine.length > 1) L.polyline(placeLine, { color, weight: 2, opacity: 0.8, dashArray: "4 6" }).addTo(map);
+      if (route && placeLine.length > 1) L.polyline(placeLine, { color, weight: 2, opacity: 1, dashArray: "4 6" }).addTo(map);
       points.forEach((p, i) => {
         const label = `${p.image ? `<img class="map-photo" src="${esc(p.image)}" alt="" loading="lazy">` : ""}<b>${esc(p.name)}</b>${
           p.sub ? `<br><span>${esc(p.sub)}</span>` : ""

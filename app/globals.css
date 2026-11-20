@@ -6222,3 +6222,130 @@ body:has(.editor) .tabbar {
 .meal-thumb img {
   display: block;
 }
+
+/* ════════ solid 정리: 퍼지는 그림자·반투명·그라데이션 대신 단색 면과 1px 선 ════════
+   (예외: 카메라 안내 틀은 화면이 비쳐야 해서, 비활성 버튼의 흐림은 표준 표시라서 그대로) */
+:root {
+  --shadow: none;
+  --shadow-lift: none;
+  /* 창·서랍 뒤를 덮는 불투명한 단색 */
+  --scrim: color-mix(in srgb, var(--text) 22%, var(--bg));
+}
+.fcard,
+.fcard:hover,
+.quick-note,
+.quick-note input,
+.collect-cards a,
+.ask-answer,
+.save-toast,
+.new-menu-list {
+  box-shadow: none;
+}
+.fcard:hover {
+  transform: none;
+}
+/* 떠 있는 것: 그림자 대신 1px 선 */
+.save-toast,
+.new-menu-list,
+.picker {
+  border: 1px solid var(--line);
+  box-shadow: none;
+}
+/* 고른 탭·보기 방식: 그림자 대신 흰 바탕 + 1px 선 */
+.range-tabs a.on,
+.layout-toggle button[aria-pressed="true"],
+.graph-seg button.on,
+.seg button.on {
+  box-shadow: none;
+}
+.range-tabs a,
+.layout-toggle button,
+.graph-seg button {
+  border: 1px solid transparent;
+}
+.range-tabs a.on,
+.layout-toggle button[aria-pressed="true"],
+.graph-seg button.on {
+  border-color: var(--line);
+  background: var(--surface);
+}
+/* 창 뒤 배경·사이드 서랍 뒤: 불투명한 단색 */
+.picker-backdrop {
+  background: var(--scrim);
+}
+@media (max-width: 768px) {
+  .side-scrim {
+    background: var(--scrim);
+  }
+  .sidebar {
+    box-shadow: none;
+    border-right: 1px solid var(--line);
+  }
+  /* 편집 도구 막대(아래에 뜬 검은 막대): 그림자 없이, 눌린 칸은 불투명한 회색 */
+  .editor-tools {
+    box-shadow: none;
+  }
+  .editor-tools .tabs button[aria-selected="true"],
+  .editor-tools .receipt-toggle.on,
+  .editor-tools .fmt-btn:hover,
+  .editor-tools .fmt-btn:focus-visible {
+    background: color-mix(in srgb, #fff 16%, var(--text));
+  }
+  .format-tools {
+    border-left-color: color-mix(in srgb, #fff 20%, var(--text));
+  }
+}
+/* 그래프 막대·평균선: 흐리게(opacity) 대신 같은 색의 옅은 단색 */
+.chart .bar {
+  opacity: 1;
+  fill: color-mix(in srgb, var(--chart) 55%, var(--bg));
+}
+.chart .col:hover .hit {
+  opacity: 1;
+  fill: var(--accent-soft);
+}
+.chart .avg {
+  opacity: 1;
+  stroke: color-mix(in srgb, var(--muted) 60%, var(--bg));
+}
+.mbar {
+  opacity: 1;
+  background: color-mix(in srgb, var(--chart) 45%, var(--bg));
+}
+.mcol.selected .mbar,
+.mcol:hover .mbar {
+  background: var(--chart);
+}
+/* 작은 표시: 흐림 대신 옅은 글자색 */
+.crumbs .sep,
+.lock,
+.place-link svg {
+  opacity: 1;
+  color: var(--muted);
+}
+.fcard-start {
+  opacity: 1;
+}
+.pending-row {
+  opacity: 1;
+  color: var(--muted);
+}
+/* 불러오는 중 자리표시: 번쩍이는 그라데이션 대신 단색 */
+.sk {
+  background: var(--panel);
+  animation: none;
+}
+/* 지도(Leaflet) 버튼·말풍선: 그림자 대신 1px 선 */
+.leaflet-bar,
+.leaflet-control-layers,
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  box-shadow: none !important;
+}
+.leaflet-bar,
+.leaflet-popup-content-wrapper {
+  border: 1px solid var(--line) !important;
+}
+.leaflet-container .leaflet-control-attribution {
+  background: var(--surface) !important;
+}
