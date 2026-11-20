@@ -159,16 +159,18 @@ export function FoodView({ src }: { src: ViewSource }) {
               <span className="meal-text">
                 <strong>{m.restaurant || m.geo?.name || m.file.slug}</strong>
                 {m.menu.length > 0 && <span className="small">{m.menu.join(", ")}</span>}
-                <span className="muted small">
-                  {dot(m.date)}
-                  {m.price > 0 && ` · ${won(m.price)}`}
-                  {m.rating > 0 && (
-                    <span className="meal-stars" aria-label={`별점 ${m.rating}`}>
-                      {" · "}
-                      <Star size={12} aria-hidden /> {m.rating}
-                    </span>
-                  )}
-                </span>
+                {/* 날짜는 빼고 금액·별점만 (목록 보기의 별점은 글줄에, 썸네일 보기는 사진 위) */}
+                {(m.price > 0 || m.rating > 0) && (
+                  <span className="muted small">
+                    {m.price > 0 && won(m.price)}
+                    {m.rating > 0 && (
+                      <span className="meal-stars" aria-label={`별점 ${m.rating}`}>
+                        {m.price > 0 && " · "}
+                        <Star size={12} aria-hidden /> {m.rating}
+                      </span>
+                    )}
+                  </span>
+                )}
               </span>
             </Link>
           </li>

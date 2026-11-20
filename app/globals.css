@@ -6175,12 +6175,7 @@ body:has(.editor) .tabbar {
   font-size: 0.95rem;
   letter-spacing: 1px;
   line-height: 1;
-  /* 바탕 없이 별만: 밝은 사진에서도 보이게 흐림 없는 진한 테두리 (단단한 느낌) */
-  text-shadow:
-    1px 0 0 #3d2e00,
-    -1px 0 0 #3d2e00,
-    0 1px 0 #3d2e00,
-    0 -1px 0 #3d2e00;
+  /* 바탕·테두리 없이 노란 별만 */
 }
 .meals.meals-grid .meal-stars {
   display: none;
