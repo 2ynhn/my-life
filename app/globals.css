@@ -6170,14 +6170,17 @@ body:has(.editor) .tabbar {
   display: block;
   position: absolute;
   left: 8px;
-  bottom: 8px;
-  padding: 1px 7px 2px;
-  border-radius: 999px;
-  background: rgb(20 22 18 / 0.55);
-  color: #ffd257;
-  font-size: 0.75rem;
+  bottom: 6px;
+  color: #ffc727;
+  font-size: 0.95rem;
   letter-spacing: 1px;
-  line-height: 1.4;
+  line-height: 1;
+  /* 바탕 없이 별만: 밝은 사진에서도 보이게 흐림 없는 진한 테두리 (단단한 느낌) */
+  text-shadow:
+    1px 0 0 #3d2e00,
+    -1px 0 0 #3d2e00,
+    0 1px 0 #3d2e00,
+    0 -1px 0 #3d2e00;
 }
 .meals.meals-grid .meal-stars {
   display: none;
@@ -6215,4 +6218,7 @@ body:has(.editor) .tabbar {
     width: 92px;
     height: 92px;
   }
+}
+.meal-thumb img {
+  display: block;
 }
