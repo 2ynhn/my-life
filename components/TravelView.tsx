@@ -75,6 +75,8 @@ export function TravelView({ src }: { src: ViewSource }) {
       })),
   );
   const points = [...placePoints, ...photoPoints];
+  const i = (t: (typeof trips)[number]) => trips.indexOf(t);
+  const coverOf = (n: number) => trips[n].photos[0] ?? fromDiaries[n].photos[0]?.file ?? null;
   const years = [...new Set(trips.map((t) => t.start.slice(0, 4)))];
 
   return (
@@ -96,7 +98,12 @@ export function TravelView({ src }: { src: ViewSource }) {
               .filter((t) => t.start.startsWith(y))
               .map((t) => (
                 <li key={t.file.id}>
-                  <Link href={t.file.href} className="trip">
+                  <Link href={t.file.href} className={`trip${coverOf(i(t)) ? " has-cover" : ""}`}>
+                    {coverOf(i(t)) && (
+                      // 대표 사진 1장: 여행 글의 첫 사진, 없으면 그 기간 일기의 첫 사진
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img className="trip-cover" src={coverOf(i(t))!.url} alt="" loading="lazy" />
+                    )}
                     <span className="trip-title">{t.title}</span>
                     <span className="muted small">
                       {dot(t.start)}

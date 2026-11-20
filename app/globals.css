@@ -6153,3 +6153,66 @@ body:has(.editor) .tabbar {
   font-weight: 600;
   color: var(--fc, var(--accent));
 }
+
+/* ── 음식 썸네일 보기: 별점은 사진 위에 별 개수로 (글줄에서는 뺀다). 목록 보기는 그대로 글줄에 ── */
+.meal-thumb {
+  position: relative;
+  display: block;
+  flex: none;
+}
+.meal-rate {
+  display: none;
+}
+.meals.meals-grid .meal-thumb {
+  width: 100%;
+}
+.meals.meals-grid .meal-rate {
+  display: block;
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  padding: 1px 7px 2px;
+  border-radius: 999px;
+  background: rgb(20 22 18 / 0.55);
+  color: #ffd257;
+  font-size: 0.75rem;
+  letter-spacing: 1px;
+  line-height: 1.4;
+}
+.meals.meals-grid .meal-stars {
+  display: none;
+}
+.meals.meals-grid .meal-text {
+  min-width: 0;
+}
+.meals.meals-grid .meal-text > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── 여행 목록: 대표 사진 1장을 오른쪽에 (사진이 없으면 글만) ── */
+.trip.has-cover {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 0.75rem;
+  align-items: center;
+}
+.trip.has-cover > :not(.trip-cover) {
+  grid-column: 1;
+}
+.trip-cover {
+  grid-column: 2;
+  grid-row: 1 / span 3;
+  width: 76px;
+  height: 76px;
+  border-radius: 12px;
+  object-fit: cover;
+  background: var(--panel);
+}
+@media (min-width: 769px) {
+  .trip-cover {
+    width: 92px;
+    height: 92px;
+  }
+}

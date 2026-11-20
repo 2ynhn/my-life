@@ -140,14 +140,22 @@ export function FoodView({ src }: { src: ViewSource }) {
         {meals.slice(0, 30).map((m) => (
           <li key={m.file.id}>
             <Link href={m.file.href}>
-              {m.photo ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={m.photo.url} alt="" loading="lazy" />
-              ) : (
-                <span className="meal-noimg" aria-hidden>
-                  <UtensilsCrossed size={22} strokeWidth={1.5} />
-                </span>
-              )}
+              <span className="meal-thumb">
+                {m.photo ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={m.photo.url} alt="" loading="lazy" />
+                ) : (
+                  <span className="meal-noimg" aria-hidden>
+                    <UtensilsCrossed size={22} strokeWidth={1.5} />
+                  </span>
+                )}
+                {/* 썸네일 보기: 별점은 사진 위에 별 개수로 (아래 글줄이 길어도 밀려나지 않게) */}
+                {m.rating > 0 && (
+                  <span className="meal-rate" aria-hidden>
+                    {"★".repeat(Math.min(5, Math.round(m.rating)))}
+                  </span>
+                )}
+              </span>
               <span className="meal-text">
                 <strong>{m.restaurant || m.geo?.name || m.file.slug}</strong>
                 {m.menu.length > 0 && <span className="small">{m.menu.join(", ")}</span>}
