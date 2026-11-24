@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { LocalProvider } from "@/components/LocalData";
 import { LocalEditorHost } from "@/components/LocalEditorHost";
 import { LocalNav } from "@/components/LocalNav";
+import { ScrollKeeper } from "@/components/ScrollKeeper";
 import { Sidebar } from "@/components/Sidebar";
 import { TabBar } from "@/components/TabBar";
 import { folderTree } from "@/lib/drive";
@@ -32,6 +33,7 @@ export default async function LibraryLayout({
         <Suspense fallback={null}>
           <LocalNav />
           <LocalEditorHost />
+          <ScrollKeeper />
         </Suspense>
         {children}
       </div>

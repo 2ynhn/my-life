@@ -73,7 +73,7 @@ export function TopNav() {
   const label = upLabel(up);
   return (
     <div className="nav-title">
-      <Link href={up} className="nav-back" aria-label={`위로: ${label}`} title={`${label}(으)로`}>
+      <Link href={up} className="nav-back" data-restore-scroll aria-label={`위로: ${label}`} title={`${label}(으)로`}>
         <ArrowLeft size={20} aria-hidden />
       </Link>
       <span className="nav-name">{title}</span>
