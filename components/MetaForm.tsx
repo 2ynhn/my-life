@@ -131,6 +131,29 @@ export function Chips({
   );
 }
 
+/**
+ * 큰 제목 칸. 일기 제목은 본문의 '# 제목' 줄에 저장돼 다시 읽으면 끝 공백이 잘리므로,
+ * 치는 동안은 친 그대로 보여 준다 (저장된 값이 친 값과 공백만 다르면 친 값 유지)
+ */
+function TitleInput({ label, value, onValue, placeholder }: { label: string; value: string; onValue: (v: string) => void; placeholder: string }) {
+  const [typed, setTyped] = useState(value);
+  const shown = typed.trim() === value.trim() ? typed : value;
+  return (
+    <label className="title-field">
+      <span className="sr-only">{label}</span>
+      <input
+        value={shown}
+        onChange={(e) => {
+          setTyped(e.target.value);
+          onValue(e.target.value);
+        }}
+        placeholder={placeholder}
+        enterKeyHint="next"
+      />
+    </label>
+  );
+}
+
 function Text({
   label,
   value,
@@ -267,10 +290,7 @@ export function MetaForm({ kind, text, onChange, suggestions, onAddPlace, onAddC
   const body = (placeholder: string) => <BodyField text={text} onChange={onChange} placeholder={placeholder} />;
   /** 속성판 위의 큰 제목 칸 (일기 제목·여행 이름) */
   const bigTitle = (label: string, value: string, onValue: (v: string) => void, placeholder: string) => (
-    <label className="title-field">
-      <span className="sr-only">{label}</span>
-      <input value={value} onChange={(e) => onValue(e.target.value)} placeholder={placeholder} enterKeyHint="next" />
-    </label>
+    <TitleInput label={label} value={value} onValue={onValue} placeholder={placeholder} />
   );
   const labelOf = (Icon: LucideIcon, label: string) => (
     <span className="form-label">
