@@ -10,7 +10,7 @@ export type TemplateKind = "spending" | "travel" | "health" | "food";
 export function kindOfTemplate(text: string): TemplateKind | null {
   if (/^amount:/m.test(text)) return "spending";
   if (/^places:/m.test(text)) return "travel";
-  if (/^(weight|sleep|steps|bp_sys|glucose):/m.test(text)) return "health";
+  if (/^(weight|sleep|steps|bp_sys|glucose|exercise_min):/m.test(text)) return "health";
   if (/^restaurant:/m.test(text)) return "food";
   return null;
 }
@@ -27,7 +27,7 @@ const KINDS: { kind: TemplateKind; label: string; builtin: string }[] = [
 ];
 const DIARY_STEMS = new Set(["daily", "diary", "일기"]);
 
-/** 고를 수 있는 유형: 기본 → 구매·여행·건강·음식(_templates에 있으면 그 파일, 없으면 내장) → 일기 → 그 밖의 서식 */
+/** 고를 수 있는 유형: 기본 → 구매·여행·건강·음식(_templates에 있으면 그 파일, 없으면 내장) → 운동 → 일기 → 그 밖의 서식 */
 export function templateChoices(files: TemplateFile[]): TemplateChoice[] {
   const isDefault = (f: TemplateFile) => f.stem.toLowerCase() === "default";
   const out: TemplateChoice[] = [{ key: "default", label: "기본" }];
@@ -41,6 +41,8 @@ export function templateChoices(files: TemplateFile[]): TemplateChoice[] {
       }
     } else out.push({ key: k.builtin, label: k.label });
   }
+  // 운동: 건강 서식의 한 갈래 (_templates에 exercise·운동이 없으면 내장)
+  if (!files.some((f) => ["exercise", "운동"].includes(f.stem.toLowerCase()))) out.push({ key: "exercise", label: "운동" });
   for (const f of files) {
     if (used.has(f.stem) || isDefault(f)) continue;
     out.push(DIARY_STEMS.has(f.stem.toLowerCase()) ? { key: f.stem, label: "일기", detail: f.stem } : { key: f.stem, label: f.stem });
@@ -55,5 +57,10 @@ export function templateTextFor(key: string, files: TemplateFile[]): string | nu
   const file = files.find((f) => f.stem.toLowerCase() === k);
   if (file) return file.text;
   if (k === "default") return DEFAULT_TEMPLATE;
+  if (k === "운동") return BUILTIN_TEMPLATES.exercise;
   return BUILTIN_TEMPLATES[k] ?? null;
 }
+
+/** 유형이 정해진 폴더에서도 고를 수 있는 갈래 (건강 폴더의 운동) */
+export const subTemplateAllowed = (folderForm: string | null, tpl: string | null | undefined) =>
+  folderForm === "health" && !!tpl && ["exercise", "운동"].includes(tpl.toLowerCase());

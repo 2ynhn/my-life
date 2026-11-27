@@ -21,7 +21,7 @@ import { LocalRootView } from "@/components/LocalRootView";
 import { LOCAL_ROOT_VIEWS, type RootViewName } from "@/lib/root-views";
 import { Home } from "@/components/Home";
 import { TEMPLATE_FOLDER, isTemplateFile, withEnd } from "@/lib/templates";
-import { kindOfTemplate, templateChoices, templateTextFor } from "@/lib/template-types";
+import { kindOfTemplate, subTemplateAllowed, templateChoices, templateTextFor } from "@/lib/template-types";
 import { homeData } from "@/lib/home-data";
 import { TripSection } from "@/components/TripSection";
 import {
@@ -365,7 +365,7 @@ async function NewNote({
   let template: string;
   try {
     // 유형이 정해진 폴더는 늘 자기 서식. 유형이 없는 폴더만 고른 유형을 따른다
-    const chosen = !folderForm && tpl ? templateTextFor(tpl, await templateFiles(index)) : null;
+    const chosen = (!folderForm || subTemplateAllowed(folderForm, tpl)) && tpl ? templateTextFor(tpl, await templateFiles(index)) : null;
     template = chosen ?? (await loadTemplate(index, folder));
   } catch (e) {
     return readProblem(e);
@@ -379,6 +379,7 @@ async function NewNote({
       sharedImage={shared === "1" && kind === "spending"}
       sharedPhotos={shared === "photos"}
       sharedPlace={shared === "place" && kind === "food"}
+      sharedText={shared === "text"}
       insertPhoto={insertPhoto}
       places={kind === "travel" || kind === "food"}
       form={kind}

@@ -11,7 +11,7 @@ import type { FormKind } from "@/components/MetaForm";
 import { normHref, type LocalState } from "@/lib/local-store";
 import type { LocalEntry } from "@/lib/local-types";
 import { featureByName } from "@/lib/features";
-import { kindOfTemplate, templateTextFor, type TemplateFile } from "@/lib/template-types";
+import { kindOfTemplate, subTemplateAllowed, templateTextFor, type TemplateFile } from "@/lib/template-types";
 import { BUILTIN_TEMPLATES, DEFAULT_TEMPLATE, TEMPLATE_FOLDER, isTemplateFile, withEnd } from "@/lib/templates";
 import { todayKST } from "@/lib/today";
 
@@ -126,7 +126,7 @@ export function localEditorProps(local: LocalState | null, pathname: string, sea
   const folderForm = kindOf(local, entry);
   // 유형이 없는 폴더만 고른 유형(tpl)을 따른다. 사본에 그 서식이 없으면 서버 화면으로
   const tpl = sp.get("tpl");
-  const template = !folderForm && tpl ? templateTextFor(tpl, localTemplateFiles(local)) : templateFor(local, entry);
+  const template = (!folderForm || subTemplateAllowed(folderForm, tpl)) && tpl ? templateTextFor(tpl, localTemplateFiles(local)) : templateFor(local, entry);
   if (template === null) return null;
   const rawDate = sp.get("date");
   const date = rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : todayKST();
@@ -140,6 +140,7 @@ export function localEditorProps(local: LocalState | null, pathname: string, sea
     sharedImage: shared === "1" && kind === "spending",
     sharedPhotos: shared === "photos",
     sharedPlace: shared === "place" && kind === "food",
+    sharedText: shared === "text",
     insertPhoto,
     places: kind === "travel" || kind === "food",
     form: kind,

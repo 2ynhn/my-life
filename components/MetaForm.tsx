@@ -5,6 +5,7 @@ import {
   Banknote,
   CalendarDays,
   CreditCard,
+  Dumbbell,
   ExternalLink,
   Folder,
   Hash,
@@ -536,20 +537,28 @@ export function MetaForm({ kind, text, onChange, suggestions, onAddPlace, onAddC
 
   // 건강: 자주 재는 것은 늘 보이고, 검진·생활은 값이 있거나 펼쳤을 때
   const extra = Object.keys(meta).filter((k) => !METRICS[k] && !HEALTH_TEXT_KEYS.has(k) && k !== "condition");
+  /** 운동 글 (운동 서식: exercise 칸이 있음) */
+  const workout = "exercise" in meta;
   return (
     <div className="meta-form">
       <div className="props">
         <div className="form-grid">
           <Text label="날짜" icon={CalendarDays} type="date" value={meta.date} onChange={(v) => set({ date: v })} />
-          <Text label="검진·병원" icon={Activity} value={meta.checkup} onChange={(v) => set({ checkup: v })} placeholder="예: 국가건강검진" />
+          {workout ? (
+            <Text label="운동 종류" icon={Dumbbell} value={meta.exercise} onChange={(v) => set({ exercise: v })} placeholder="예: 러닝, 수영, 헬스" />
+          ) : (
+            <Text label="검진·병원" icon={Activity} value={meta.checkup} onChange={(v) => set({ checkup: v })} placeholder="예: 국가건강검진" />
+          )}
         </div>
-        {METRIC_GROUPS.map((g, gi) => {
+        {(workout ? [...METRIC_GROUPS].sort((a, b) => Number(b.title === "운동") - Number(a.title === "운동")) : METRIC_GROUPS).map((g, gi) => {
+          // 운동 글이면 운동 칸을 펼치고 혈압·혈당 등은 접는다 (값이 있으면 펼침)
           const filled = g.metrics.some((m) => meta[m.key] !== undefined && meta[m.key] !== null && meta[m.key] !== "");
-          const open = gi === 0 || filled || openGroups[g.title];
+          const first = workout ? g.title === "운동" : gi === 0;
+          const open = first || filled || openGroups[g.title];
           return (
             <fieldset key={g.title} className="metric-group">
               <legend>
-                {gi === 0 ? (
+                {first ? (
                   g.title
                 ) : (
                   <button type="button" onClick={() => setOpenGroups({ ...openGroups, [g.title]: !open })} aria-expanded={!!open}>

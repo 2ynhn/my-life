@@ -67,6 +67,21 @@ tags: []
 메모:
 `;
 
+/** 운동 한 번 = 글 하나 (건강 폴더에 넣어 숫자는 건강 그래프로). 운동 앱 화면을 공유하면 AI가 채울 수 있다 */
+export const EXERCISE_TEMPLATE = `---
+date: {{date}}
+exercise: ""         # 운동 종류 (예: 러닝, 수영, 헬스)
+exercise_min:        # 운동 시간 (분)
+distance_km:         # 거리 km
+calories:            # 소모 칼로리 kcal
+avg_hr:              # 평균 심박 회/분
+steps:               # 걸음
+tags: [운동]
+---
+
+운동 메모:
+`;
+
 /** 음식 한 번 = 글 하나. 사진을 공유하거나 올리면 찍은 곳이 place에 들어간다 (지도에 표시) */
 export const FOOD_TEMPLATE = `---
 date: {{date}}
@@ -113,6 +128,7 @@ export const BUILTIN_TEMPLATES: Record<string, string> = {
   travel: TRAVEL_TEMPLATE,
   health: HEALTH_TEMPLATE,
   food: FOOD_TEMPLATE,
+  exercise: EXERCISE_TEMPLATE,
 };
 
 

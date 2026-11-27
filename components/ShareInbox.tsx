@@ -1,6 +1,6 @@
 "use client";
 
-import { NotebookPen, Plane, Plus, Receipt, Trash2, UtensilsCrossed } from "lucide-react";
+import { Dumbbell, NotebookPen, Plane, Plus, Receipt, Trash2, UtensilsCrossed } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
@@ -10,7 +10,9 @@ import { findMapUrl } from "@/lib/map-link";
 import { clearShared, peekShared } from "@/lib/share-store";
 
 // 휴대폰 '공유하기'로 받은 것을 어디에 넣을지 고른다.
-// 이미지: 구매(영수증으로 읽기) · 일기(오늘 일기에 사진) · 여행(최근 여행이나 새 여행에 사진). 글·링크: 오늘 일기에 한 줄.
+// 이미지: 구매(영수증으로 읽기) · 일기(오늘 일기에 사진) · 음식 · 여행(최근 여행이나 새 여행에 사진) · 운동(건강 폴더에 운동 기록).
+// 글·링크: 오늘 일기에 한 줄, 또는 운동 기록 본문으로.
+// 설정에서 'AI로 정리'를 켜 두면 일기·음식·여행·운동에 넣은 사진을 AI가 읽어 칸과 본문을 채운다 (편집기에서).
 // 지도 앱 장소 공유(글 안에 지도 링크, 이미지 없음): 고르지 않고 바로 새 음식 기록.
 // 받은 내용은 브라우저 안(Cache Storage)에만 있고, 다 쓰거나 버리면 지운다.
 
@@ -24,6 +26,8 @@ export type ShareTargets = {
   foodPlace: string | null;
   travelNew: string | null;
   trips: { title: string; path: string; href: string }[];
+  /** 새 운동 기록 (건강 폴더, 운동 서식). 뒤에 &shared=photos 또는 &shared=text 를 붙인다 */
+  exercise: string | null;
 };
 
 const todayKST = () => new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Seoul" }).format(new Date());
@@ -81,7 +85,7 @@ export function ShareInbox({ rootId, targets, retry }: { rootId: string | null; 
         )}
         <p className="muted small">
           휴대폰(안드로이드 크롬)에 my-life를 홈 화면에 설치하면, 갤러리·쇼핑 앱의 <b>공유하기</b> 목록에 my-life가 나옵니다. 사진은 구매(영수증
-          읽기)·일기·여행 중 넣을 곳을 고르고, 글이나 링크는 오늘 일기에 한 줄로 남길 수 있어요. 네이버 지도·카카오맵에서 장소를 공유하면 그 가게의 음식 기록이 바로 열려요. (아이폰은 아직 이 기능을 지원하지 않아요)
+          읽기)·일기·음식·여행·운동 중 넣을 곳을 고르고, 글이나 링크는 오늘 일기에 한 줄로 남기거나 운동 기록으로 넣을 수 있어요. 네이버 지도·카카오맵에서 장소를 공유하면 그 가게의 음식 기록이 바로 열려요. (아이폰은 아직 이 기능을 지원하지 않아요)
         </p>
         <Link className="btn" href="/">
           첫 화면으로
@@ -90,6 +94,11 @@ export function ShareInbox({ rootId, targets, retry }: { rootId: string | null; 
     );
 
   const many = images.length > 1;
+  // 운동 기록: 사진 찍은 날(없으면 오늘)로, 이름은 '날짜 운동' (AI가 종류를 알면 '날짜 러닝'처럼 바뀜)
+  const exerciseHref = (shared: "photos" | "text") => {
+    const day = (shared === "photos" && photoDay) || todayKST();
+    return `${targets.exercise}&shared=${shared}&date=${day}&name=${encodeURIComponent(`${day} 운동`)}`;
+  };
   return (
     <div className="share-inbox">
       {images.length > 0 && (
@@ -143,6 +152,19 @@ export function ShareInbox({ rootId, targets, retry }: { rootId: string | null; 
                   <span>
                     <strong>음식 · 먹은 것 기록{photoDay && photoDay !== todayKST() ? ` (${dayLabel(photoDay)})` : ""}</strong>
                     <span className="muted small">찍은 날짜와 찍은 곳(지도)이 자동으로 들어가요</span>
+                  </span>
+                </Link>
+              </li>
+            )}
+            {targets.exercise && (
+              <li>
+                <Link href={exerciseHref("photos")} className="share-target">
+                  <span className="ficon ficon-md ficon-health" aria-hidden>
+                    <Dumbbell size={20} strokeWidth={1.75} />
+                  </span>
+                  <span>
+                    <strong>운동 · 운동 기록{photoDay && photoDay !== todayKST() ? ` (${dayLabel(photoDay)})` : ""}</strong>
+                    <span className="muted small">운동 앱 화면을 넣으면 종류·시간·거리·칼로리를 기록해요 (건강 그래프에 이어짐)</span>
                   </span>
                 </Link>
               </li>
@@ -210,6 +232,12 @@ export function ShareInbox({ rootId, targets, retry }: { rootId: string | null; 
               <NotebookPen size={16} aria-hidden />
               {pending ? "남기는 중…" : "오늘 일기에 한 줄로"}
             </button>
+            {targets.exercise && (
+              <Link className="btn" href={exerciseHref("text")}>
+                <Dumbbell size={16} aria-hidden />
+                운동 기록으로
+              </Link>
+            )}
           </div>
           {result && (
             <p className={`small ${result.ok ? "quick-result ok" : "status error"}`}>

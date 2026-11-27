@@ -18,7 +18,7 @@ import { insertAt, insertLink, linePrefix, wrap, type Edit } from "@/lib/text-fo
 import { dateOf } from "@/lib/view-source";
 import { findMapUrl, type PlaceInfo } from "@/lib/map-link";
 import { ReceiptCamera } from "@/components/ReceiptCamera";
-import { addPlace, readMeta, setFields } from "@/lib/frontmatter-edit";
+import { addPlace, readBody, readMeta, setBody, setFields, type FieldValue } from "@/lib/frontmatter-edit";
 import { reverseName } from "@/lib/geo-name";
 import { imageFiles, prepareImage, uploadImage } from "@/lib/image-upload";
 import { tableResolver, type LinkTable } from "@/lib/markdown";
@@ -54,6 +54,8 @@ type Props = {
   sharedPhotos?: boolean;
   /** 휴대폰 '공유하기'로 받은 지도 앱 공유 글(네이버 지도 등)로 장소·식당을 채운다 (음식) */
   sharedPlace?: boolean;
+  /** 휴대폰 '공유하기'로 받은 글·링크를 본문 끝에 넣는다 (운동 기록 등) */
+  sharedText?: boolean;
   /** 이미 올려 둔 사진을 열자마자 글 끝에 넣는다 (여행 사진으로 일기 쓰기) */
   insertPhoto?: string;
 } & (
@@ -482,6 +484,80 @@ export function Editor(props: Props) {
     }
   };
 
+  const todayKST = () => new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Seoul" }).format(new Date());
+  // ── 공유받은 사진을 AI로 정리 ──
+  // 쓰임새: 일기·음식·여행은 그대로, 건강 폴더의 운동 서식(exercise 칸)은 운동
+  const analyzeKind = (doc: string): "exercise" | "food" | "travel" | "diary" | null => {
+    if (props.form === "diary" || props.form === "food" || props.form === "travel") return props.form;
+    if (props.form === "health" && /^exercise:/m.test(doc)) return "exercise";
+    return null;
+  };
+  const analyzeShared = async (blobs: Blob[]) => {
+    const kind = analyzeKind(viewRef.current?.state.doc.toString() ?? text);
+    if (!kind) return;
+    const form = new FormData();
+    form.set("kind", kind);
+    let total = 0;
+    for (const b of blobs.slice(0, 3)) {
+      try {
+        const img = await prepareImage(new File([b], "shared", { type: b.type || "image/jpeg" }));
+        if (total + img.size > 3_800_000) break;
+        total += img.size;
+        form.append("image", img, img.type === "image/png" ? "image.png" : "image.jpg");
+      } catch {}
+    }
+    if (!form.has("image")) return;
+    setMessage({ kind: "info", text: "AI가 사진을 읽는 중…" });
+    let body: { off?: boolean; error?: string; analysis?: { fields: Record<string, FieldValue>; title: string; markdown: string } };
+    try {
+      const res = await fetch("/api/analyze", { method: "POST", body: form });
+      body = await res.json().catch(() => ({ error: `AI 정리 실패 (${res.status})` }));
+    } catch {
+      body = { error: "서버에 연결하지 못했습니다." };
+    }
+    if (body.off) return setMessage({ kind: "info", text: `사진 ${blobs.length}장을 글 끝에 넣었어요. 확인하고 저장하세요.` });
+    if (!body.analysis) return setMessage({ kind: "error", text: `사진은 넣었지만 AI 정리는 못 했어요: ${body.error ?? "알 수 없는 오류"}` });
+    const a = body.analysis;
+    let doc = viewRef.current?.state.doc.toString() ?? text;
+    const meta = readMeta(doc) ?? {};
+    const today = todayKST();
+    // 비어 있는 칸만 채운다 (사진 날짜·직접 쓴 값은 그대로). 날짜는 오늘로 들어가 있을 때만 화면 속 날짜로
+    const empty = (v: unknown) => v === undefined || v === null || v === "" || (Array.isArray(v) && !v.length);
+    const fill: Record<string, FieldValue> = {};
+    for (const [k, v] of Object.entries(a.fields)) {
+      if (k === "date" ? String(meta.date ?? "") === today && v !== today : empty(meta[k])) fill[k] = v;
+    }
+    try {
+      if (Object.keys(fill).length) doc = setFields(doc, fill);
+      // 일기 제목이 비어 있으면 AI 제목으로
+      if (kind === "diary" && a.title && !readBody(doc).heading) doc = setBody(doc, { heading: a.title });
+    } catch {}
+    if (a.markdown) doc = `${doc.trimEnd()}\n\n${a.markdown}\n`;
+    replaceDoc(doc, false);
+    // 운동: 이름이 처음 그대로면 '날짜 운동종류'로 (예: 2026-11-27 러닝)
+    if (kind === "exercise" && props.mode === "new" && typeof fill.exercise === "string") {
+      const day = String(fill.date ?? meta.date ?? today).slice(0, 10);
+      const first = props.defaultName;
+      setName((n) => (n === first ? `${day} ${fill.exercise}` : n));
+    }
+    setMessage({ kind: "info", text: "AI가 사진을 읽고 채웠어요. 내용을 확인하고 저장하세요." });
+  };
+
+  // 공유받은 글·링크: 본문 끝에 (운동 기록으로 고른 경우 등)
+  const textTaken = useRef(false);
+  useEffect(() => {
+    if (!props.sharedText || textTaken.current) return;
+    textTaken.current = true;
+    void (async () => {
+      const shared = (await takeSharedText()).trim();
+      if (!shared) return;
+      const doc = viewRef.current?.state.doc.toString() ?? text;
+      replaceDoc(`${doc.trimEnd()}\n\n${shared}\n`, false);
+      setMessage({ kind: "info", text: "공유받은 글을 본문 끝에 넣었어요. 확인하고 저장하세요." });
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // 공유받은 이미지: 브라우저 안에 잠깐 둔 것을 꺼내(꺼내면 지움)
   // 구매는 첫 장을 영수증으로 읽고, 일기·여행은 사진으로 글 끝에 넣는다
   const sharedTaken = useRef(false);
@@ -505,6 +581,8 @@ export function Editor(props: Props) {
       if (view) view.dispatch({ selection: { anchor: view.state.doc.length } });
       await uploadRef.current(blobs.map((b, i) => new File([b], `shared-${i + 1}`, { type: b.type || "image/jpeg" })));
       setMessage({ kind: "info", text: `사진 ${blobs.length}장을 글 끝에 넣었어요. 확인하고 저장하세요.` });
+      // 설정에서 'AI로 정리'를 켰으면 사진을 읽어 칸·본문을 채운다 (꺼져 있으면 서버가 off만 돌려준다)
+      await analyzeShared(blobs);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

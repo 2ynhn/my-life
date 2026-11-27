@@ -18,7 +18,7 @@ export default async function SharePage({ searchParams }: { searchParams: Promis
   const mine = await myLibrary(user);
   const loaded = mine.kind === "ok" ? await loadLibrary(user, mine.lib.rootId) : null;
   let rootId: string | null = null;
-  const targets: ShareTargets = { purchase: null, diary: false, food: null, foodPlace: null, travelNew: null, trips: [] };
+  const targets: ShareTargets = { purchase: null, diary: false, food: null, foodPlace: null, travelNew: null, trips: [], exercise: null };
 
   if (loaded?.kind === "ok") {
     const index = loaded.index;
@@ -40,6 +40,10 @@ export default async function SharePage({ searchParams }: { searchParams: Promis
       // 지도 앱에서 공유한 장소 → 그 가게로 새 음식 기록
       targets.foodPlace = `${hrefFor(food)}?mode=new&shared=place`;
     }
+
+    // 운동: 건강 폴더에 운동 서식으로 새 글 (숫자는 건강 그래프로 이어진다)
+    const health = of("health");
+    if (health?.can.addChildren) targets.exercise = `${hrefFor(health)}?mode=new&tpl=exercise`;
 
     // 여행: 새 여행, 또는 최근에 고친 여행 글 5개
     const travel = of("travel");

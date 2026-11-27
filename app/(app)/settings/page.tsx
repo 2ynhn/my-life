@@ -4,6 +4,7 @@ import { ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { DriveProblem } from "@/components/DriveProblem";
 import { AiSettingsForm } from "@/components/AiSettingsForm";
+import { AnalyzeToggle } from "@/components/AnalyzeToggle";
 import { AboutMeButton } from "@/components/AboutMeButton";
 import { InviteLink, RestrictList, ShareList } from "@/components/ShareManager";
 import { AI_MODELS, getAiSettings } from "@/lib/ai-settings";
@@ -110,7 +111,7 @@ async function SettingsBody({ user }: { user: AppUser }) {
       </section>
 
       <section>
-        <h2>영수증 자동 입력 (Claude API)</h2>
+        <h2>Claude API · 영수증 읽기 · 공유 이미지 정리</h2>
         <p className="muted small">
           지출 글을 쓸 때 영수증 사진이나 주문내역 캡처를 올리면 Claude가 날짜·가게·금액·분류·품목을 채워 줍니다. 비용은{" "}
           <b>여기 입력한 내 Anthropic API 키</b>로 청구돼요(다른 사람은 각자 자기 키를 씁니다). 키는 내 Drive의{" "}
@@ -121,6 +122,7 @@ async function SettingsBody({ user }: { user: AppUser }) {
           에서 만들 수 있어요.
         </p>
         <AiSettingsForm models={AI_MODELS} model={ai.model} hasKey={ai.hasKey} keyHint={ai.keyHint} />
+        <AnalyzeToggle on={ai.analyze} hasKey={ai.hasKey} />
       </section>
 
       <section>

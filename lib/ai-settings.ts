@@ -14,8 +14,15 @@ export const AI_MODELS = {
 export type AiModel = keyof typeof AI_MODELS;
 export const DEFAULT_MODEL: AiModel = "claude-opus-5-5";
 
-type Stored = { version: 1; model: AiModel; key: string | null; keyHint: string };
-export type AiSettings = { model: AiModel; hasKey: boolean; keyHint: string };
+type Stored = {
+  version: 1;
+  model: AiModel;
+  key: string | null;
+  keyHint: string;
+  /** 공유받은 이미지를 AI로 읽어 글을 채울지 (설정에서 켜고 끈다, 기본 끔) */
+  analyze?: boolean;
+};
+export type AiSettings = { model: AiModel; hasKey: boolean; keyHint: string; analyze: boolean };
 
 const FILE = "ai.json";
 
@@ -50,25 +57,25 @@ const isModel = (m: unknown): m is AiModel => typeof m === "string" && m in AI_M
 async function readStored(index: DriveIndex): Promise<Stored | null> {
   const s = await readSettingsJson<Partial<Stored>>(index, FILE);
   if (!s) return null;
-  return { version: 1, model: isModel(s.model) ? s.model : DEFAULT_MODEL, key: s.key ?? null, keyHint: s.keyHint ?? "" };
+  return { version: 1, model: isModel(s.model) ? s.model : DEFAULT_MODEL, key: s.key ?? null, keyHint: s.keyHint ?? "", analyze: s.analyze === true };
 }
 
 /** 화면용: 키 자체는 돌려주지 않는다 */
 export async function getAiSettings(index: DriveIndex): Promise<AiSettings> {
   const s = await readStored(index);
   const hasKey = !!s?.key && decrypt(index.user.email, s.key) !== null;
-  return { model: s?.model ?? DEFAULT_MODEL, hasKey, keyHint: hasKey ? (s?.keyHint ?? "") : "" };
+  return { model: s?.model ?? DEFAULT_MODEL, hasKey, keyHint: hasKey ? (s?.keyHint ?? "") : "", analyze: !!s?.analyze };
 }
 
 /** 서버에서만: 영수증을 읽을 때 쓸 키와 모델 */
-export async function getAiCredentials(index: DriveIndex): Promise<{ apiKey: string; model: AiModel } | null> {
+export async function getAiCredentials(index: DriveIndex): Promise<{ apiKey: string; model: AiModel; analyze: boolean } | null> {
   const s = await readStored(index);
   const apiKey = s?.key ? decrypt(index.user.email, s.key) : null;
-  return apiKey ? { apiKey, model: s!.model } : null;
+  return apiKey ? { apiKey, model: s!.model, analyze: !!s!.analyze } : null;
 }
 
 /** apiKey: 새 키(문자열) · 그대로(undefined) · 지우기(null) */
-export async function saveAiSettings(index: DriveIndex, change: { apiKey?: string | null; model: AiModel }) {
+export async function saveAiSettings(index: DriveIndex, change: { apiKey?: string | null; model?: AiModel; analyze?: boolean }) {
   const current = await readStored(index);
   let key = current?.key ?? null;
   let keyHint = current?.keyHint ?? "";
@@ -79,6 +86,12 @@ export async function saveAiSettings(index: DriveIndex, change: { apiKey?: strin
     key = encrypt(index.user.email, change.apiKey);
     keyHint = `${change.apiKey.slice(0, 7)}…${change.apiKey.slice(-4)}`;
   }
-  const stored: Stored = { version: 1, model: change.model, key, keyHint };
+  const stored: Stored = {
+    version: 1,
+    model: change.model ?? current?.model ?? DEFAULT_MODEL,
+    key,
+    keyHint,
+    analyze: change.analyze ?? current?.analyze ?? false,
+  };
   await writeSettingsJson(index, FILE, stored);
 }

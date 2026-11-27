@@ -36,6 +36,15 @@ export const METRIC_GROUPS: MetricGroup[] = [
     ],
   },
   {
+    title: "운동",
+    metrics: [
+      { key: "exercise_min", label: "운동 시간", unit: "분", digits: 0 },
+      { key: "distance_km", label: "거리", unit: "km", digits: 2 },
+      { key: "calories", label: "소모 칼로리", unit: "kcal", digits: 0 },
+      { key: "avg_hr", label: "평균 심박", unit: "회/분", digits: 0 },
+    ],
+  },
+  {
     title: "생활",
     metrics: [
       { key: "sleep", label: "수면", unit: "시간", digits: 1 },

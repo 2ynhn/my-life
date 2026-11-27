@@ -257,6 +257,15 @@ const server = createServer(async (req, res) => {
             const last = new Date(Date.UTC(Number(ym[1]), Number(m), 0)).getUTCDate();
             out = { keywords: q.includes("여행") ? ["여행"] : [], from: `${ym[1]}-${m}-01`, to: `${ym[1]}-${m}-${last}`, kinds: q.includes("여행") ? ["travel", "diary"] : [] };
           }
+        } else if (props.exercise_min) {
+          // 공유 사진 AI 정리 (운동): 러닝 기록을 읽은 척
+          out = { date: "2026-11-26", exercise: "러닝", exercise_min: 31.3, distance_km: 5.2, calories: 412, avg_hr: 151, steps: null, title: "저녁 러닝 5.2km", markdown: "- 평균 페이스 6'01\"/km\n- 1km 구간: 6'10\" · 6'02\" · 5'58\" · 5'55\" · 5'50\"" };
+        } else if (props.restaurant && props.menu) {
+          out = { restaurant: "성수 파스타", menu: ["봉골레"], title: "봉골레 파스타", markdown: "바지락이 듬뿍 올라간 봉골레 한 접시." };
+        } else if (props.places && props.markdown) {
+          out = { places: ["불국사"], title: "불국사", markdown: "- 돌계단과 단풍" };
+        } else if (props.markdown && props.title) {
+          out = { title: "공원 산책", markdown: "나무 사이 산책길 사진." };
         } else if (props.answer) {
           // 물어보기 2단계: 첫 번째 자료를 근거로 답한 척
           const first = /\[(\d+)\] ([^\n]+)/.exec(lastText);

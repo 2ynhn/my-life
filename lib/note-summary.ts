@@ -37,6 +37,16 @@ function firstItem(meta: Record<string, unknown>): string {
 }
 
 function healthLines(meta: Record<string, unknown>): string[] {
+  // 운동 글: 종류 · 거리 · 시간 · 칼로리
+  if ("exercise" in meta) {
+    const ex = [
+      text(meta.exercise),
+      text(meta.distance_km) && `${text(meta.distance_km)}km`,
+      text(meta.exercise_min) && `${Math.round(Number(meta.exercise_min)) || text(meta.exercise_min)}분`,
+      text(meta.calories) && `${text(meta.calories)}kcal`,
+    ].filter(Boolean);
+    return [ex.join(" · ")];
+  }
   const parts: string[] = [];
   if (text(meta.weight)) parts.push(`체중 ${text(meta.weight)}`);
   if (text(meta.bp_sys) && text(meta.bp_dia)) parts.push(`혈압 ${text(meta.bp_sys)}/${text(meta.bp_dia)}`);

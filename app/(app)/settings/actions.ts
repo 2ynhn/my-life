@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { DriveError, addShare, invalidateIndex, removeShare, setRestricted } from "@/lib/drive";
-import { AI_MODELS, DEFAULT_MODEL, saveAiSettings, type AiModel } from "@/lib/ai-settings";
+import { AI_MODELS, DEFAULT_MODEL, getAiSettings, saveAiSettings, type AiModel } from "@/lib/ai-settings";
 import { checkApiKey } from "@/lib/receipt";
 import { loadLibrary, myLibrary, markWritten } from "@/lib/library";
 import { getUser } from "@/lib/session";
@@ -98,6 +98,16 @@ export async function saveAiAction(rawKey: string, rawModel: string, remove = fa
     }
     await saveAiSettings(index, { apiKey: apiKey || undefined, model });
     // 다른 서버 인스턴스(영수증 읽기 등)도 새 설정 파일을 보게
+    await markWritten();
+    return { ok: true };
+  });
+}
+
+/** 공유받은 이미지를 AI로 정리하기 켜고 끄기 (내 키가 있어야 켤 수 있다) */
+export async function setAnalyzeAction(on: boolean): Promise<Result> {
+  return withMyIndex(async ({ index }) => {
+    if (on && !(await getAiSettings(index)).hasKey) return { ok: false, error: "먼저 위에서 Anthropic API 키를 저장하세요." };
+    await saveAiSettings(index, { analyze: !!on });
     await markWritten();
     return { ok: true };
   });
